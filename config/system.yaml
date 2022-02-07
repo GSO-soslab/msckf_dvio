@@ -1,0 +1,33 @@
+##### System Parameters #####
+
+# Default: 20; 
+# Note: frequency for backend processing(MSCKF update), increase if more data need for processing ( keep it as camera fequency)
+backend_hz: 15
+
+# Default: 1; (0: static; 1:DVL-aided; 2:SFM-aided)
+# Note: Estimate IMU bias and find out the rotation matrix between inertial world frame and IMU body frame;
+imu_init_mode: 1      
+
+# Default: 10
+# Note: how many IMU data is selected to detect IMU jump (suddenly move)  
+imu_windows: 10
+
+# Default: 0.03
+# Note: second section IMU variance minus first section IMU variance, determine jump section (vehicle suddenly move)
+imu_delta_var_1: 0.03
+
+# Default: 0.1
+# Note: third section IMU variance minus first section IMU variance, determine jump section (vehicle suddenly move)
+imu_delta_var_2: 0.1
+
+# Default: 0.07
+# Note: IMU accleraion difference in x-axis(forward direction) shows at the suddenly movement time
+imu_delta: 0.07
+
+# Default: 5
+# Note: how many DVL data is selected to detect DVL jump (suddenly move)  
+dvl_windows: 4
+ 
+# Default: 0.05
+# Note: DVL velocity difference in x-axis(forward direction) shows at the suddenly movement time
+dvl_delta: 0.05

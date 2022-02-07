@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<launch>
+  <param name="/use_sim_time" value="true"/>
+
+  <!-- Parmaters -->
+  <arg name="bag_start"   default="0" /> 
+  <arg name="bag"  default="/home/lin/develop/data/underIce/GLRC/day_3_13/40m_servo60_noLED_noAR_LowFeq10m_noTF.bag" />
+
+  <arg name="calibration_yaml" default="$(find msckf_dvio)/config/calibration.yaml"/>
+  <rosparam command="load" file="$(arg calibration_yaml)"/>
+  <arg name="system_yaml" default="$(find msckf_dvio)/config/system.yaml"/>
+  <rosparam command="load" file="$(arg system_yaml)"/>
+
+  <!-- <param name="air_pressure" value="0.377999"/>
+  <param name="standard_soundSpeed" value="1480"/>
+  <param name="print_depth" value="false"/>
+  <node name="proc_dvl_node" pkg="rov_processing" type="proc_dvl_node"  output="screen"/> -->
+
+  <!-- <node name="madgwick_imu" pkg="imu_filter_madgwick" type="imu_filter_node" output="screen">
+      <remap from="/imu/data_raw" to="/rov/sensors/ahrs/imu/data"/>
+      <remap from="/imu/mag" to="/rov/sensors/ahrs/mag" />
+      <remap from="/imu/data" to="/rov/processed/ahrs/imu_madgwick"/>
+
+      <param name="use_mag" value="true"/>
+      <param name="mag_bias_x" value="-0.03661794"/>  
+      <param name="mag_bias_y" value="0.01874022"/>  
+      <param name="mag_bias_z" value="0.00129924"/>  
+      <param name="orientation_stddev" value=".005"/> 
+      <param name="gain" value="0.5" />
+      <param name="zeta" value="0.001" />
+      <param name="use_magnetic_field_msg" value="true"/>
+      <param name="publish_tf" value="false"/>
+      <param name="remove_gravity_vector" value="false"/>
+  </node> -->
+
+  <!-- build with flag: -DCMAKE=debug -->
+  <!-- add to roslaunch: launch-prefix="gdb -ex run -1-args" -->
+  <!-- type: bt -->
+  <node name="dvio_node" pkg="msckf_dvio" type="dvio_node" output="screen" >
+      <remap from="imu" to="/rov/sensors/ahrs/imu/data"/>
+      <remap from="dvl" to="/rov/sensors/dvl/twist"/>
+  </node>
+
+  <!-- play the dataset -->
+  <node pkg="rosbag" type="play" name="rosbag" args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)" required="true"/>
+
+</launch>
