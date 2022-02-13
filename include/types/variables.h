@@ -1,6 +1,7 @@
 #ifndef MSCKF_TYPE_VARIABLES_H_
 #define MSCKF_TYPE_VARIABLES_H_
 
+#include <memory>
 #include <Eigen/Eigen>
 #include "utils/utils.h"
 

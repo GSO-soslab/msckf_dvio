@@ -6,17 +6,16 @@ add_compile_options(-std=c++14)
 
 ### Find Library
 
-SET(OpenCV_DIR /home/lin/develop/3rd/opencv/install/opencv-4.2.0/lib/cmake/opencv4/)
-find_package(OpenCV 4.2.0 REQUIRED)
-message(STATUS "OpenCV library status:")
-message(STATUS "    config: ${OpenCV_DIR}")
-message(STATUS "    version: ${OpenCV_VERSION}")
-message(STATUS "    libraries: ${OpenCV_LIBS}")
-message(STATUS "    include path: ${OpenCV_INCLUDE_DIRS}")
+# SET(OpenCV_DIR /home/lin/develop/3rd/opencv/install/opencv-4.2.0/lib/cmake/opencv4/)
+# find_package(OpenCV 4.2.0 REQUIRED)
+# message(STATUS "OpenCV library status:")
+# message(STATUS "    config: ${OpenCV_DIR}")
+# message(STATUS "    version: ${OpenCV_VERSION}")
+# message(STATUS "    libraries: ${OpenCV_LIBS}")
+# message(STATUS "    include path: ${OpenCV_INCLUDE_DIRS}")
 
 find_package(Boost REQUIRED COMPONENTS system filesystem thread date_time)
 find_package(Eigen3 REQUIRED)
-
 # find_package(Ceres REQUIRED)
 
 # set(Open3D_DIR /home/lin/develop/3rd/Open3D/install/lib/cmake/Open3D)
@@ -28,7 +27,7 @@ find_package(Eigen3 REQUIRED)
 # endif()
 
 ### Find ROS package
-SET(cv_bridge_DIR /home/lin/develop/ros/ros_ws/devel/share/cv_bridge/cmake/)
+# SET(cv_bridge_DIR /home/lin/develop/ros/ros_ws/devel/share/cv_bridge/cmake/)
 find_package(catkin REQUIRED COMPONENTS
   roscpp rospy std_msgs rosbag sensor_msgs nav_msgs
   geometry_msgs cv_bridge message_generation
@@ -66,8 +65,8 @@ include_directories(
   include
   ${catkin_INCLUDE_DIRS}
   ${Boost_INCLUDE_DIR}
-  ${OpenCV_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
+  # ${OpenCV_INCLUDE_DIRS}
   # ${CERES_INCLUDE_DIRS}
   # /home/lin/develop/3rd/kalman-cpp
 )
@@ -75,7 +74,7 @@ include_directories(
 list(APPEND thirdparty_libraries
   ${catkin_LIBRARIES}
   ${Boost_LIBRARIES}
-  ${OpenCV_LIBRARIES}
+  # ${OpenCV_LIBRARIES}
 )
 
 ##########################################
