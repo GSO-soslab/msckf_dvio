@@ -23,11 +23,11 @@ MsckfManager::MsckfManager(Params &parameters)
 void MsckfManager::feedImu(const ImuMsg &data) {
   //// append to the buffer 
   buffer_mutex.lock();
-  imu_buffer.emplace_back(data);
+  buffer_imu.emplace_back(data);
   buffer_mutex.unlock();
 
   //// if imu not initialized, feed to initializer
-  if(!imu_initializer->getInitializationStatus())
+  if(!imu_initializer->isInitialized())
     imu_initializer->feedImu(data);
 
   // double delta_t = data.time - 1614971111.675969;
@@ -47,11 +47,11 @@ void MsckfManager::feedDvl(const DvlMsg &data) {
     
     //// append to the buffer 
     buffer_mutex.lock();
-    dvl_buffer.insert(dvl_buffer.end(), remapped_queue.begin(), remapped_queue.end());
+    buffer_dvl.insert(buffer_dvl.end(), remapped_queue.begin(), remapped_queue.end());
     buffer_mutex.unlock();
 
   //// if imu not initialized, feed to initializer
-  if(!imu_initializer->getInitializationStatus())
+  if(!imu_initializer->isInitialized())
     imu_initializer->feedDvl(remapped_queue); 
   }
 
@@ -66,7 +66,7 @@ void MsckfManager::feedDvl(const DvlMsg &data) {
 
 void MsckfManager::feedCamera(const ImageMsg &data) {
   buffer_mutex.unlock();
-  img_buffer.emplace_back(data);
+  buffer_img.emplace_back(data);
   buffer_mutex.unlock();
 
   // tracking feature
@@ -76,11 +76,50 @@ void MsckfManager::feedCamera(const ImageMsg &data) {
 void MsckfManager::backend() {
 
   /***** Check Initialization *****/
-  if(!imu_initializer->getInitializationStatus()) {
+  if(!imu_initializer->isInitialized()) {
     
     imu_initializer->checkInitialization();
 
-    if(!imu_initializer->getInitializationStatus())
+    if(imu_initializer->isInitialized()){
+
+      //// system initialized, get init result
+      double time_I_D0;
+      double time_I0;
+      double time_D0;
+      Eigen::Vector4d q_I_G0;
+      Eigen::Vector3d v_I0;
+      Eigen::Vector3d b_a0;
+      Eigen::Vector3d b_g0;  
+      std::tie(time_I0, q_I_G0, v_I0, b_g0, b_a0, time_D0, time_I_D0) = imu_initializer->getInitResult();
+
+      //// update state
+      Eigen::Matrix<double, 16, 1> imu_value;
+      imu_value.block(0, 0, 4, 1) = q_I_G0;
+      imu_value.block(4, 0, 3, 1) << 0, 0, 0;
+      imu_value.block(7, 0, 3, 1) = v_I0;
+      imu_value.block(10, 0, 3, 1) = b_g0; 
+      imu_value.block(13, 0, 3, 1) = b_a0;
+
+      state->timestamp_ = time_I0;
+      state->imu_->setValue(imu_value);
+      state->dvl_timeoffset_ = time_I_D0;
+
+      //// clean manager data buffer before initialization 
+      buffer_mutex.lock();
+      
+      auto frame_imu = std::find_if(buffer_imu.begin(), buffer_imu.end(),
+                    [&](const auto& imu){return imu.time == time_I0 ;});
+      buffer_imu.erase(buffer_imu.begin(), frame_imu);
+
+      auto frame_dvl = std::find_if(buffer_dvl.begin(), buffer_dvl.end(),
+                    [&](const auto& dvl){return dvl.time > time_D0 ;});
+      buffer_dvl.erase(buffer_dvl.begin(), frame_dvl);
+
+      buffer_mutex.unlock();
+
+    }
+    else
+      //// system not initialized, retuen 
       return;
   }
 

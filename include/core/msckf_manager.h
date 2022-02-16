@@ -33,9 +33,9 @@ public:
   void backend();
 
 private:
-  std::vector<ImuMsg> imu_buffer;
-  std::vector<DvlMsg> dvl_buffer;
-  std::vector<ImageMsg> img_buffer;
+  std::vector<ImuMsg> buffer_imu;
+  std::vector<DvlMsg> buffer_dvl;
+  std::vector<ImageMsg> buffer_img;
 
   std::mutex buffer_mutex;
 

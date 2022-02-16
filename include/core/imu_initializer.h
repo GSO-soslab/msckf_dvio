@@ -26,9 +26,12 @@ public:
   
   void feedDvl(const std::vector<DvlMsg> &data);
 
-  bool getInitializationStatus() { return is_initialized; }
+  bool isInitialized() { return is_initialized; }
 
   void checkInitialization();
+
+  std::tuple<double, Eigen::Vector4d, Eigen::Vector3d, Eigen::Vector3d, Eigen::Vector3d, double, double> 
+    getInitResult() { return std::make_tuple(time_I, q_I_G, v_I, bg_avg, ba_avg, time_D, time_I_D); }
 
 private:
 
@@ -40,14 +43,15 @@ private:
                               std::vector<ImuMsg> &imu_a,
                               std::vector<ImuMsg> &imu_g);
 
-  void linearInterp(const double time_offset, const std::vector<ImuMsg> &imu_in,
-                    const std::vector<DvlMsg> &dvl_in, std::vector<DvlMsg> &dvl_out);
+  void linearInterp(const std::vector<ImuMsg> &imu_in,
+                    const std::vector<DvlMsg> &dvl_in, 
+                          std::vector<DvlMsg> &dvl_out);
 
   void doInitialization(const std::vector<DvlMsg> &dvl_a, 
                         const std::vector<ImuMsg> &imu_a,
                         const std::vector<ImuMsg> &imu_g);
 
-  // bool initWithDVL();
+  void cleanBuffer();
 
   bool is_initialized;
 
@@ -73,6 +77,15 @@ private:
   double gravity;
 
   Eigen::Matrix4d T_I_D;
+
+  //// initialzied result
+  double time_I_D;
+  double time_I;
+  double time_D;
+  Eigen::Vector4d q_I_G;
+  Eigen::Vector3d v_I;
+  Eigen::Vector3d bg_avg;  
+  Eigen::Vector3d ba_avg;
 
 };
 

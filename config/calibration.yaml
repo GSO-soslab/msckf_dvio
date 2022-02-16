@@ -13,6 +13,7 @@ DVL:
   - [        0.0,         0.0,         0.0,        1.0]
 
   # Default:0.0; Time offset from Temporal calibrtion between DVL and IMU: (t_imu = t_dvl + t_offset)
+  # TODO: this value will be overide by IMU-DVL alignment
   timeoffset_I_D: -10.645267         
   # Default:1.0; Scale factor for DVL measurement effected by sound speed (caused by salinity, temperature...)
   scale: 1.0

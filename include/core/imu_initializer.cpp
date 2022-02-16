@@ -210,10 +210,11 @@ bool ImuInitializer::grabInitializationData(std::vector<DvlMsg> &dvl_a,
   //   printf("t: %f, vx: %f\n",dvl.time,dvl.v.x());
 
   //// get time offset between IMU and DVL
-  double time_offset = align_time_imu - align_time_dvl; //// −10.645267
-  double last_dvl_time = selected_dvl.back().time + time_offset;
+  time_I_D = align_time_imu - align_time_dvl; //// −10.645267
+  double last_dvl_time = selected_dvl.back().time + time_I_D;
   
   buffer_mutex.lock();
+
 
   //// select cooresponding IMU, select IMUs until last one timestamp > DVL timestamp
   auto frame_end = std::find_if(buffer_imu.begin(), buffer_imu.end(),
@@ -238,7 +239,7 @@ bool ImuInitializer::grabInitializationData(std::vector<DvlMsg> &dvl_a,
   //   printf("t: %f\n", imu.time);
 
 /*** Get DVL data for accleration initialization ***/
-  linearInterp(time_offset, imu_a, selected_dvl, dvl_a);
+  linearInterp(imu_a, selected_dvl, dvl_a);
   // TEST:
   // for(const auto dvl:dvl_a)
   //   std::cout<<std::setprecision(17)<<"t: "<<dvl.time<<std::setprecision(7)<<
@@ -264,8 +265,9 @@ bool ImuInitializer::grabInitializationData(std::vector<DvlMsg> &dvl_a,
   return ready;
 }
 
-void ImuInitializer::linearInterp(const double time_offset, const std::vector<ImuMsg> &imu_in,
-                                  const std::vector<DvlMsg> &dvl_in, std::vector<DvlMsg> &dvl_out) {
+void ImuInitializer::linearInterp(const std::vector<ImuMsg> &imu_in,
+                                  const std::vector<DvlMsg> &dvl_in,
+                                        std::vector<DvlMsg> &dvl_out) {
 /***** Pre-processing: align DVL and IMU timestamp; calculate DVL acceleration *****/
 
   //// calculate DVL acceleration( v_(t) - v_(t-1) / delta_t), and subtract time_base, and copy velocity
@@ -276,7 +278,7 @@ void ImuInitializer::linearInterp(const double time_offset, const std::vector<Im
     Eigen::Vector3d accel = (dvl_in.at(i).v    - dvl_in.at(i-1).v   ) / 
                             (dvl_in.at(i).time - dvl_in.at(i-1).time);
     //// make the align point as time origin
-    dvl_data.emplace_back(dvl_in.at(i).time + time_offset, dvl_in.at(i).v, accel);
+    dvl_data.emplace_back(dvl_in.at(i).time + time_I_D, dvl_in.at(i).v, accel);
   }
 
 /***** Interpolate DVL with IMU timestep *****/
@@ -321,7 +323,7 @@ void ImuInitializer::linearInterp(const double time_offset, const std::vector<Im
                    (imu.time - dvl_data.at(i).time) + dvl_data.at(i).v.z();
 
       //// store interpolated data
-      dvl_out.emplace_back(imu.time - time_offset, Eigen::Vector3d(v_x,v_y,v_z), Eigen::Vector3d(a_x,a_y,a_z));
+      dvl_out.emplace_back(imu.time - time_I_D, Eigen::Vector3d(v_x,v_y,v_z), Eigen::Vector3d(a_x,a_y,a_z));
     }
   }
 
@@ -330,27 +332,28 @@ void ImuInitializer::linearInterp(const double time_offset, const std::vector<Im
   
 }
 
-      
+//// dvl_a: dvl section data for acceleration bias calibration;
+//// imu_a: imu section data for acceleration bias calibration
+//// imu_g: imu section data for gyro bias calibration
 void ImuInitializer::doInitialization(const std::vector<DvlMsg> &dvl_a, 
                                       const std::vector<ImuMsg> &imu_a,
                                       const std::vector<ImuMsg> &imu_g) {
-  //// TODO: change this as a calibration parameters or state parameters
   //// TODO: set manually set bias
   
   Eigen::Matrix3d R_I_D;
   Eigen::Vector3d p_I_D;
-
   R_I_D = T_I_D.block<3,3>(0,0);
   p_I_D = T_I_D.block<3,1>(0,3);
 
-  //// transformation between Gloabl inertial frame and IMU local frame
+/*** Acceleration bias and gravity projection estimation ***/
   Eigen::Matrix3d R_I_G;
 
-/*** Acceleration bias and gravity projection estimation ***/
-  Eigen::Vector3d ba_avg;
+  ba_avg = Eigen::Vector3d::Zero();
+
   //// first data is not using since the vehicle is assuming not moving
   for(int i=1; i<dvl_a.size(); i++) {
-    //// Estimate DVL measured acceleration in IMU frame: Troni and Whitcomb JFR 2015, Eq.12
+    //// Estimate DVL measured acceleration in IMU frame: 
+    //// [Troni and Whitcomb JFR 2015, Eq.12](https://onlinelibrary.wiley.com/doi/abs/10.1002/rob.21551)
     //// a_I_hat = [w_I]x R_I_D * v_D + R_I_D * a_D - ([w_I]x^2 + [w_I_dot]x) * p_I_D
     auto skew = toSkewSymmetric(imu_a.at(i).w);
     auto skew_sq = skew * skew;
@@ -360,7 +363,7 @@ void ImuInitializer::doInitialization(const std::vector<DvlMsg> &dvl_a,
                     (imu_a.at(i).time - imu_a.at(i-1).time));
 
     auto a_I_hat = skew * R_I_D * dvl_a.at(i).v  + R_I_D * dvl_a.at(i).a - (skew_sq + skew_dot) * p_I_D;
-    //// compensate IMU acceleration by DVL measurement
+    //// compensate IMU acceleration by DVL measurement to remove vehicle acceleration
     auto a_compensated = imu_a.at(i).a - a_I_hat;
 
     //// Construct a frame that Z-axis aline with IMU measurement(0,0,-9.81) 
@@ -379,12 +382,12 @@ void ImuInitializer::doInitialization(const std::vector<DvlMsg> &dvl_a,
     //// get rotation of Y part
     Eigen::Vector3d y_I_G = msckf_dvio::toSkewSymmetric(z_I_G) * x_I_G;
 
-    // construct rotation matrix
+    //// construct rotation matrix
     R_I_G.block(0, 0, 3, 1) = x_I_G;
     R_I_G.block(0, 1, 3, 1) = y_I_G;
     R_I_G.block(0, 2, 3, 1) = z_I_G;
 
-    /// bias = measurement - prjected_gravity
+    //// bias = measurement - prjected_gravity
     Eigen::Vector3d ba = a_compensated - R_I_G * Eigen::Vector3d(0.0, 0.0, gravity);
     ba_avg += ba;
   }
@@ -392,24 +395,54 @@ void ImuInitializer::doInitialization(const std::vector<DvlMsg> &dvl_a,
   ba_avg = ba_avg / (dvl_a.size()-1);
 
 /*** Gyro bias estimation ***/
-  Eigen::Vector3d avg_gyro = Eigen::Vector3d::Zero();
-
+  bg_avg = Eigen::Vector3d::Zero();
   for(const auto &imu : imu_g) 
-    avg_gyro += imu.w;
+    bg_avg += imu.w;
+  bg_avg /= imu_g.size();
   
-  avg_gyro /= imu_g.size();
-  
-  // TESTs:
-  printf("Initialization result at DVL time:%f\n, ba:%f,%f,%f\n bg:%f,%f,%f\n R_I_G:%f,%f,%f\n%f,%f,%f\n,%f,%f,%f\n", 
-         dvl_a.back().time, 
-         ba_avg.x(),ba_avg.y(),ba_avg.z(),
-         avg_gyro.x(),avg_gyro.y(),avg_gyro.z(),
-         R_I_G(0,0),R_I_G(0,1),R_I_G(0,2),
-         R_I_G(1,0),R_I_G(1,1),R_I_G(1,2),
-         R_I_G(2,0),R_I_G(2,1),R_I_G(2,2));
+/*** Quaternion estimation ***/
+  q_I_G = toQuaternion(R_I_G);
+
+/**** Velocity assign ***/
+
+  //// v_I_hat = R_I_D * v_D - [w_I]x * p_I_D
+  v_I = R_I_D * dvl_a.back().v - toSkewSymmetric(imu_a.back().w) * p_I_D;
+
+/**** timestamp at Initialized state ****/
+  time_I = imu_a.at(imu_a.size()-2).time;
+  time_D = dvl_a.back().time;
+
+  //// TEST:
+  printf("Initialization result at:\n"
+          " IMU time:%f, DVL time:%f, time_I_D:%f\n"
+          " v_I:%f,%f,%f\n"
+          " ba:%f,%f,%f\n"
+          " bg:%f,%f,%f\n"
+          " R_I_G:\n %f,%f,%f\n%f,%f,%f\n%f,%f,%f\n",
+          time_I, time_D, time_I_D,
+          v_I.x(),v_I.y(),v_I.z(),
+          ba_avg.x(),ba_avg.y(),ba_avg.z(),
+          bg_avg.x(),bg_avg.y(),bg_avg.z(),
+          R_I_G(0,0),R_I_G(0,1),R_I_G(0,2),
+          R_I_G(1,0),R_I_G(1,1),R_I_G(1,2),
+          R_I_G(2,0),R_I_G(2,1),R_I_G(2,2)
+        );
 
   is_initialized = true;
+
+  //// clean buffer
+  cleanBuffer();
 }
 
+void ImuInitializer::cleanBuffer() {
+  buffer_mutex.lock();
+
+  buffer_imu.clear();
+  buffer_dvl.clear();
+  sections_imu.clear();
+  sections_dvl.clear();
+
+  buffer_mutex.unlock();
+}
 
 }
