@@ -2,6 +2,7 @@
 #define MSCKF_ROS_NODE_H_
 
 //c++
+#include <fstream>
 
 // ros
 #include <ros/ros.h>
@@ -12,6 +13,7 @@
 //
 #include "core/msckf_manager.h"
 #include "types/type.h"
+
 
 namespace msckf_dvio
 {
@@ -43,6 +45,18 @@ private:
   std::shared_ptr<MsckfManager> manager;
 
   Params parameters;
+
+  /******************** remap dvl time ********************/
+  bool mapDvlTime(const DvlMsg &in);
+
+  std::vector<std::tuple<Eigen::Vector3d, double, double>> remap_queue;
+  std::vector<DvlMsg> remapped_queue;
+  double last_integral = 0.0;
+  std::string last_flag ="#";
+
+  const char *file_path="/home/lin/Desktop/remap_dvl_time.dat";
+  std::ofstream file;
+
 }; // end of class   
 
 } // namespace msckf_dvio

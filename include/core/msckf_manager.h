@@ -7,7 +7,6 @@
 #include <iterator>
 #include <atomic>
 #include <cmath>
-#include <fstream>
 #include <iomanip>
 #include <tuple>
 // customized
@@ -28,6 +27,8 @@ public:
 
   void feedDvl(const DvlMsg &data);
 
+  void feedDvl(const std::vector<DvlMsg> &data);
+
   void feedCamera(const ImageMsg &data);
 
   void backend();
@@ -46,21 +47,6 @@ private:
   // std::shared_ptr<Propagator> propagator;
 
   Params params;
-
-  /***** Remap DVL timestamp, not a case of MSCKF-DVIO *****/
-  bool mapDvlTime(const DvlMsg &in);
-
-  std::vector<std::tuple<Eigen::Vector3d, double, double>> remap_queue;
-
-  std::vector<DvlMsg> remapped_queue;
-
-  double last_integral = 0.0;
-
-  const char *file_path="/home/lin/Desktop/remap_dvl_time.dat";
-
-  std::ofstream file;
-
-  std::string last_flag ="#";
 };
 
 } // namespace msckf_dvio
