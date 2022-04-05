@@ -53,6 +53,10 @@ void MsckfManager::feedDvl(const std::vector<DvlMsg> &data) {
 }
 
 void MsckfManager::feedDvl(const DvlMsg &data) {
+  //// TODO: preprocess dvl:
+  ////  1) correct timeoffset: basic substract time transmit from DVl to bottom, check duraction field of df21
+  ////  2) remove spikes noise (Median filtering) and data smoothing (Moving Average Filter)
+
   //// append to the buffer 
   buffer_mutex.lock();
   buffer_dvl.emplace_back(data);
@@ -81,8 +85,7 @@ void MsckfManager::feedDvl(const DvlMsg &data) {
   //   printf("t:%f, v:%f,%f,%f\n", data.time, data.v.x(),data.v.y(),data.v.z());
 
 
-  // // filter with timestamp 0.2s
-  // // preprocess dvl: remove spikes noise (Median filtering) and data smoothing (Moving Average Filter)
+
 }
 
 void MsckfManager::feedCamera(const ImageMsg &data) {
@@ -146,8 +149,13 @@ void MsckfManager::backend() {
 
 
 /******************** Propagate and Clone ********************/
-  // determine ready to propagate: IMU time > DVL or image time
+  //// determine ready to propagate: IMU time > first DVL data in the buffer or image 
+  // time_dvl  = DVL_time.at(0);
+  // std::find_if(imu.time > time_dvl )
 
+  // if(find) {
+  //   propagator->propagate(selected_imu);
+  // }
 
 
 /******************** Update ********************/
