@@ -27,8 +27,6 @@ public:
 
   void feedDvl(const DvlMsg &data);
 
-  void feedDvl(const std::vector<DvlMsg> &data);
-
   void feedCamera(const ImageMsg &data);
 
   void backend();

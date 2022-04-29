@@ -40,10 +40,8 @@ struct Params{
   int imu_init_mode;
   // how many IMU data is selected to detect IMU jump (suddenly move)
   int imu_windows;
-  // second section IMU variance minus first section IMU variance, determine jump section (vehicle suddenly move)
-  double imu_delta_var_1;
-  // third section IMU variance minus first section IMU variance, determine jump section (vehicle suddenly move)
-  double imu_delta_var_2;
+  // the IMU variance threshold that indicates IMU jump inclued
+  double imu_var;
   // IMU accleration difference in x-axis(forward direction) shows at the suddenly movement time
   double imu_delta;
   // how many DVL data is selected to detect DVL jump (suddenly move)

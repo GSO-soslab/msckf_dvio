@@ -9,7 +9,9 @@
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/Image.h>
 #include <cv_bridge/cv_bridge.h>
-#include <geometry_msgs/TwistWithCovarianceStamped.h>
+// #include <geometry_msgs/TwistWithCovarianceStamped.h>
+#include <nortek_dvl/ButtomTrack.h>
+
 //
 #include "core/msckf_manager.h"
 #include "types/type.h"
@@ -27,7 +29,7 @@ public:
 
   void imuCallback(const sensor_msgs::ImuConstPtr &msg);
 
-  void dvlCallback(const geometry_msgs::TwistWithCovarianceStampedConstPtr &msg);
+  void dvlCallback(const nortek_dvl::ButtomTrack::ConstPtr &msg);
 
   void imageCallback(const sensor_msgs::ImageConstPtr &msg);
 
@@ -45,17 +47,6 @@ private:
   std::shared_ptr<MsckfManager> manager;
 
   Params parameters;
-
-  /******************** remap dvl time ********************/
-  bool mapDvlTime(const DvlMsg &in);
-
-  std::vector<std::tuple<Eigen::Vector3d, double, double>> remap_queue;
-  std::vector<DvlMsg> remapped_queue;
-  double last_integral = 0.0;
-  std::string last_flag ="#";
-
-  const char *file_path="/home/lin/Desktop/remap_dvl_time.dat";
-  std::ofstream file;
 
 }; // end of class   
 

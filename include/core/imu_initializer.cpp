@@ -14,12 +14,6 @@ void ImuInitializer::feedDvl(const DvlMsg &data) {
   buffer_mutex.unlock();
 }
 
-void ImuInitializer::feedDvl(const std::vector<DvlMsg> &data) {
-  buffer_mutex.lock();
-  buffer_dvl.insert(buffer_dvl.end(), data.begin(), data.end());
-  buffer_mutex.unlock();
-}
-
 void ImuInitializer::checkInitialization() {
 
   //// try to find IMU align time (vehicle suddenly move)
@@ -72,41 +66,26 @@ void ImuInitializer::findAlignmentImu() {
     for (const auto &imu : selected_imu) 
       variance += (imu.a - average).dot(imu.a - average);
     variance = std::sqrt(variance / ((int)selected_imu.size() - 1));
-    // printf("IMU Initializer: monitoring jump with variance(%f)\n", variance);
 
-    //// store the latest 3 sections 
+    //// store the current sections 
     sections_imu.emplace_back(selected_imu, variance);
   }
 
   /*** Find align section and align point that take suddenly move***/
-  if(sections_imu.size() == 3) {
+  if(sections_imu.size() == 2) {
 
     double var1 = std::get<1>(sections_imu.at(0));
     double var2 = std::get<1>(sections_imu.at(1));
-    double var3 = std::get<1>(sections_imu.at(2));
-    // // TEST:
-    // printf("t:%f~%f, variance:%f, d1:%f, d2:%f\n", std::get<0>(sections_imu.at(2)).front().time, 
-    //                                                std::get<0>(sections_imu.at(2)).back().time, 
-    //                                                var3, var2-var1, var3-var1);
-
-    //// use some conditions to determine vehcile suddenly movement section
-    if((var2-var1 > imu_delta_var_1) && (var3-var1 > imu_delta_var_2)) {
-      //// only use the first 2 section, usually the movement in second section, sometimes may in first section
+    printf("IMU Initializer: t=%f~%f, variance=%f\n", std::get<0>(sections_imu.at(1)).front().time, 
+                                                      std::get<0>(sections_imu.at(1)).back().time, 
+                                                      var2);
+    if(var2 > imu_var){
+      //// search IMU jump in this two sections
       std::vector<ImuMsg> imu_data;
       imu_data.insert(imu_data.end(), std::get<0>(sections_imu.at(0)).begin(), std::get<0>(sections_imu.at(0)).end());
       imu_data.insert(imu_data.end(), std::get<0>(sections_imu.at(1)).begin(), std::get<0>(sections_imu.at(1)).end());
 
-      //// use delta to determine vehcile suddenly movement
-      for(int i=1; i<imu_data.size(); i++) {
-        double delta = imu_data.at(i).a.x()-imu_data.at(i-1).a.x();
-        //// align point is the last position that vehicle still static, right before vehcile moving 
-        if(abs(delta) > imu_delta) {
-          align_time_imu = imu_data.at(i-1).time;
-          printf("IMU Initializer: find IMU align point at time:%f\n", align_time_imu);
-          break;
-        }
-      }
-      //// use 3points to find slope that detemine suddenly movement
+      //// detemine suddenly movement use 3points finding slope  
       //// Ax=b
       ////  x=(A^T A)^(-1) A^T b
       // Eigen::Matrix<double, 3, 2> A;
@@ -125,15 +104,22 @@ void ImuInitializer::findAlignmentImu() {
       //   }
       // }
 
-      // // TEST:
-      // for(int i=1; i<imu_data.size(); i++)
-      // printf("t: %f, a:%f, delta:%f\n",imu_data.at(i).time,  imu_data.at(i).a.x(), imu_data.at(i).a.x()-imu_data.at(i-1).a.x());
+      //// determine suddenly movement use delta of imu X-axis measurement
+      for(int i=1; i<imu_data.size(); i++) {
+        double delta = imu_data.at(i).a.x()-imu_data.at(i-1).a.x();
+        //// align point is the last position that vehicle still static, right before vehcile moving 
+        if(abs(delta) > imu_delta) {
+          align_time_imu = imu_data.at(i-1).time;
+          printf("IMU Initializer: find IMU align point at time:%f\n", align_time_imu);
+          break;
+        }
+      }
 
-    }
-    else {
-      printf("IMU Initializer: vehicle is not moving \n");
+      if(align_time_imu == -1)
+          printf("IMU Initializer: no IMU align point found with imu_delta=%f\n",imu_delta);
     }
 
+    //// remove the last one
     sections_imu.erase(sections_imu.begin());
   }
 }

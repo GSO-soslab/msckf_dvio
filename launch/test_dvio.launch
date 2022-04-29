@@ -2,10 +2,13 @@
 <launch>
   <param name="/use_sim_time" value="true"/>
 
-  <!-- Parmaters -->
+  <!-- play the dataset -->
   <arg name="bag_start" default="0" /> 
-  <arg name="bag" default="//home/soslab/Projects/under_ice_navigation/dataset/underice/glrc/40m_servo60_noLED_noAR_LowFeq10m_noTF.bag" />
+  <!-- <arg name="bag" default="/home/lin/develop/data/underIce/GLRC/day_3_13/40m_servo60_noLED_noAR_LowFeq10m_noTF.bag" /> -->
+  <arg name="bag" default="/home/lin/develop/data/underIce/GLRC/day_3_13/40m_servo60_noLED_noAR_LowFeq10m_remapDVL.bag" />
+  <node pkg="rosbag" type="play" name="rosbag" args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)" required="true"/>
 
+  <!-- Parmaters -->
   <arg name="calibration_yaml" default="$(find msckf_dvio)/config/calibration.yaml"/>
   <rosparam command="load" file="$(arg calibration_yaml)"/>
   <arg name="system_yaml" default="$(find msckf_dvio)/config/system.yaml"/>
@@ -38,10 +41,7 @@
   <!-- type: bt -->
   <node name="dvio_node" pkg="msckf_dvio" type="dvio_node" output="screen" >
       <remap from="imu" to="/rov/sensors/ahrs/imu/data"/>
-      <remap from="dvl" to="/rov/sensors/dvl/twist"/>
+      <remap from="dvl" to="/rov/sensors/dvl/buttom_track_remap"/>
   </node>
-
-  <!-- play the dataset -->
-  <node pkg="rosbag" type="play" name="rosbag" args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)" required="true"/>
 
 </launch>

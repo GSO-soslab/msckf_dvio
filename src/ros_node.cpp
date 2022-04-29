@@ -58,8 +58,7 @@ Params RosNode::loadParameters() {
   nh_.param<int>("backend_hz", params.backend_hz, 20);
   nh_.param<int>("imu_init_mode", params.imu_init_mode, 1);
   nh_.param<int>("imu_windows", params.imu_windows, 20);
-  nh_.param<double>("imu_delta_var_1", params.imu_delta_var_1, 0.03);
-  nh_.param<double>("imu_delta_var_2", params.imu_delta_var_2, 0.1);
+  nh_.param<double>("imu_var", params.imu_var, 0.2);
   nh_.param<double>("imu_delta", params.imu_delta, 0.07);
   nh_.param<int>("dvl_windows", params.dvl_windows, 4);
   nh_.param<double>("dvl_delta", params.dvl_delta, 0.05);
@@ -77,16 +76,12 @@ void RosNode::imuCallback(const sensor_msgs::ImuConstPtr &msg) {
   manager->feedImu(message);
 }
 
-void RosNode::dvlCallback(const geometry_msgs::TwistWithCovarianceStampedConstPtr &msg) {
+void RosNode::dvlCallback(const nortek_dvl::ButtomTrack::ConstPtr &msg) {
   DvlMsg message;
   message.time = msg->header.stamp.toSec();
-  message.v << msg->twist.twist.linear.x, msg->twist.twist.linear.y, msg->twist.twist.linear.z;
+  message.v << msg->speed.x, msg->speed.y, msg->speed.z;
 
-  //// map DVL timestamp because serial driver with 115200 has issue when current profile is set to maximum
-  if(mapDvlTime(message))
-    manager->feedDvl(remapped_queue);
-
-  // manager->feedDvl(message); 
+  manager->feedDvl(message); 
 }
 
 
@@ -121,154 +116,6 @@ void RosNode::process() {
     std::chrono::milliseconds dura(sleep_t);
     std::this_thread::sleep_for(dura);
   }
-}
-
-bool RosNode::mapDvlTime(const DvlMsg &in) {
-  /***** re-map DVL timestmaps because of decoding larger current profile data in Serial driver *****/
-  /***** BT(0.25), BT(0.5), CP(0.75), BT(1.0) *****/
-  bool flag = false;
-
-  //// get integral and fractional part of time
-  double integral, fractional; 
-  fractional = std::modf(in.time, &integral);
-
-  //// received data in 1 second, now remap
-  if(integral != last_integral && last_integral !=0.0) {
-    //// clear last remapped data
-    remapped_queue.clear();
-
-    // // TEST
-    // file.open(file_path, std::ios_base::app);//std::ios_base::app
-    // file << std::setprecision(19);
-
-    switch(remap_queue.size()) {
-      //// take last 4 
-      case 7: {
-        remapped_queue.emplace_back(std::get<1>(remap_queue.at(3)) + 0.00, std::get<0>(remap_queue.at(3)), Eigen::Vector3d(0,0,0));
-        remapped_queue.emplace_back(std::get<1>(remap_queue.at(4)) + 0.25, std::get<0>(remap_queue.at(4)), Eigen::Vector3d(0,0,0));
-        remapped_queue.emplace_back(std::get<1>(remap_queue.at(5)) + 0.50, std::get<0>(remap_queue.at(5)), Eigen::Vector3d(0,0,0));
-        remapped_queue.emplace_back(std::get<1>(remap_queue.at(6)) + 0.75, std::get<0>(remap_queue.at(6)), Eigen::Vector3d(0,0,0));
-
-        last_flag = "#7";
-        break;
-      }
-      
-      case 6: {
-
-        if(last_flag == "#2") {
-          remapped_queue.emplace_back(std::get<1>(remap_queue.at(0)) - 0.50, std::get<0>(remap_queue.at(0)), Eigen::Vector3d(0,0,0));
-          remapped_queue.emplace_back(std::get<1>(remap_queue.at(1)) - 0.25, std::get<0>(remap_queue.at(1)), Eigen::Vector3d(0,0,0));
-          remapped_queue.emplace_back(std::get<1>(remap_queue.at(2)) + 0.00, std::get<0>(remap_queue.at(2)), Eigen::Vector3d(0,0,0));
-          remapped_queue.emplace_back(std::get<1>(remap_queue.at(3)) + 0.25, std::get<0>(remap_queue.at(3)), Eigen::Vector3d(0,0,0));
-          remapped_queue.emplace_back(std::get<1>(remap_queue.at(4)) + 0.50, std::get<0>(remap_queue.at(4)), Eigen::Vector3d(0,0,0));
-          remapped_queue.emplace_back(std::get<1>(remap_queue.at(5)) + 0.75, std::get<0>(remap_queue.at(5)), Eigen::Vector3d(0,0,0));
-        }
-        else {
-          //// take last 4
-          remapped_queue.emplace_back(std::get<1>(remap_queue.at(2)) + 0.00, std::get<0>(remap_queue.at(2)), Eigen::Vector3d(0,0,0));
-          remapped_queue.emplace_back(std::get<1>(remap_queue.at(3)) + 0.25, std::get<0>(remap_queue.at(3)), Eigen::Vector3d(0,0,0));
-          remapped_queue.emplace_back(std::get<1>(remap_queue.at(4)) + 0.50, std::get<0>(remap_queue.at(4)), Eigen::Vector3d(0,0,0));
-          remapped_queue.emplace_back(std::get<1>(remap_queue.at(5)) + 0.75, std::get<0>(remap_queue.at(5)), Eigen::Vector3d(0,0,0));
-        }
-
-        last_flag = "#6";
-        break;
-      }
-      
-      //// take last 4
-      case 5: {
-        remapped_queue.emplace_back(std::get<1>(remap_queue.at(1)) + 0.00, std::get<0>(remap_queue.at(1)), Eigen::Vector3d(0,0,0));
-        remapped_queue.emplace_back(std::get<1>(remap_queue.at(2)) + 0.25, std::get<0>(remap_queue.at(2)), Eigen::Vector3d(0,0,0));
-        remapped_queue.emplace_back(std::get<1>(remap_queue.at(3)) + 0.50, std::get<0>(remap_queue.at(3)), Eigen::Vector3d(0,0,0));
-        remapped_queue.emplace_back(std::get<1>(remap_queue.at(4)) + 0.75, std::get<0>(remap_queue.at(4)), Eigen::Vector3d(0,0,0));
-
-        last_flag = "#5";
-        break;
-      }
-
-      //// 1 second has 4 bottom track velocity, v1,v2,v3,v4, assign with 0.25,0.5,0.75,1.0 as fractional part
-      //// some case: v4_, v1,v2,v3, we also treat this above just keep code easier
-      case 4: {
-        remapped_queue.emplace_back(std::get<1>(remap_queue.at(0)) + 0.00, std::get<0>(remap_queue.at(0)), Eigen::Vector3d(0,0,0));
-        remapped_queue.emplace_back(std::get<1>(remap_queue.at(1)) + 0.25, std::get<0>(remap_queue.at(1)), Eigen::Vector3d(0,0,0));
-        remapped_queue.emplace_back(std::get<1>(remap_queue.at(2)) + 0.50, std::get<0>(remap_queue.at(2)), Eigen::Vector3d(0,0,0));
-        remapped_queue.emplace_back(std::get<1>(remap_queue.at(3)) + 0.75, std::get<0>(remap_queue.at(3)), Eigen::Vector3d(0,0,0));
-
-        last_flag = "#4";
-        break;
-      }
-
-      //// 1 second has 3 bottom track velocity, lost one measurement during serial transmission
-      case 3: {
-        //// get fractional
-        double v1 = std::get<2>(remap_queue.at(0));
-        double v2 = std::get<2>(remap_queue.at(1));
-        double v3 = std::get<2>(remap_queue.at(2));
-        double avg_1 = (v1+v2)*0.5;
-        double avg_2 = (v2+v3)*0.5;
-
-        //// missing one from first set (v1)?, (v2,v3)
-        if(avg_1<0.75 && avg_2>0.75) {
-          remapped_queue.emplace_back(std::get<1>(remap_queue.at(0)) + 0.25, std::get<0>(remap_queue.at(0)), Eigen::Vector3d(0,0,0));
-          remapped_queue.emplace_back(std::get<1>(remap_queue.at(1)) + 0.50, std::get<0>(remap_queue.at(1)), Eigen::Vector3d(0,0,0));
-          remapped_queue.emplace_back(std::get<1>(remap_queue.at(2)) + 0.75, std::get<0>(remap_queue.at(2)), Eigen::Vector3d(0,0,0));
-        }
-        //// missing one from second set (v1,v2), (v3)?
-        else if(avg_1<0.5 && avg_2>0.5) {
-          remapped_queue.emplace_back(std::get<1>(remap_queue.at(0)) + 0.00, std::get<0>(remap_queue.at(0)), Eigen::Vector3d(0,0,0));
-          remapped_queue.emplace_back(std::get<1>(remap_queue.at(1)) + 0.25, std::get<0>(remap_queue.at(1)), Eigen::Vector3d(0,0,0));
-          remapped_queue.emplace_back(std::get<1>(remap_queue.at(2)) + 0.50, std::get<0>(remap_queue.at(2)), Eigen::Vector3d(0,0,0));
-        }
-        else {
-          remapped_queue.emplace_back(std::get<1>(remap_queue.at(0)) + 0.00, std::get<0>(remap_queue.at(0)), Eigen::Vector3d(0,0,0));
-          remapped_queue.emplace_back(std::get<1>(remap_queue.at(1)) + 0.25, std::get<0>(remap_queue.at(1)), Eigen::Vector3d(0,0,0));
-          remapped_queue.emplace_back(std::get<1>(remap_queue.at(2)) + 0.50, std::get<0>(remap_queue.at(2)), Eigen::Vector3d(0,0,0));
-        }
-        
-        last_flag = "#3";
-        break;
-      }
-
-      case 2: {
-        // get fractional
-        double v1 = std::get<2>(remap_queue.at(0));
-        double v2 = std::get<2>(remap_queue.at(1));
-        double avg = (v1+v2)*0.5;
-
-        remapped_queue.emplace_back(std::get<1>(remap_queue.at(0)) + 0.00, std::get<0>(remap_queue.at(0)), Eigen::Vector3d(0,0,0));
-        remapped_queue.emplace_back(std::get<1>(remap_queue.at(1)) + 0.25, std::get<0>(remap_queue.at(1)), Eigen::Vector3d(0,0,0));
-        
-        last_flag = "#2";
-        break;
-      }
-
-      case 1: {
-        remapped_queue.emplace_back(std::get<1>(remap_queue.at(0)) + 0.00, std::get<0>(remap_queue.at(0)), Eigen::Vector3d(0,0,0));
-
-        last_flag = "#1";
-        break;
-      }
-
-      //// some other cases
-      default : {
-        last_flag = "#";
-        break;
-      }
-    }
-
-    // file.close();
-
-    remap_queue.clear();
-    flag = true;
-  }
-
-  remap_queue.emplace_back(in.v, integral, fractional);
-  last_integral = integral;
-
-  // // TEST
-  // printf("t:%f\n", in.time);
-
-  return flag;
 }
 
 } // namespace name

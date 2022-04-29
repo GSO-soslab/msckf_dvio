@@ -12,13 +12,9 @@ imu_init_mode: 1
 # Note: how many IMU data is selected to detect IMU jump (suddenly move)  
 imu_windows: 10
 
-# Default: 0.03
-# Note: second section IMU variance minus first section IMU variance, determine jump section (vehicle suddenly move)
-imu_delta_var_1: 0.03
-
-# Default: 0.1
-# Note: third section IMU variance minus first section IMU variance, determine jump section (vehicle suddenly move)
-imu_delta_var_2: 0.1
+# Default: 0.2
+# Note: the IMU variance threshold that indicates IMU jump inclued
+imu_var: 0.2
 
 # Default: 0.07
 # Note: IMU accleraion difference in x-axis(forward direction) shows at the suddenly movement time

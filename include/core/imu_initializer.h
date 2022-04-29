@@ -13,18 +13,16 @@ namespace msckf_dvio {
 class ImuInitializer {
 
 public:
-  ImuInitializer(int window_imu_, int window_dvl_, double imu_delta_var_1_, double imu_delta_var_2_, double imu_delta_,
+  ImuInitializer(int window_imu_, int window_dvl_, double imu_var_, double imu_delta_,
                  double dvl_delta_, double gravity_, Eigen::Matrix4d T_I_D_):
     is_initialized(false), last_index_imu(0), last_index_dvl(0), window_imu(window_imu_), window_dvl(window_dvl_),
-    align_time_imu(-1), align_time_dvl(-1), imu_delta_var_1(imu_delta_var_1_), imu_delta_var_2(imu_delta_var_2_),
+    align_time_imu(-1), align_time_dvl(-1), imu_var(imu_var_),
     imu_delta(imu_delta_),  dvl_delta(dvl_delta_), gravity(gravity_), T_I_D(T_I_D_)
   {}
 
   void feedImu(const ImuMsg &data);
 
   void feedDvl(const DvlMsg &data);
-  
-  void feedDvl(const std::vector<DvlMsg> &data);
 
   bool isInitialized() { return is_initialized; }
 
@@ -70,7 +68,7 @@ private:
 
   double align_time_imu, align_time_dvl;
 
-  double imu_delta_var_1, imu_delta_var_2, imu_delta;
+  double imu_var, imu_delta;
 
   double dvl_delta;
 

@@ -6,7 +6,6 @@ namespace msckf_dvio
 
 MsckfManager::MsckfManager(Params &parameters)
 {
-
   // init variable
   this->params = parameters;
 
@@ -15,8 +14,8 @@ MsckfManager::MsckfManager(Params &parameters)
   //// setup imu initializer
   //// TODO: set parameters into sub_param like param_imu_init
   imu_initializer = std::make_shared<ImuInitializer>(params.imu_windows, params.dvl_windows,
-                                                     params.imu_delta_var_1, params.imu_delta_var_2, 
-                                                     params.imu_delta, params.dvl_delta, params.gravity,
+                                                     params.imu_var, params.imu_delta, 
+                                                     params.dvl_delta, params.gravity,
                                                      state->dvl_extrinsic_->transformation());
 }
 
@@ -30,26 +29,8 @@ void MsckfManager::feedImu(const ImuMsg &data) {
   if(!imu_initializer->isInitialized())
     imu_initializer->feedImu(data);
 
-  // double delta_t = data.time - 1614971111.675969;
-  // if(delta_t>11 && delta_t<13)
-  //   printf("t:%f, a:%f,%f,%f, w:%f,%f,%f\n", data.time, 
-  //                                            data.a.x(), data.a.y(),data.a.z(),
-  //                                            data.w.x(), data.w.y(),data.w.z());
-
-
-  //TODO: delete imu messages that are older then some time, like 10s
-  //      in case 
-}
-
-void MsckfManager::feedDvl(const std::vector<DvlMsg> &data) {
-  //// append to the buffer 
-  buffer_mutex.lock();
-  buffer_dvl.insert(buffer_dvl.end(), data.begin(), data.end());
-  buffer_mutex.unlock();
-
-  //// if imu not initialized, feed to initializer
-  if(!imu_initializer->isInitialized())
-    imu_initializer->feedDvl(data); 
+  //!TODO: delete imu messages that are older then some time, 
+  //!      like 10s in case 
 }
 
 void MsckfManager::feedDvl(const DvlMsg &data) {
@@ -65,27 +46,6 @@ void MsckfManager::feedDvl(const DvlMsg &data) {
   //// if imu not initialized, feed to initializer
   if(!imu_initializer->isInitialized())
     imu_initializer->feedDvl(data);
-
-  // if(mapDvlTime(data)) {
-    
-  //   //// append to the buffer 
-  //   buffer_mutex.lock();
-  //   buffer_dvl.insert(buffer_dvl.end(), remapped_queue.begin(), remapped_queue.end());
-  //   buffer_mutex.unlock();
-
-  //   //// if imu not initialized, feed to initializer
-  //   if(!imu_initializer->isInitialized())
-  //     imu_initializer->feedDvl(remapped_queue); 
-  // }
-
-
-
-  // double delta_t = data.time - 1614971111.675969;
-  // if(delta_t>21 )
-  //   printf("t:%f, v:%f,%f,%f\n", data.time, data.v.x(),data.v.y(),data.v.z());
-
-
-
 }
 
 void MsckfManager::feedCamera(const ImageMsg &data) {
