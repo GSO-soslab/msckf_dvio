@@ -23,7 +23,8 @@ namespace msckf_dvio
 class RosNode
 {
 public:
-  RosNode(ros::NodeHandle nh);
+  RosNode(const ros::NodeHandle &nh,
+          const ros::NodeHandle &nh_private);
 
   ~RosNode(){}
 
@@ -39,6 +40,7 @@ public:
 
 private:
   ros::NodeHandle nh_;
+  ros::NodeHandle nh_private_;
 
   ros::Subscriber imu_sub_;
   ros::Subscriber dvl_sub_;

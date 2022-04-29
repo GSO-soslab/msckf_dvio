@@ -5,8 +5,9 @@
 namespace msckf_dvio
 {
 
-RosNode::RosNode(ros::NodeHandle nh) :
-  nh_(nh)
+RosNode::RosNode(const ros::NodeHandle &nh,
+                 const ros::NodeHandle &nh_private) :
+  nh_(nh), nh_private_(nh_private)
 {
   // get parameters and feed to manager system
   parameters = loadParameters();
@@ -25,17 +26,16 @@ Params RosNode::loadParameters() {
 
 /******************** State ********************/
   //===== IMU =====//
-  nh_.param<double>("IMU/gravity", params.gravity, 9.81);
+  nh_private_.param<double>("IMU/gravity", params.gravity, 9.81);
 
   //===== DVL =====//
-
   //// get DVL extrinsic transformation matrix between IMU and DVl
   XmlRpc::XmlRpcValue ros_param_list;
-  nh_.getParam("DVL/T_I_D", ros_param_list);
+  nh_private_.getParam("DVL/T_I_D", ros_param_list);
   //// get DVL timeoffset
-  nh_.param<double>("DVL/timeoffset_I_D", params.timeoffset_I_D, 0.0);
+  nh_private_.param<double>("DVL/timeoffset_I_D", params.timeoffset_I_D, 0.0);
   //// get DVL scale factor
-  nh_.param<double>("DVL/scale", params.scale, 0.0);
+  nh_private_.param<double>("DVL/scale", params.scale, 0.0);
 
   //// convert matrix into pose (q_I_D, p_I_D)
   Eigen::Matrix4d T_I_D;
@@ -52,16 +52,16 @@ Params RosNode::loadParameters() {
   params.dvl_extrinsics = dvl_extrinsics;
 
   //===== Camera =====//
-  // nh_.param<double>("Camera/timeoffset_I_C", params.timeoffset_I_C, 0.0);
+  // nh_private_.param<double>("Camera/timeoffset_I_C", params.timeoffset_I_C, 0.0);
 
 /******************** System ********************/
-  nh_.param<int>("backend_hz", params.backend_hz, 20);
-  nh_.param<int>("imu_init_mode", params.imu_init_mode, 1);
-  nh_.param<int>("imu_windows", params.imu_windows, 20);
-  nh_.param<double>("imu_var", params.imu_var, 0.2);
-  nh_.param<double>("imu_delta", params.imu_delta, 0.07);
-  nh_.param<int>("dvl_windows", params.dvl_windows, 4);
-  nh_.param<double>("dvl_delta", params.dvl_delta, 0.05);
+  nh_private_.param<int>("SYS/backend_hz", params.backend_hz, 20);
+  nh_private_.param<int>("SYS/imu_init_mode", params.imu_init_mode, 1);
+  nh_private_.param<int>("SYS/imu_windows", params.imu_windows, 20);
+  nh_private_.param<double>("SYS/imu_var", params.imu_var, 0.2);
+  nh_private_.param<double>("SYS/imu_delta", params.imu_delta, 0.07);
+  nh_private_.param<int>("SYS/dvl_windows", params.dvl_windows, 4);
+  nh_private_.param<double>("SYS/dvl_delta", params.dvl_delta, 0.05);
 
   return params;
 }
@@ -128,9 +128,10 @@ int main(int argc, char **argv) {
            "   !!!!!!!!!! MSCKF Node start: !!!!!!!!!! "
            "\n============================================\n");
   
-  ros::NodeHandle nh;
+  ros::NodeHandle nh("");
+  ros::NodeHandle nh_private("~");
 
-  msckf_dvio::RosNode node(nh);
+  msckf_dvio::RosNode node(nh, nh_private);
 
   std::thread backendThread{&msckf_dvio::RosNode::process, &node};
 

@@ -8,12 +8,6 @@
   <arg name="bag" default="/home/lin/develop/data/underIce/GLRC/day_3_13/40m_servo60_noLED_noAR_LowFeq10m_remapDVL.bag" />
   <node pkg="rosbag" type="play" name="rosbag" args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)" required="true"/>
 
-  <!-- Parmaters -->
-  <arg name="calibration_yaml" default="$(find msckf_dvio)/config/calibration.yaml"/>
-  <rosparam command="load" file="$(arg calibration_yaml)"/>
-  <arg name="system_yaml" default="$(find msckf_dvio)/config/system.yaml"/>
-  <rosparam command="load" file="$(arg system_yaml)"/>
-
   <!-- <param name="air_pressure" value="0.377999"/>
   <param name="standard_soundSpeed" value="1480"/>
   <param name="print_depth" value="false"/>
@@ -39,7 +33,14 @@
   <!-- build with flag: -DCMAKE=debug -->
   <!-- add to roslaunch: launch-prefix="gdb -ex run -1-args" -->
   <!-- type: bt -->
+    <!-- Parmaters -->
+  <arg name="calibration_yaml" default="$(find msckf_dvio)/config/calibration.yaml"/>
+  <arg name="system_yaml" default="$(find msckf_dvio)/config/system.yaml"/>
+
   <node name="dvio_node" pkg="msckf_dvio" type="dvio_node" output="screen" >
+      <rosparam command="load" file="$(arg calibration_yaml)"/>
+      <rosparam command="load" file="$(arg system_yaml)"/>
+
       <remap from="imu" to="/rov/sensors/ahrs/imu/data"/>
       <remap from="dvl" to="/rov/sensors/dvl/buttom_track_remap"/>
   </node>
