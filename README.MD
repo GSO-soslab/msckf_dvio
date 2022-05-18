@@ -3,8 +3,12 @@
 
 # TODO:
 
-## IMU propogations
-## DVL clone
 ## DVL update
+
+## Camera tracking
+
+## Camera augmentation
+
+## Camera update
 
 
