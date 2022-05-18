@@ -26,24 +26,28 @@ Params RosNode::loadParameters() {
 
 /******************** State ********************/
   //===== IMU =====//
-  nh_private_.param<double>("IMU/gravity", params.gravity, 9.81);
+  nh_private_.param<double>("IMU/gravity",                     params.gravity,          9.81);
+  nh_private_.param<double>("IMU/accelerometer_noise_density", params.accl_noise,       2.0000e-3);
+  nh_private_.param<double>("IMU/accelerometer_random_walk",   params.accl_random_walk, 3.0000e-03);
+  nh_private_.param<double>("IMU/gyroscope_noise_density",     params.gyro_noise,       1.6968e-04);
+  nh_private_.param<double>("IMU/gyroscope_random_walk",       params.gyro_random_walk, 1.9393e-05);
 
   //===== DVL =====//
   //// get DVL extrinsic transformation matrix between IMU and DVl
   XmlRpc::XmlRpcValue ros_param_list;
-  nh_private_.getParam("DVL/T_I_D", ros_param_list);
+
+  nh_private_.getParam     ("DVL/T_I_D",          ros_param_list);
   //// get DVL timeoffset
   nh_private_.param<double>("DVL/timeoffset_I_D", params.timeoffset_I_D, 0.0);
   //// get DVL scale factor
-  nh_private_.param<double>("DVL/scale", params.scale, 0.0);
+  nh_private_.param<double>("DVL/scale",          params.scale, 1.0);
 
   //// convert matrix into pose (q_I_D, p_I_D)
   Eigen::Matrix4d T_I_D;
   ROS_ASSERT(ros_param_list.getType() == XmlRpc::XmlRpcValue::TypeArray);
   for (int32_t i = 0; i < ros_param_list.size(); ++i) {
-    for(int32_t j=0; j<ros_param_list[i].size(); ++j) {
+    for(int32_t j=0; j<ros_param_list[i].size(); ++j) 
       T_I_D(i,j) = static_cast<double>(ros_param_list[i][j]);
-    }
   }
 
   Eigen::Matrix<double, 7, 1> dvl_extrinsics;
@@ -63,10 +67,17 @@ Params RosNode::loadParameters() {
   nh_private_.param<int>("SYS/dvl_windows", params.dvl_windows, 4);
   nh_private_.param<double>("SYS/dvl_delta", params.dvl_delta, 0.05);
 
+  nh_private_.param<bool>("MSCKF/dvl_exterisic_R", params.msckf.do_R_I_D, true);
+  nh_private_.param<bool>("MSCKF/dvl_exterisic_p", params.msckf.do_p_I_D, true);
+  nh_private_.param<bool>("MSCKF/dvl_timeoffset", params.msckf.do_time_I_D, true);
+  nh_private_.param<bool>("MSCKF/dvl_scale", params.msckf.do_scale_D, true);
+  nh_private_.param<int>("MSCKF/dvl_clone", params.msckf.max_clone_D, 2);
+
   return params;
 }
 
 void RosNode::imuCallback(const sensor_msgs::ImuConstPtr &msg) {
+  //! NOTE: IMU timestamp is not stable: 100hz, actually is duraction is about 0.11,0.11,0.6,0.11,0.11,0.6
 
   ImuMsg message;
   message.time = msg->header.stamp.toSec();

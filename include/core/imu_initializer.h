@@ -1,7 +1,7 @@
 #ifndef MSCKF_CORE_IMU_INITIALIZER_H
 #define MSCKF_CORE_IMU_INITIALIZER_H
 
-#include "types/type.h"
+#include "types/type_all.h"
 #include "utils/utils.h"
 #include <mutex>
 #include <tuple>
@@ -13,12 +13,9 @@ namespace msckf_dvio {
 class ImuInitializer {
 
 public:
-  ImuInitializer(int window_imu_, int window_dvl_, double imu_var_, double imu_delta_,
-                 double dvl_delta_, double gravity_, Eigen::Matrix4d T_I_D_):
-    is_initialized(false), last_index_imu(0), last_index_dvl(0), window_imu(window_imu_), window_dvl(window_dvl_),
-    align_time_imu(-1), align_time_dvl(-1), imu_var(imu_var_),
-    imu_delta(imu_delta_),  dvl_delta(dvl_delta_), gravity(gravity_), T_I_D(T_I_D_)
-  {}
+  ImuInitializer(int window_imu_, int window_dvl_, double imu_var_, 
+                 double imu_delta_, double dvl_delta_, double gravity_, 
+                 const Eigen::VectorXd &q_I_D_, const Eigen::Vector3d &p_I_D_);
 
   void feedImu(const ImuMsg &data);
 
@@ -74,16 +71,17 @@ private:
 
   double gravity;
 
-  Eigen::Matrix4d T_I_D;
+  Eigen::Matrix3d R_I_D;
+  Eigen::Vector3d p_I_D;
 
   //// initialzied result
-  double time_I_D;
   double time_I;
   double time_D;
   Eigen::Vector4d q_I_G;
   Eigen::Vector3d v_I;
   Eigen::Vector3d bg_avg;  
   Eigen::Vector3d ba_avg;
+  double time_I_D;
 
 };
 

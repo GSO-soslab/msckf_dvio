@@ -27,3 +27,26 @@ SYS:
   # Default: 0.05
   # Note: DVL velocity difference in x-axis(forward direction) shows at the suddenly movement time
   dvl_delta: 0.05
+
+
+#### MSCKF parameters
+MSCKF:
+  # enable DVL exterisic rotation calibration 
+  dvl_exterisic_R: true
+  # enable DVL exterisic translation calibration 
+  dvl_exterisic_p: true
+  # enable DVL time offset calibration
+  dvl_timeoffset: true
+  # enable DVL scale calibration
+  dvl_scale: true
+  # Max clone storage for DVL
+  dvl_clone: 1 
+
+  # # enable Camera exterisic rotation calibration 
+  # cam_exterisic_R: true
+  # # enable Camera exterisic translation calibration 
+  # cam_exterisic_p: true
+  # # enable Camera time offset calibration
+  # cam_timeoffset: true
+  # # Max clone storage for Camera
+  # cam_clone: 9

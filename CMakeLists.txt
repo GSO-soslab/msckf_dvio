@@ -84,6 +84,7 @@ add_library(dvio_lib SHARED
   include/core/msckf_manager.cpp
   include/core/imu_initializer.cpp
   include/core/state.cpp
+  include/core/predictor.cpp
 )
 target_link_libraries(dvio_lib ${thirdparty_libraries})
 
@@ -98,22 +99,22 @@ target_link_libraries(dvio_node dvio_lib ${thirdparty_libraries})
 ##########################################
 ############### build test ###############
 ##########################################
-add_executable(test_imu_init_manual test/cpp/imu_init_manual.cpp)
-target_link_libraries(test_imu_init_manual dvio_lib ${thirdparty_libraries})
+# add_executable(test_imu_init_manual test/cpp/imu_init_manual.cpp)
+# target_link_libraries(test_imu_init_manual dvio_lib ${thirdparty_libraries})
 
-add_executable(test_imu_init_rosbag test/cpp/imu_init_rosbag.cpp)
-target_link_libraries(test_imu_init_rosbag dvio_lib ${thirdparty_libraries})
-
-
-add_executable(test_ros_rpy test/cpp/ros_rpy.cpp)
-target_link_libraries(test_ros_rpy ${thirdparty_libraries})
+# add_executable(test_imu_init_rosbag test/cpp/imu_init_rosbag.cpp)
+# target_link_libraries(test_imu_init_rosbag dvio_lib ${thirdparty_libraries})
 
 
-add_executable(test_eigen test/cpp/eigen.cpp)
-target_link_libraries(test_eigen ${thirdparty_libraries})
+# add_executable(test_ros_rpy test/cpp/ros_rpy.cpp)
+# target_link_libraries(test_ros_rpy ${thirdparty_libraries})
 
-add_executable(test_remapDVL test/cpp/remap_dvl.cpp)
-target_link_libraries(test_remapDVL ${thirdparty_libraries})
+
+# add_executable(test_eigen test/cpp/eigen.cpp)
+# target_link_libraries(test_eigen ${thirdparty_libraries})
+
+# add_executable(test_remapDVL test/cpp/remap_dvl.cpp)
+# target_link_libraries(test_remapDVL ${thirdparty_libraries})
 
 # add_executable(test_save test/tools_save_map.cpp)
 # target_link_libraries(test_save

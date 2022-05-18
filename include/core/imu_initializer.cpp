@@ -2,6 +2,16 @@
 
 namespace msckf_dvio {
 
+ImuInitializer::ImuInitializer(int window_imu_, int window_dvl_, double imu_var_, 
+                 double imu_delta_, double dvl_delta_, double gravity_, 
+                 const Eigen::VectorXd &q_I_D_, const Eigen::Vector3d &p_I_D_):
+    is_initialized(false), last_index_imu(0), last_index_dvl(0), 
+    window_imu(window_imu_), window_dvl(window_dvl_),
+    align_time_imu(-1), align_time_dvl(-1), 
+    imu_var(imu_var_), imu_delta(imu_delta_),  dvl_delta(dvl_delta_), 
+    gravity(gravity_), R_I_D(toRotationMatrix(q_I_D_)), p_I_D(p_I_D_)
+  {}
+
 void ImuInitializer::feedImu(const ImuMsg &data) {
   buffer_mutex.lock();
   buffer_imu.emplace_back(data);
@@ -198,7 +208,7 @@ bool ImuInitializer::grabInitializationData(std::vector<DvlMsg> &dvl_a,
   //// get time offset between IMU and DVL
   time_I_D = align_time_imu - align_time_dvl; //// −10.645267
   double last_dvl_time = selected_dvl.back().time + time_I_D;
-  
+
   buffer_mutex.lock();
 
 
@@ -326,11 +336,6 @@ void ImuInitializer::doInitialization(const std::vector<DvlMsg> &dvl_a,
                                       const std::vector<ImuMsg> &imu_g) {
   //// TODO: set manually set bias
   
-  Eigen::Matrix3d R_I_D;
-  Eigen::Vector3d p_I_D;
-  R_I_D = T_I_D.block<3,3>(0,0);
-  p_I_D = T_I_D.block<3,1>(0,3);
-
 /*** Acceleration bias and gravity projection estimation ***/
   Eigen::Matrix3d R_I_G;
 

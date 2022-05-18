@@ -10,10 +10,14 @@
 #include <iomanip>
 #include <tuple>
 // customized
-#include "core/state.h"
-#include "types/type.h"
+// #include "core/state.h"
+#include "types/type_all.h"
+
 #include "utils/utils.h"
+
+#include "core/state.h"
 #include "core/imu_initializer.h"
+#include "core/predictor.h"
 
 namespace msckf_dvio
 {
@@ -32,6 +36,9 @@ public:
   void backend();
 
 private:
+
+  std::vector<ImuMsg> selectImu(double t_begin, double t_end);
+
   std::vector<ImuMsg> buffer_imu;
   std::vector<DvlMsg> buffer_dvl;
   std::vector<ImageMsg> buffer_img;
@@ -42,7 +49,7 @@ private:
 
   std::shared_ptr<ImuInitializer> imu_initializer;
 
-  // std::shared_ptr<Propagator> propagator;
+  std::shared_ptr<Predictor> predictor;
 
   Params params;
 };

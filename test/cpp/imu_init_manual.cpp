@@ -6,7 +6,7 @@
 #include <iomanip>
 #include <cassert>
 
-#include "types/type.h"
+#include "types/type_all.h"
 #include "utils/utils.h"
 
 //// TODO: 1) change the vector_tuple STLs into ImuMsg data structure

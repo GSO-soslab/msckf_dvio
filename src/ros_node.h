@@ -14,7 +14,7 @@
 
 //
 #include "core/msckf_manager.h"
-#include "types/type.h"
+#include "types/type_all.h"
 
 
 namespace msckf_dvio
