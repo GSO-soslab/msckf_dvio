@@ -4,13 +4,15 @@ SYS:
   # Note: frequency for backend processing(MSCKF update), increase if more data need for processing ( keep it as camera fequency)
   backend_hz: 15
 
+
+INIT:
   # Default: 1; (0: static; 1:DVL-aided; 2:SFM-aided)
   # Note: Estimate IMU bias and find out the rotation matrix between inertial world frame and IMU body frame;
   imu_init_mode: 1      
 
   # Default: 10
   # Note: how many IMU data is selected to detect IMU jump (suddenly move)  
-  imu_windows: 10
+  imu_window: 10
 
   # Default: 0.2
   # Note: the IMU variance threshold that indicates IMU jump inclued
@@ -22,7 +24,7 @@ SYS:
 
   # Default: 5
   # Note: how many DVL data is selected to detect DVL jump (suddenly move)  
-  dvl_windows: 4
+  dvl_window: 4
   
   # Default: 0.05
   # Note: DVL velocity difference in x-axis(forward direction) shows at the suddenly movement time

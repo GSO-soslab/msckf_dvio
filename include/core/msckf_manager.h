@@ -10,7 +10,6 @@
 #include <iomanip>
 #include <tuple>
 // customized
-// #include "core/state.h"
 #include "types/type_all.h"
 
 #include "utils/utils.h"

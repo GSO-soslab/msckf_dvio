@@ -2,14 +2,15 @@
 
 namespace msckf_dvio {
 
-ImuInitializer::ImuInitializer(int window_imu_, int window_dvl_, double imu_var_, 
-                 double imu_delta_, double dvl_delta_, double gravity_, 
-                 const Eigen::VectorXd &q_I_D_, const Eigen::Vector3d &p_I_D_):
-    is_initialized(false), last_index_imu(0), last_index_dvl(0), 
-    window_imu(window_imu_), window_dvl(window_dvl_),
-    align_time_imu(-1), align_time_dvl(-1), 
-    imu_var(imu_var_), imu_delta(imu_delta_),  dvl_delta(dvl_delta_), 
-    gravity(gravity_), R_I_D(toRotationMatrix(q_I_D_)), p_I_D(p_I_D_)
+ImuInitializer::ImuInitializer( paramInit param_init_, 
+                                priorImu prior_imu_, 
+                                const Eigen::VectorXd &q_I_D_, 
+                                const Eigen::Vector3d &p_I_D_):
+    param_init(param_init_), prior_imu(prior_imu_),
+    R_I_D(toRotationMatrix(q_I_D_)), p_I_D(p_I_D_),
+    is_initialized(false), 
+    last_index_imu(0), last_index_dvl(0), 
+    align_time_imu(-1), align_time_dvl(-1)
   {}
 
 void ImuInitializer::feedImu(const ImuMsg &data) {
@@ -56,7 +57,7 @@ void ImuInitializer::findAlignmentImu() {
 
   buffer_mutex.lock();
 
-  if(buffer_imu.end() - buffer_imu.begin() - last_index_imu >= window_imu) {
+  if(buffer_imu.end() - buffer_imu.begin() - last_index_imu >= param_init.imu_window) {
     std::copy(buffer_imu.begin() + last_index_imu, buffer_imu.end(), std::back_inserter(selected_imu)); 
     last_index_imu = buffer_imu.end() - buffer_imu.begin(); 
   } 
@@ -89,7 +90,7 @@ void ImuInitializer::findAlignmentImu() {
     printf("IMU Initializer: t=%f~%f, variance=%f\n", std::get<0>(sections_imu.at(1)).front().time, 
                                                       std::get<0>(sections_imu.at(1)).back().time, 
                                                       var2);
-    if(var2 > imu_var){
+    if(var2 > param_init.imu_var){
       //// search IMU jump in this two sections
       std::vector<ImuMsg> imu_data;
       imu_data.insert(imu_data.end(), std::get<0>(sections_imu.at(0)).begin(), std::get<0>(sections_imu.at(0)).end());
@@ -118,7 +119,7 @@ void ImuInitializer::findAlignmentImu() {
       for(int i=1; i<imu_data.size(); i++) {
         double delta = imu_data.at(i).a.x()-imu_data.at(i-1).a.x();
         //// align point is the last position that vehicle still static, right before vehcile moving 
-        if(abs(delta) > imu_delta) {
+        if(abs(delta) > param_init.imu_delta) {
           align_time_imu = imu_data.at(i-1).time;
           printf("IMU Initializer: find IMU align point at time:%f\n", align_time_imu);
           break;
@@ -126,7 +127,7 @@ void ImuInitializer::findAlignmentImu() {
       }
 
       if(align_time_imu == -1)
-          printf("IMU Initializer: no IMU align point found with imu_delta=%f\n",imu_delta);
+          printf("IMU Initializer: no IMU align point found with imu_delta=%f\n",param_init.imu_delta);
     }
 
     //// remove the last one
@@ -138,7 +139,7 @@ void ImuInitializer::findAlignmentDvl() {
 /*** Select new DVL data for every window size ***/
   buffer_mutex.lock();
 
-  if(buffer_dvl.end() - buffer_dvl.begin() - last_index_dvl >= window_dvl) {
+  if(buffer_dvl.end() - buffer_dvl.begin() - last_index_dvl >= param_init.dvl_window) {
     std::copy(buffer_dvl.begin() + last_index_dvl, buffer_dvl.end(), std::back_inserter(sections_dvl)); 
     last_index_dvl = buffer_dvl.end() - buffer_dvl.begin(); 
   } 
@@ -151,7 +152,7 @@ void ImuInitializer::findAlignmentDvl() {
     for(int i=1; i<sections_dvl.size(); i++) {
       double delta = abs(sections_dvl.at(i).v.x()- sections_dvl.at(i-1).v.x());
 
-      if(delta > dvl_delta) {
+      if(delta > param_init.dvl_delta) {
         align_time_dvl = sections_dvl.at(i-1).time;
         printf("IMU Initializer: find DVL align point at time:%f\n", align_time_dvl);
         break;
@@ -379,7 +380,7 @@ void ImuInitializer::doInitialization(const std::vector<DvlMsg> &dvl_a,
     R_I_G.block(0, 2, 3, 1) = z_I_G;
 
     //// bias = measurement - prjected_gravity
-    Eigen::Vector3d ba = a_compensated - R_I_G * Eigen::Vector3d(0.0, 0.0, gravity);
+    Eigen::Vector3d ba = a_compensated - R_I_G * prior_imu.gravity;
     ba_avg += ba;
   }
   //// average the bias estimation

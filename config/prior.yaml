@@ -25,13 +25,13 @@ DVL:
   - [  0.0115923,    0.999886,  0.00962664,   0.086180]
   - [      0.003,  0.00959246,   -0.999949,  -0.302024]
   - [        0.0,         0.0,         0.0,        1.0]
-
   # Default:0.0; Time offset from Temporal calibrtion between DVL and IMU: (t_imu = t_dvl + t_offset)
   # TODO: this value will be overide by IMU-DVL alignment
   timeoffset_I_D: 0.0         
   # Default:1.0; Scale factor for DVL measurement effected by sound speed (caused by salinity, temperature...)
   scale: 1.0
-
+  # white noise for bottom track 3-axis velocity measurement
+  bt_noise_density: [0.01, 0.01, 0.1]
 
 ###################################################################################
 ##### Those just from Kalib, maybe convert to msckf_dvio used reference frame #####

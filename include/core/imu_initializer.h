@@ -13,9 +13,10 @@ namespace msckf_dvio {
 class ImuInitializer {
 
 public:
-  ImuInitializer(int window_imu_, int window_dvl_, double imu_var_, 
-                 double imu_delta_, double dvl_delta_, double gravity_, 
-                 const Eigen::VectorXd &q_I_D_, const Eigen::Vector3d &p_I_D_);
+  ImuInitializer(paramInit param_init_, 
+                 priorImu prior_imu_, 
+                 const Eigen::VectorXd &q_I_D_, 
+                 const Eigen::Vector3d &p_I_D_);
 
   void feedImu(const ImuMsg &data);
 
@@ -48,6 +49,8 @@ private:
 
   void cleanBuffer();
 
+  priorImu prior_imu;
+
   bool is_initialized;
 
   std::vector<ImuMsg> buffer_imu;
@@ -57,19 +60,15 @@ private:
 
   int last_index_imu, last_index_dvl;
 
-  int window_imu, window_dvl;
-
   //// IMU data, variance for one section in each IMU window
   std::vector<std::tuple<std::vector<ImuMsg>, double>> sections_imu;
   std::vector<DvlMsg> sections_dvl;
 
   double align_time_imu, align_time_dvl;
 
-  double imu_var, imu_delta;
 
-  double dvl_delta;
 
-  double gravity;
+  paramInit param_init;
 
   Eigen::Matrix3d R_I_D;
   Eigen::Vector3d p_I_D;

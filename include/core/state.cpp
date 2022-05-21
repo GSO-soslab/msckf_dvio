@@ -48,29 +48,29 @@ State::State(const Params &param) {
   SubState dvl;
   if(param.msckf.do_R_I_D){
     // extrinsic_rotation
-    auto extrinsic_rotation_I_D = std::make_shared<QuatJPL>();
-    extrinsic_rotation_I_D->setId(curr_id);
-    extrinsic_rotation_I_D->setValue(param.dvl_extrinsics.head(4));
-    curr_id += extrinsic_rotation_I_D->getSize();
+    auto extrinsic_q_I_D = std::make_shared<QuatJPL>();
+    extrinsic_q_I_D->setId(curr_id);
+    extrinsic_q_I_D->setValue(param.prior_dvl.extrinsics.head(4));
+    curr_id += extrinsic_q_I_D->getSize();
 
-    dvl[EST_QUATERNION] = extrinsic_rotation_I_D;
+    dvl[EST_QUATERNION] = extrinsic_q_I_D;
   }
 
   if(param.msckf.do_p_I_D) {
     // extrinsic_position: 
-    auto extrinsic_position_I_D = std::make_shared<Vec>(3);
-    extrinsic_position_I_D->setId(curr_id);
-    extrinsic_position_I_D->setValue(param.dvl_extrinsics.tail(3));
-    curr_id += extrinsic_position_I_D->getSize();
+    auto extrinsic_p_I_D = std::make_shared<Vec>(3);
+    extrinsic_p_I_D->setId(curr_id);
+    extrinsic_p_I_D->setValue(param.prior_dvl.extrinsics.tail(3));
+    curr_id += extrinsic_p_I_D->getSize();
 
-    dvl[EST_POSITION] = extrinsic_position_I_D;
+    dvl[EST_POSITION] = extrinsic_p_I_D;
   }
 
   if(param.msckf.do_time_I_D) {
     // timeoffset: t_imu = t_dvl + t_offset
     auto timeoffset_I_D = std::make_shared<Vec>(1);
     timeoffset_I_D->setId(curr_id);
-    timeoffset_I_D->setValue(Eigen::MatrixXd::Constant(1,1,param.timeoffset_I_D));
+    timeoffset_I_D->setValue(Eigen::MatrixXd::Constant(1,1,param.prior_dvl.timeoffset));
     curr_id += timeoffset_I_D->getSize();
     dvl[EST_TIMEOFFSET] = timeoffset_I_D;
   }
@@ -79,7 +79,7 @@ State::State(const Params &param) {
     // scale: "Scale"
     auto scale_D = std::make_shared<Vec>(1);
     scale_D->setId(curr_id);
-    scale_D->setValue(Eigen::MatrixXd::Constant(1,1,param.scale));
+    scale_D->setValue(Eigen::MatrixXd::Constant(1,1,param.prior_dvl.scale));
     curr_id += scale_D->getSize();
 
     dvl[EST_SCALE] = scale_D;
@@ -120,17 +120,33 @@ State::State(const Params &param) {
   cov_ = 1e-3 * Eigen::MatrixXd::Identity(curr_id, curr_id);
 
   /*==============================  DVL ==============================*/
+  if(param.msckf.do_R_I_D){
+    //// priors for dvl imu extrinsic-rotation calibration
+    cov_.block(dvl[EST_QUATERNION]->getId(), dvl[EST_QUATERNION]->getId(), 3, 3) = 
+      std::pow(0.01, 2) * Eigen::MatrixXd::Identity(3, 3);
+  }
 
-  //// priors for dvl imu extrinsic-rotation calibration
-  cov_.block(dvl[EST_QUATERNION]->getId(), dvl[EST_QUATERNION]->getId(), 3, 3) = 
-    std::pow(0.01, 2) * Eigen::MatrixXd::Identity(3, 3);
-  //// priors for dvl imu extrinsic-translation calibration
-  cov_.block(dvl[EST_POSITION]->getId(), dvl[EST_POSITION]->getId(), 3, 3) =
-    std::pow(0.01, 2) * Eigen::MatrixXd::Identity(3, 3);
-  //// priors for dvl imu timeoffset calibration
-  cov_(dvl[EST_TIMEOFFSET]->getId(), dvl[EST_TIMEOFFSET]->getId()) = std::pow(0.01, 2);
-  //// priors for dvl scale calibration
-  cov_(dvl[EST_SCALE]->getId(), dvl[EST_SCALE]->getId()) = std::pow(0.01, 2);
+  if(param.msckf.do_p_I_D) {
+    //// priors for dvl imu extrinsic-translation calibration
+    cov_.block(dvl[EST_POSITION]->getId(), dvl[EST_POSITION]->getId(), 3, 3) =
+      std::pow(0.01, 2) * Eigen::MatrixXd::Identity(3, 3);
+  }
+
+  if(param.msckf.do_time_I_D) {
+    //// priors for dvl imu extrinsic-translation calibration
+    cov_.block(dvl[EST_POSITION]->getId(), dvl[EST_POSITION]->getId(), 3, 3) =
+      std::pow(0.01, 2) * Eigen::MatrixXd::Identity(3, 3);
+  }
+  
+  if(param.msckf.do_time_I_D) {
+    //// priors for dvl imu timeoffset calibration
+    cov_(dvl[EST_TIMEOFFSET]->getId(), dvl[EST_TIMEOFFSET]->getId()) = std::pow(0.01, 2);
+  }
+
+  if(param.msckf.do_scale_D) {
+    //// priors for dvl scale calibration
+    cov_(dvl[EST_SCALE]->getId(), dvl[EST_SCALE]->getId()) = std::pow(0.01, 2);
+  }
 
   /*==============================  CAM0 ==============================*/
   // //// priors for cam imu extrinsic-rotation calibration

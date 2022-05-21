@@ -3,11 +3,9 @@
 namespace msckf_dvio
 {
 
-Predictor::Predictor(noiseImu noise, double gravity) :
-    noises_(noise)
-  {
-    gravity_vector_ << 0.0, 0.0, gravity;
-  }
+Predictor::Predictor(priorImu prior_imu) :
+    prior_imu_(prior_imu)
+  {}
 
 void Predictor::propagate(std::shared_ptr<State> state, const std::vector<ImuMsg> &data) {
 
@@ -145,10 +143,10 @@ void Predictor::propagateState(std::shared_ptr<State> state,
 
   // N = [n_g, n_a, n_bg, n_ba]T
   Eigen::Matrix<double, 12, 12> Qc = Eigen::Matrix<double, 12, 12>::Zero();
-  Qc.block(0, 0, 3, 3) = pow(noises_.sigma_w, 2) / dt * Eigen::Matrix<double, 3, 3>::Identity();
-  Qc.block(3, 3, 3, 3) = pow(noises_.sigma_a, 2) / dt * Eigen::Matrix<double, 3, 3>::Identity();
-  Qc.block(6, 6, 3, 3) = pow(noises_.sigma_wb, 2) * dt * Eigen::Matrix<double, 3, 3>::Identity();
-  Qc.block(9, 9, 3, 3) = pow(noises_.sigma_ab, 2) * dt * Eigen::Matrix<double, 3, 3>::Identity();
+  Qc.block(0, 0, 3, 3) = pow(prior_imu_.sigma_w, 2) / dt * Eigen::Matrix<double, 3, 3>::Identity();
+  Qc.block(3, 3, 3, 3) = pow(prior_imu_.sigma_a, 2) / dt * Eigen::Matrix<double, 3, 3>::Identity();
+  Qc.block(6, 6, 3, 3) = pow(prior_imu_.sigma_wb, 2) * dt * Eigen::Matrix<double, 3, 3>::Identity();
+  Qc.block(9, 9, 3, 3) = pow(prior_imu_.sigma_ab, 2) * dt * Eigen::Matrix<double, 3, 3>::Identity();
 
   // Compute the noise injected into the state over the interval
   Qd = G * Qc * G.transpose();
@@ -183,7 +181,7 @@ void Predictor::predict_mean_rk4(std::shared_ptr<State> state, double dt,
   Eigen::Vector4d q0_dot = 0.5 * toOmegaMatrix(w_hat) * dq_0;
   Eigen::Vector3d p0_dot = v_0;
   Eigen::Matrix3d R_Gto0 = toRotationMatrix(multiplyQuat(dq_0, q_0));
-  Eigen::Vector3d v0_dot = R_Gto0.transpose() * a_hat - gravity_vector_;
+  Eigen::Vector3d v0_dot = R_Gto0.transpose() * a_hat - prior_imu_.gravity;
 
   Eigen::Vector4d k1_q = q0_dot * dt;
   Eigen::Vector3d k1_p = p0_dot * dt;
@@ -200,7 +198,7 @@ void Predictor::predict_mean_rk4(std::shared_ptr<State> state, double dt,
   Eigen::Vector4d q1_dot = 0.5 * toOmegaMatrix(w_hat) * dq_1;
   Eigen::Vector3d p1_dot = v_1;
   Eigen::Matrix3d R_Gto1 = toRotationMatrix(multiplyQuat(dq_1, q_0));
-  Eigen::Vector3d v1_dot = R_Gto1.transpose() * a_hat - gravity_vector_;
+  Eigen::Vector3d v1_dot = R_Gto1.transpose() * a_hat - prior_imu_.gravity;
 
   Eigen::Vector4d k2_q = q1_dot * dt;
   Eigen::Vector3d k2_p = p1_dot * dt;
@@ -214,7 +212,7 @@ void Predictor::predict_mean_rk4(std::shared_ptr<State> state, double dt,
   Eigen::Vector4d q2_dot = 0.5 * toOmegaMatrix(w_hat) * dq_2;
   Eigen::Vector3d p2_dot = v_2;
   Eigen::Matrix3d R_Gto2 = toRotationMatrix(multiplyQuat(dq_2, q_0));
-  Eigen::Vector3d v2_dot = R_Gto2.transpose() * a_hat - gravity_vector_;
+  Eigen::Vector3d v2_dot = R_Gto2.transpose() * a_hat - prior_imu_.gravity;
 
   Eigen::Vector4d k3_q = q2_dot * dt;
   Eigen::Vector3d k3_p = p2_dot * dt;
@@ -231,7 +229,7 @@ void Predictor::predict_mean_rk4(std::shared_ptr<State> state, double dt,
   Eigen::Vector4d q3_dot = 0.5 * toOmegaMatrix(w_hat) * dq_3;
   Eigen::Vector3d p3_dot = v_3;
   Eigen::Matrix3d R_Gto3 = toRotationMatrix(multiplyQuat(dq_3, q_0));
-  Eigen::Vector3d v3_dot = R_Gto3.transpose() * a_hat - gravity_vector_;
+  Eigen::Vector3d v3_dot = R_Gto3.transpose() * a_hat - prior_imu_.gravity;
 
   Eigen::Vector4d k4_q = q3_dot * dt;
   Eigen::Vector3d k4_p = p3_dot * dt;
@@ -244,7 +242,7 @@ void Predictor::predict_mean_rk4(std::shared_ptr<State> state, double dt,
   new_v = v_0 + (1.0 / 6.0) * k1_v + (1.0 / 3.0) * k2_v + (1.0 / 3.0) * k3_v + (1.0 / 6.0) * k4_v;
 }
 
-void Predictor::augment(std::shared_ptr<State> state, const Eigen::Vector3d &w) {
+void Predictor::augmentDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w) {
   // make sure this clone is new
   auto EST_CLONE = std::to_string(state->getTimestamp());
 

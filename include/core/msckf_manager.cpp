@@ -12,18 +12,12 @@ MsckfManager::MsckfManager(Params &parameters)
   state = std::make_shared<State>(params);
 
   //// setup imu initializer
-  //// TODO: set parameters into sub_param like param_imu_init
-  imu_initializer = std::make_shared<ImuInitializer>(params.imu_windows, params.dvl_windows,
-                                                     params.imu_var, params.imu_delta, 
-                                                     params.dvl_delta, params.gravity,
+  imu_initializer = std::make_shared<ImuInitializer>(params.init, params.prior_imu,
                                                      state->getEstimationValue(DVL, EST_QUATERNION),
                                                      state->getEstimationValue(DVL, EST_POSITION));
-  //// setup predictor
-  noiseImu imu_noise{params.accl_noise, params.accl_random_walk,
-                     params.gyro_noise, params.gyro_random_walk};
 
   // //// setup predictor
-  predictor = std::make_shared<Predictor>(imu_noise, params.gravity);
+  predictor = std::make_shared<Predictor>(params.prior_imu);
 }
 
 void MsckfManager::feedImu(const ImuMsg &data) {
@@ -121,13 +115,13 @@ void MsckfManager::backend() {
       return;
   }
 
-/******************** Propagate and Clone ********************/
 
-  //// current sensor measurement arrived
+  //// DO DVL 
   if(buffer_dvl.size() > 0) {
+
     //// determine selected IMU range, from last updated to current sensor measurement
     auto offset = params.msckf.do_time_I_D ? 
-                  state->getEstimationValue(DVL, EST_TIMEOFFSET)(0) : params.timeoffset_I_D;
+                  state->getEstimationValue(DVL, EST_TIMEOFFSET)(0) : params.prior_dvl.timeoffset;
     double time_begin = state->getTimestamp();
     double time_end   = buffer_dvl.front().time + offset;
 
@@ -159,18 +153,35 @@ void MsckfManager::backend() {
       std::cout<<"prop cov : "<< state->getCov()<<std::endl;
       
       // Last angular velocity (used for cloning when estimating time offset)
-      Eigen::Vector3d last_w = Eigen::Vector3d::Zero();
-      last_w = data.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
+      Eigen::Vector3d last_w_I = Eigen::Vector3d::Zero();
+      last_w_I = data.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
 
-      predictor->augment(state, last_w);
+      predictor->augmentDvl(state, last_w_I);
 
       std::cout<<"aug cov: "<< state->getCov()<<std::endl;
-      //! TODO: earse propagated IMU data until the first time eariler then state->time
+
+/******************** Update ********************/
+      Eigen::Vector3d last_v_D = Eigen::Vector3d::Zero();
+      last_v_D = buffer_dvl.front().v;
+      // updater->updateDvl(state, last_w_I, last_v_D);
+
+/******************** marginalize ********************/
+      // updater->marginalize();
+
+  //! TODO: earse data buffer
+
+  //! TODO: remove clone
     }
+
+
+
+
   }
 
 
-/******************** Update ********************/
+
+
+
 
 }
 

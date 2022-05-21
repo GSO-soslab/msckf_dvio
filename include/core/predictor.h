@@ -5,9 +5,6 @@
 #include "utils/utils.h"
 #include "core/state.h"
 
-#include <mutex>
-
-
 
 namespace msckf_dvio
 {
@@ -15,11 +12,11 @@ namespace msckf_dvio
 class Predictor {
 
 public:
-  Predictor(noiseImu noise, double gravity);
+  Predictor(priorImu prior_imu);
 
   void propagate(std::shared_ptr<State> state, const std::vector<ImuMsg> &data);
 
-  void augment(std::shared_ptr<State> state, const Eigen::Vector3d &w);
+  void augmentDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w);
 
 private:
   void propagateState(std::shared_ptr<State> state, 
@@ -38,10 +35,10 @@ private:
                         Eigen::Vector4d &new_q, Eigen::Vector3d &new_v, Eigen::Vector3d &new_p);
 
   /// Container for the noise values
-  noiseImu noises_;
+  priorImu prior_imu_;
 
   /// Gravity vector
-  Eigen::Vector3d gravity_vector_;
+  // Eigen::Vector3d gravity_vector_;
 
 };
 
