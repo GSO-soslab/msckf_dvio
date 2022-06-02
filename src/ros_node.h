@@ -12,8 +12,11 @@
 // #include <geometry_msgs/TwistWithCovarianceStamped.h>
 #include <nortek_dvl/ButtomTrack.h>
 
+#include <nav_msgs/Odometry.h>
+#include <nav_msgs/Path.h>
+#include <tf/transform_broadcaster.h>
 //
-#include "core/msckf_manager.h"
+#include "manager/msckf_manager.h"
 #include "types/type_all.h"
 
 
@@ -50,6 +53,9 @@ private:
 
   Params parameters;
 
+  //! TEST:
+  ros::Publisher pub_odom, pub_path;
+  tf::TransformBroadcaster odom_broadcaster;
 }; // end of class   
 
 } // namespace msckf_dvio

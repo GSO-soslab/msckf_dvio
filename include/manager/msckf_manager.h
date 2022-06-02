@@ -1,5 +1,5 @@
-#ifndef MSCKF_CORE_MANAGER_H
-#define MSCKF_CORE_MANAGER_H
+#ifndef MSCKF_MANAGER_MSCKF_H
+#define MSCKF_MANAGER_MSCKF_H
 //c++
 #include <memory>
 #include <mutex>
@@ -9,14 +9,17 @@
 #include <cmath>
 #include <iomanip>
 #include <tuple>
+#include <fstream>
 // customized
 #include "types/type_all.h"
 
 #include "utils/utils.h"
 
-#include "core/state.h"
-#include "core/imu_initializer.h"
-#include "core/predictor.h"
+#include "msckf/state.h"
+#include "msckf/predictor.h"
+#include "msckf/updater.h"
+
+#include "initializer/imu_initializer.h"
 
 namespace msckf_dvio
 {
@@ -34,6 +37,19 @@ public:
 
   void backend();
 
+  bool checkNewDvl(); 
+
+  bool isInitialized() { return imu_initializer->isInitialized(); }
+
+  //! TODO: just for test, better hanlding in visulization_manager
+  bool isOdom() { return is_odom; }
+
+  void resetOdom() { is_odom = false;}
+
+  Eigen::VectorXd getNewImuState() {return state->getImuValue(); }
+
+  double getTime() {return state->getTimestamp(); }
+
 private:
 
   std::vector<ImuMsg> selectImu(double t_begin, double t_end);
@@ -50,11 +66,18 @@ private:
 
   std::shared_ptr<Predictor> predictor;
 
+  std::shared_ptr<Updater> updater;
+
   Params params;
+
+  //! TEST: 
+  int test=0;
+  std::atomic<bool> is_odom;
+  const char *file_path="/home/lin/develop/ros/soslab_ws/src/slam/msckf_dvio/test_result/msckf_data.dat";
 };
 
 } // namespace msckf_dvio
 
 
-#endif // MSCKF_CORE_MANAGER_H
+#endif // MSCKF_MANAGER_MSCKF_H
 

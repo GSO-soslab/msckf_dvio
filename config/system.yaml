@@ -42,7 +42,7 @@ MSCKF:
   # enable DVL scale calibration
   dvl_scale: true
   # Max clone storage for DVL
-  dvl_clone: 1 
+  dvl_clone: 2 
 
   # # enable Camera exterisic rotation calibration 
   # cam_exterisic_R: true

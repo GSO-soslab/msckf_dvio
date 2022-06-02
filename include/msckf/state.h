@@ -1,5 +1,5 @@
-#ifndef MSCKF_CORE_STATE_H_
-#define MSCKF_CORE_STATE_H_
+#ifndef MSCKF_MSCKF_STATE_H_
+#define MSCKF_MSCKF_STATE_H_
 
 #include <memory>
 #include <map>
@@ -85,6 +85,30 @@ public:
     return state_[sub_state_name].at(est_name)->getSize();
   }
 
+  //! @brief how many estimations in SENSOR STATE or CLONE STATE
+  //! @param sub_state_name: each sub state, e.g. SENSOR and CLONE
+  //!
+  inline int getEstimationNum(const SubStateName sub_state_name) {
+    return state_[sub_state_name].size();
+  }
+
+  //! @brief update state using estimated state error
+  //! @param new_value: estimated state error
+  //!
+  inline void updateState(const Eigen::VectorXd &new_value) {
+    assert(new_value.rows() == cov_.rows());
+
+    // find each sub states: IMU, DVL, CLONE
+    for(auto & sub_state: state_) {
+      // find each estimation: q, p, v, bias, timeoffset ....
+      for(auto &estimation : sub_state.second) {
+        // grab associated block based on state id and state size
+        estimation.second->update(new_value.block(estimation.second->getId(),   0, 
+                                                  estimation.second->getSize(), 1));
+      }
+    }
+  }
+
   //==================================== IMU =====================================//
 
 
@@ -117,10 +141,8 @@ public:
   }
 
 
-
   //==================================== DVL ========================================//
   
-
   inline void setDvl(const Eigen::MatrixXd &new_value) {
     //! TODO: 
     //! check size with actuall size based on DVL MSCKF state setting
@@ -130,7 +152,6 @@ public:
   inline void setDvlEst(const std::string &est_name, const Eigen::MatrixXd &new_value) {
     state_[DVL].at(est_name)->setValue(new_value);
   }
-
 
   //================================= CLONE_DVL ========================================//
 
@@ -164,7 +185,7 @@ public:
 private:
   friend class Predictor;
 
-  // friend class Updater;
+  friend class Updater;
 
   // Current timestamp (should be the last update time!)
   double timestamp_;
@@ -182,4 +203,4 @@ private:
 } // namespace msckf_dvio
 
 
-#endif //MSCKF_CORE_STATE_H_
+#endif //MSCKF_MSCKF_UPDATER_H

@@ -81,10 +81,13 @@ list(APPEND thirdparty_libraries
 ############### build lib ###############
 ##########################################
 add_library(dvio_lib SHARED
-  include/core/msckf_manager.cpp
-  include/core/imu_initializer.cpp
-  include/core/state.cpp
-  include/core/predictor.cpp
+  include/initializer/imu_initializer.cpp
+  
+  include/manager/msckf_manager.cpp
+
+  include/msckf/state.cpp
+  include/msckf/predictor.cpp
+  include/msckf/updater.cpp
 )
 target_link_libraries(dvio_lib ${thirdparty_libraries})
 

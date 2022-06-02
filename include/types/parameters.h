@@ -1,5 +1,5 @@
-#ifndef MSCKF_CORE_TYPE_PARAMETERS_H_
-#define MSCKF_CORE_TYPE_PARAMETERS_H_
+#ifndef MSCKF_TYPE_PARAMETERS_H_
+#define MSCKF_TYPE_PARAMETERS_H_
 
 namespace msckf_dvio
 {
@@ -24,7 +24,9 @@ struct priorDvl {
   double timeoffset;
   // Scale factor for DVL: effected by sound speed
   double scale; 
-  // measurement white noise for 3-axis velocity
+  // sound speed: used when not estimate the scale and do sound spped correction
+  double sound_speed;
+  // BT 3-axis veloicty measurement white noise
   Eigen::Vector3d sigma_bt;
 
   //! TODO: for initial_covariance
@@ -104,4 +106,4 @@ struct Params{
 
 } // namespace msckf_dvio
 
-#endif // MSCKF_CORE_TYPE_PARAMETERS_H_
+#endif // MSCKF_TYPE_PARAMETERS_H_

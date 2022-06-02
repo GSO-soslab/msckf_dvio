@@ -1,5 +1,5 @@
-#ifndef MSCKF_CORE_IMU_INITIALIZER_H
-#define MSCKF_CORE_IMU_INITIALIZER_H
+#ifndef MSCKF_INITIALIZER_IMU_H
+#define MSCKF_INITIALIZER_IMU_H
 
 #include "types/type_all.h"
 #include "utils/utils.h"
@@ -51,6 +51,8 @@ private:
 
   priorImu prior_imu;
 
+  paramInit param_init;
+
   bool is_initialized;
 
   std::vector<ImuMsg> buffer_imu;
@@ -65,10 +67,6 @@ private:
   std::vector<DvlMsg> sections_dvl;
 
   double align_time_imu, align_time_dvl;
-
-
-
-  paramInit param_init;
 
   Eigen::Matrix3d R_I_D;
   Eigen::Vector3d p_I_D;
@@ -86,4 +84,4 @@ private:
 
 }
 
-#endif // MSCKF_CORE_IMU_INITIALIZER_H
+#endif // MSCKF_INITIALIZER_IMU_H

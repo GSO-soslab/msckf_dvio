@@ -1,9 +1,9 @@
-#ifndef MSCKF_CORE_PREDICTOR_H
-#define MSCKF_CORE_PREDICTOR_H
+#ifndef MSCKF_MSCKF_PREDICTOR_H
+#define MSCKF_MSCKF_PREDICTOR_H
 
 #include "types/type_all.h"
 #include "utils/utils.h"
-#include "core/state.h"
+#include "msckf/state.h"
 
 
 namespace msckf_dvio
@@ -34,15 +34,12 @@ private:
                         const Eigen::Vector3d &w_hat2, const Eigen::Vector3d &a_hat2, 
                         Eigen::Vector4d &new_q, Eigen::Vector3d &new_v, Eigen::Vector3d &new_p);
 
-  /// Container for the noise values
+  /// prior information for IMU
   priorImu prior_imu_;
-
-  /// Gravity vector
-  // Eigen::Vector3d gravity_vector_;
 
 };
 
 } // namespace msckf_dvio
 
 
-#endif //MSCKF_CORE_PREDICTOR_H
+#endif // MSCKF_MSCKF_PREDICTOR_H

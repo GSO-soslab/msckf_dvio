@@ -30,8 +30,8 @@ DVL:
   timeoffset_I_D: 0.0         
   # Default:1.0; Scale factor for DVL measurement effected by sound speed (caused by salinity, temperature...)
   scale: 1.0
-  # white noise for bottom track 3-axis velocity measurement
-  bt_noise_density: [0.01, 0.01, 0.1]
+  # white noise on DVL tottom track 3-axis velocity measurement
+  bt_v_noise: [0.01, 0.01, 0.01]
 
 ###################################################################################
 ##### Those just from Kalib, maybe convert to msckf_dvio used reference frame #####

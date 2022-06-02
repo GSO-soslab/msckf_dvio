@@ -1,4 +1,4 @@
-#include "core/imu_initializer.h"
+#include "initializer/imu_initializer.h"
 
 namespace msckf_dvio {
 

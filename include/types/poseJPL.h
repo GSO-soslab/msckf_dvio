@@ -38,13 +38,13 @@ public:
 
     //  quaternion
     Eigen::Matrix<double, 4, 1> dq;
-    dq << .5 * dx.block(0,0,4,1), 1.0;
+    dq << .5 * dx.block(0,0,3,1), 1.0;
     dq = normalizeQuat(dq);
 
     // Update 
     Eigen::Matrix<double, 7, 1> pose;
     pose.block(0,0,4,1) = multiplyQuat(dq, value_.block(0,0,4,1));
-    pose.block(4,0,3,1) = value_.block(4,0,3,1) + dx.block(4,0,3,1);
+    pose.block(4,0,3,1) = value_.block(4,0,3,1) + dx.block(3,0,3,1);
     setValue(pose);
   }
 

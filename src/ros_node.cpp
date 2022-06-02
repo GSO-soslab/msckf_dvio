@@ -18,6 +18,11 @@ RosNode::RosNode(const ros::NodeHandle &nh,
   imu_sub_ = nh_.subscribe("imu", 2000, &RosNode::imuCallback, this);
   dvl_sub_ = nh_.subscribe("dvl", 200, &RosNode::dvlCallback, this);
   image_sub_ = nh_.subscribe("image", 200, &RosNode::imageCallback, this);
+
+
+  //! TEST:
+  pub_odom = nh_.advertise<nav_msgs::Odometry>("/odom", 10);
+  pub_path = nh_.advertise<nav_msgs::Path>("/path", 10);  
 }    
 
 Params RosNode::loadParameters() {
@@ -36,15 +41,15 @@ Params RosNode::loadParameters() {
 
   //===== DVL =====//
   XmlRpc::XmlRpcValue rosparam_T;
-  std::vector<double> bt_noise_density(3);
+  std::vector<double> bt_v_noise(3);
   //// get DVL extrinsic transformation matrix between IMU and DVl
   nh_private_.getParam     ("DVL/T_I_D",            rosparam_T);
   //// get DVL timeoffset
   nh_private_.param<double>("DVL/timeoffset_I_D",   params.prior_dvl.timeoffset, 0.0);
   //// get DVL scale factor 
   nh_private_.param<double>("DVL/scale",            params.prior_dvl.scale, 1.0);
-  //// get DVL BT 3-axis velocity measurement noise
-  nh_private_.getParam     ("DVL/bt_noise_density", bt_noise_density);
+  //// DVL BT velocity measurement noise
+  nh_private_.getParam     ("DVL/bt_v_noise", bt_v_noise);
   
   //// convert matrix into pose 
   Eigen::Matrix4d T;
@@ -56,7 +61,7 @@ Params RosNode::loadParameters() {
 
   params.prior_dvl.extrinsics.block(0, 0, 4, 1) = toQuaternion(T.block(0, 0, 3, 3));
   params.prior_dvl.extrinsics.block(4, 0, 3, 1) = T.block(0, 3, 3, 1);
-  params.prior_dvl.sigma_bt << bt_noise_density.at(0), bt_noise_density.at(1), bt_noise_density.at(2);
+  params.prior_dvl.sigma_bt << bt_v_noise.at(0), bt_v_noise.at(1), bt_v_noise.at(2);
 
   
   //===== Camera =====//
@@ -128,6 +133,35 @@ void RosNode::process() {
   while(1) {
     // do the ekf stuff
     manager->backend();
+
+    //! TODO: move this to visulization manager
+    // get imu state to publish 
+    if(manager->isOdom()) {
+
+      auto imu_value = manager->getNewImuState();
+      auto time = manager->getTime();
+      manager->resetOdom();
+
+      // std::cout<<"odom: "<< imu_value.transpose()<< " with t: "<< time << std::endl;
+      // prepare msg to be published
+      nav_msgs::Odometry msg_odom;
+      msg_odom.header.stamp = ros::Time(time);
+      msg_odom.header.frame_id = "odom";
+      msg_odom.child_frame_id = "imu";
+      msg_odom.pose.pose.orientation.x = imu_value(0);
+      msg_odom.pose.pose.orientation.y = imu_value(1);
+      msg_odom.pose.pose.orientation.z = imu_value(2);
+      msg_odom.pose.pose.orientation.w = imu_value(3);
+      msg_odom.pose.pose.position.x    = imu_value(4);
+      msg_odom.pose.pose.position.y    = imu_value(5);
+      msg_odom.pose.pose.position.z    = imu_value(6);
+      msg_odom.twist.twist.linear.x    = imu_value(7);
+      msg_odom.twist.twist.linear.y    = imu_value(8);
+      msg_odom.twist.twist.linear.z    = imu_value(9);
+
+      pub_odom.publish(msg_odom);
+    }
+
 
     std::chrono::milliseconds dura(sleep_t);
     std::this_thread::sleep_for(dura);
