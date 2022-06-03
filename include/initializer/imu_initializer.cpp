@@ -4,10 +4,10 @@ namespace msckf_dvio {
 
 ImuInitializer::ImuInitializer( paramInit param_init_, 
                                 priorImu prior_imu_, 
-                                const Eigen::VectorXd &q_I_D_, 
-                                const Eigen::Vector3d &p_I_D_):
+                                priorDvl prior_dvl_):
     param_init(param_init_), prior_imu(prior_imu_),
-    R_I_D(toRotationMatrix(q_I_D_)), p_I_D(p_I_D_),
+    R_I_D(toRotationMatrix(prior_dvl_.extrinsics.head(4))), 
+    p_I_D(prior_dvl_.extrinsics.tail(3)),
     is_initialized(false), 
     last_index_imu(0), last_index_dvl(0), 
     align_time_imu(-1), align_time_dvl(-1)

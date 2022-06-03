@@ -15,8 +15,7 @@ class ImuInitializer {
 public:
   ImuInitializer(paramInit param_init_, 
                  priorImu prior_imu_, 
-                 const Eigen::VectorXd &q_I_D_, 
-                 const Eigen::Vector3d &p_I_D_);
+                 priorDvl prior_dvl_);
 
   void feedImu(const ImuMsg &data);
 
