@@ -23,6 +23,8 @@ RosNode::RosNode(const ros::NodeHandle &nh,
   //! TEST:
   pub_odom = nh_.advertise<nav_msgs::Odometry>("/odom", 10);
   pub_path = nh_.advertise<nav_msgs::Path>("/path", 10);  
+
+  odom_broadcaster = new tf::TransformBroadcaster();
 }    
 
 Params RosNode::loadParameters() {
@@ -127,7 +129,7 @@ void RosNode::imageCallback(const sensor_msgs::ImageConstPtr &msg) {
 
 void RosNode::process() {
   
-  int sleep_t = 1.0/parameters.backend_hz *1000.0;
+  int sleep_t = 1.0 / parameters.backend_hz * 1000.0;
 
 
   while(1) {
@@ -160,6 +162,20 @@ void RosNode::process() {
       msg_odom.twist.twist.linear.z    = imu_value(9);
 
       pub_odom.publish(msg_odom);
+
+      // Publish our transform on TF
+      // NOTE: since we use JPL we have an implicit conversion to Hamilton when we publish
+      // NOTE: a rotation from GtoI in JPL has the same xyzw as a ItoG Hamilton rotation
+      tf::StampedTransform trans;
+      trans.stamp_ = ros::Time::now();
+      trans.frame_id_ = "odom";
+      trans.child_frame_id_ = "imu";
+      tf::Quaternion quat(imu_value(0), imu_value(1), imu_value(2), imu_value(3));
+      trans.setRotation(quat);
+      tf::Vector3 orig(imu_value(4), imu_value(5), imu_value(6));
+      trans.setOrigin(orig);
+      odom_broadcaster->sendTransform(trans);
+
     }
 
 

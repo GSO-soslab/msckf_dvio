@@ -55,7 +55,7 @@ private:
 
   //! TEST:
   ros::Publisher pub_odom, pub_path;
-  tf::TransformBroadcaster odom_broadcaster;
+  tf::TransformBroadcaster *odom_broadcaster;
 }; // end of class   
 
 } // namespace msckf_dvio

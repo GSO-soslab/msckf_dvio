@@ -77,11 +77,6 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I
   Eigen::MatrixXd K_transpose = S.ldlt().solve(H * state->cov_);
   Eigen::MatrixXd K = K_transpose.transpose();
 
-  // DVL BT estimation: z = 1/S * R_I_D^T * (R_I_G * v_G_I + [w_I]x * p_I_D) + n
-  Eigen::Vector3d v_D_hat = temp_1 * temp_3;
-  Eigen::Vector3d r = v_D - v_D_hat;
-  Eigen::VectorXd delta_X = K * r;
-
   std::cout<<"H: "<< H<<std::endl;
   std::cout<<"K: "<< K<<std::endl;
   // std::cout<<"delta X: "<< delta_X.transpose()<<std::endl;
@@ -90,11 +85,75 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I
   /*************************** Update state and covariance ************************/
   /********************************************************************************/
 
+  // DVL BT estimation: z = 1/S * R_I_D^T * (R_I_G * v_G_I + [w_I]x * p_I_D) + n
+  Eigen::Vector3d v_D_hat = temp_1 * temp_3;
+  Eigen::Vector3d r = v_D - v_D_hat;
+  Eigen::VectorXd delta_X = K * r;
+
   state->updateState(delta_X);
 
   // P_k = P_k-1 - K * H * P_k-1
   state->cov_.triangularView<Eigen::Upper>() -= K * H * state->cov_;
   state->cov_ = state->cov_.selfadjointView<Eigen::Upper>();
+}
+
+void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &v_D) {
+  /********************************************************************************/
+  /************************* construct Jacobian H matrix **************************/
+  /********************************************************************************/
+  int size_measurement = 3;
+  int size_state = state->getCovCols();
+  Eigen::MatrixXd H = Eigen::MatrixXd::Zero(size_measurement, size_state);
+
+  auto id_imu_v = state->getEstimationId(IMU,EST_VELOCITY);
+
+  H.block(0,id_imu_v,3,3) = Eigen::Matrix3d::Identity();
+  // std::cout<<"H: "<< H<<std::endl;
+
+  /********************************************************************************/
+  /****************************** Compute Kalman Gain *****************************/
+  /********************************************************************************/
+  // IMU veloicty measurement noise
+  Eigen::Matrix3d Rn = Eigen::Matrix3d::Identity();
+  Rn(0,0) = pow(0.01, 2);
+  Rn(1,1) = pow(0.01, 2);
+  Rn(2,2) = pow(0.1, 2);
+
+ // K = P * H^T * (H * P * H^T + Rn) ^-1
+  Eigen::MatrixXd S(Rn.rows(), Rn.rows());
+  S = H * state->cov_ * H.transpose() + Rn;
+
+  Eigen::MatrixXd K_transpose = S.ldlt().solve(H * state->cov_);
+  Eigen::MatrixXd K = K_transpose.transpose();
+  // std::cout<<"K1: "<< K<<std::endl;
+
+  // Eigen::MatrixXd K_2 = S.ldlt().solve(state->cov_ * H.transpose());
+  // std::cout<<"K2: "<< K_2<<std::endl;
+
+
+  Eigen::Vector3d v_I_meas;
+  v_I_meas << -v_D(0), v_D(1), -v_D(2);
+  // v_I_meas = v_I_meas * (1417/1500.0);
+  // v_I_meas = toRotationMatrix(state->getEstimationValue(IMU,EST_QUATERNION))* v_I_meas * (1417/1500.0);
+  v_I_meas = toRotationMatrix(state->getEstimationValue(IMU,EST_QUATERNION)).transpose() * v_I_meas * (1417/1500.0);
+  // std::cout<<"V_I: "<<v_I_meas<<std::endl;
+
+  Eigen::Vector3d r = v_I_meas - state->getEstimationValue(IMU,EST_VELOCITY);
+  Eigen::VectorXd delta_X = K * r;
+  // std::cout<<"V_error: "<<delta_X.block(7,0,3,1)<<std::endl;
+
+  //update state
+  state->updateState(delta_X);
+
+  //update covariance
+  // P_k = P_k-1 - K * H * P_k-1
+
+  Eigen::MatrixXd I_KH = Eigen::MatrixXd::Identity(K.rows(), H.cols()) - K*H;
+  state->cov_ = I_KH*state->cov_;
+
+  // Fix the covariance to be symmetric
+  Eigen::MatrixXd state_cov_fixed = (state->cov_ + state->cov_.transpose()) / 2.0;
+  state->cov_ = state_cov_fixed;
 }
 
 void Updater::marginalizeDvl(std::shared_ptr<State> state) {

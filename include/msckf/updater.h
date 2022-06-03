@@ -15,6 +15,8 @@ public:
 
   void updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I, const Eigen::Vector3d &v_D);
 
+  void updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &v_D);
+
   void marginalizeDvl(std::shared_ptr<State> state);
 
 private:

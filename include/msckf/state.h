@@ -92,6 +92,15 @@ public:
     return state_[sub_state_name].size();
   }
 
+  //! @brief set value of angle estimation of any sub state, will override the original value
+  //! @param sub_state_name: sub state name, e.g. IMU, DVL, CAM, CLONE
+  //! @param est_name: each actual estimation in the sub state, e.g. rostion, position, calibration...
+  //! @param new_value: estimated value
+  //!
+  inline void setEstimationValue(const SubStateName &sub_state_name, const std::string &est_name, const Eigen::MatrixXd &new_value){
+    state_[sub_state_name].at(est_name)->setValue(new_value);
+  }
+
   //! @brief update state using estimated state error
   //! @param new_value: estimated state error
   //!
@@ -149,11 +158,7 @@ public:
     //! accroding to id to setup values
   }
 
-  inline void setDvlEst(const std::string &est_name, const Eigen::MatrixXd &new_value) {
-    state_[DVL].at(est_name)->setValue(new_value);
-  }
-
-  //================================= CLONE_DVL ========================================//
+  //================================= CLONE ========================================//
 
   inline bool foundClone(const SubStateName &sub_state_name, const std::string &clone_name) {
     return state_[sub_state_name].find(clone_name) != state_[sub_state_name].end() ? true : false; 

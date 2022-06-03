@@ -12,14 +12,14 @@ MsckfManager::MsckfManager(Params &parameters) : is_odom(false)
   state = std::make_shared<State>(params);
 
   //// setup imu initializer
-  imu_initializer = std::make_shared<ImuInitializer>(params.init, params.prior_imu,
-                                                     state->getEstimationValue(DVL, EST_QUATERNION),
-                                                     state->getEstimationValue(DVL, EST_POSITION));
+  imu_initializer = std::make_shared<ImuInitializer>(params.init, params.prior_imu, params.prior_dvl);
+
   // setup predictor
   predictor = std::make_shared<Predictor>(params.prior_imu);
 
   // setup updater
   updater = std::make_shared<Updater>(params.prior_dvl, params.msckf);
+
 }
 
 void MsckfManager::feedImu(const ImuMsg &data) {
@@ -90,7 +90,8 @@ void MsckfManager::backend() {
       state->setTimestamp(time_I0);
       state->setImuValue(imu_value);
       if(params.msckf.do_time_I_D)
-        state->setDvlEst(EST_TIMEOFFSET, Eigen::MatrixXd::Constant(1,1,time_I_D0));
+        state->setEstimationValue(DVL, EST_TIMEOFFSET, Eigen::MatrixXd::Constant(1,1,time_I_D0));
+
 
       //// clean manager data buffer before initialization 
       buffer_mutex.lock();
@@ -170,65 +171,54 @@ void MsckfManager::backend() {
       //   printf("t=%f\n", i.time);
       // }
 
-      // std::cout<<"state: "<<state->getImuValue()<<std::endl;
-      // std::cout<<"cov: "<< state->getCov()<<std::endl;
-
       test++;
       std::ofstream file;
 
 
       predictor->propagate(state, selected_imu);
-
-      file.open(file_path, std::ios_base::app);//std::ios_base::app
-      file <<"\n ==================================  " << test<< "  ====================================";
-      file<<"\nprop cov: \n" << state->getCov()<<"\n";
-      file<<"size: "<<state->getCov().rows()<<"X"<<state->getCov().cols()<<"\n";
-      file.close();
+      // file.open(file_path, std::ios_base::app);//std::ios_base::app
+      // file <<"\n ==================================  " << test<< "  ====================================";
+      // file<<"\nprop cov: \n" << state->getCov()<<"\n";
+      // file<<"size: "<<state->getCov().rows()<<"X"<<state->getCov().cols()<<"\n";
+      // file.close();
 
       // We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d)
       assert(!state->foundSPD());
 
-      // std::cout<<"prop state : "<<state->getImuValue()<<std::endl;
-      // std::cout<<"prop cov : "<< state->getCov()<<std::endl;
-
-      
-      // Last angular velocity (used for cloning when estimating time offset)
+      // Last angular velocity and linear velocity
       Eigen::Vector3d last_w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
-      predictor->augmentDvl(state, last_w_I);
+      Eigen::Vector3d last_v_D = selected_dvl.v;
 
-      file.open(file_path, std::ios_base::app);//std::ios_base::app
-      file<<"\naug cov: \n" << state->getCov()<<"\n";
-      file<<"size: "<<state->getCov().rows()<<"X"<<state->getCov().cols()<<"\n";
-      file.close();
+      // // use Last angular velocity for cloning when estimating time offset)
+      // predictor->augmentDvl(state, last_w_I);
+      // file.open(file_path, std::ios_base::app);//std::ios_base::app
+      // file<<"\naug cov: \n" << state->getCov()<<"\n";
+      // file<<"size: "<<state->getCov().rows()<<"X"<<state->getCov().cols()<<"\n";
+      // file.close();
 
       // update
-      Eigen::Vector3d last_v_D = selected_dvl.v;
-      updater->updateDvl(state, last_w_I, last_v_D);
-
-      file.open(file_path, std::ios_base::app);//std::ios_base::app
-      file<<"\nupdated cov: \n" << state->getCov()<<"\n";
-      file<<"size: "<<state->getCov().rows()<<"X"<<state->getCov().cols()<<"\n";
-      file.close();
+      // updater->updateDvl(state, last_w_I, last_v_D);
+      updater->updateDvl(state, last_v_D);
+      // file.open(file_path, std::ios_base::app);//std::ios_base::app
+      // file<<"\nupdated cov: \n" << state->getCov()<<"\n";
+      // file<<"size: "<<state->getCov().rows()<<"X"<<state->getCov().cols()<<"\n";
+      // file.close();
 
 
       // if(test==2){
       //   std::exit(EXIT_FAILURE);
       // }
 
-      // marginalize 
-
-      std::cout<<"clones: "<<state->getEstimationNum(CLONE_DVL)<<std::endl;
-
-      // if max clone of DVL is reached, then do the marginalize: remove the clone and related covarinace
-      if(state->getEstimationNum(CLONE_DVL) == params.msckf.max_clone_D) {
-        updater->marginalizeDvl(state);
-      }
-
-      file.open(file_path, std::ios_base::app);//std::ios_base::app
-      file<<"\nmarg cov: \n" << state->getCov()<<"\n";
-      file<<"size: "<<state->getCov().rows()<<"X"<<state->getCov().cols()<<"\n";
-      file<<"\nupdated IMU: \n" << state->getImuValue().transpose() <<"\n";
-      file.close();
+      // // marginalize 
+      // // if max clone of DVL is reached, then do the marginalize: remove the clone and related covarinace
+      // if(state->getEstimationNum(CLONE_DVL) == params.msckf.max_clone_D) {
+      //   updater->marginalizeDvl(state);
+      // }
+      // file.open(file_path, std::ios_base::app);//std::ios_base::app
+      // file<<"\nmarg cov: \n" << state->getCov()<<"\n";
+      // file<<"size: "<<state->getCov().rows()<<"X"<<state->getCov().cols()<<"\n";
+      // file<<"\nupdated IMU: \n" << state->getImuValue().transpose() <<"\n";
+      // file.close();
 
       is_odom = true;
     }

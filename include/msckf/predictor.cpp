@@ -64,15 +64,18 @@ void Predictor::propagateCovariance(std::shared_ptr<State> state,
   Eigen::MatrixXd P_II = Q.selfadjointView<Eigen::Upper>();
   P_II.noalias() += 
     Phi * state->cov_.block(id_imu_start, id_imu_start, size_imu, size_imu) * Phi.transpose();
-  // Phi*Covariance_ImuOthers
-  Eigen::MatrixXd P_IOthers = Eigen::MatrixXd::Zero(size_imu, size_other);
-  P_IOthers.noalias() +=
-    Phi * state->cov_.block(id_imu_start, id_imu_after, size_imu, size_other);
 
   state->cov_.block(id_imu_start, id_imu_start, size_imu,   size_imu)   = P_II;
-  state->cov_.block(id_imu_start, id_imu_after, size_imu,   size_other) = P_IOthers;
-  state->cov_.block(id_imu_after, id_imu_start, size_other, size_imu)   = P_IOthers.transpose();
 
+  // Phi*Covariance_ImuOthers, in case only IMU state exist
+  if(size_other != 0) {
+    Eigen::MatrixXd P_IOthers = Eigen::MatrixXd::Zero(size_imu, size_other);
+    P_IOthers.noalias() +=
+      Phi * state->cov_.block(id_imu_start, id_imu_after, size_imu, size_other);
+
+    state->cov_.block(id_imu_start, id_imu_after, size_imu,   size_other) = P_IOthers;
+    state->cov_.block(id_imu_after, id_imu_start, size_other, size_imu)   = P_IOthers.transpose();
+  }
 
 }
 
