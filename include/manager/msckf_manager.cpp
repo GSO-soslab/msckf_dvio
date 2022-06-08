@@ -70,43 +70,51 @@ void MsckfManager::backend() {
     if(imu_initializer->isInitialized()){
 
       //// system initialized, get init result
-      double time_I0;
-      double time_D0;
-      Eigen::Vector4d q_I_G0;
-      Eigen::Vector3d v_I0;
-      Eigen::Vector3d b_a0;
-      Eigen::Vector3d b_g0;  
-      double time_I_D0;
-      std::tie(time_I0, q_I_G0, v_I0, b_g0, b_a0, time_D0, time_I_D0) = imu_initializer->getInitResult();
+      Eigen::Matrix<double, 17, 1> state_imu;
+      Eigen::Matrix<double, 2, 1>  state_dvl;
+
+      std::tie(state_imu, state_dvl) = imu_initializer->getInitResult();
 
       //// update state
-      Eigen::Matrix<double, 16, 1> imu_value;
-      imu_value.block(0, 0, 4, 1) = q_I_G0;
-      imu_value.block(4, 0, 3, 1) << 0, 0, 0;
-      imu_value.block(7, 0, 3, 1) = v_I0;
-      imu_value.block(10, 0, 3, 1) = b_g0; 
-      imu_value.block(13, 0, 3, 1) = b_a0;
+      state->setTimestamp(state_imu(0));
+      state->setImuValue(state_imu.tail(16));
 
-      state->setTimestamp(time_I0);
-      state->setImuValue(imu_value);
       if(params.msckf.do_time_I_D)
-        state->setEstimationValue(DVL, EST_TIMEOFFSET, Eigen::MatrixXd::Constant(1,1,time_I_D0));
-
+        state->setEstimationValue(DVL, EST_TIMEOFFSET, Eigen::MatrixXd::Constant(1,1,state_dvl(1)));
 
       //// clean manager data buffer before initialization 
       buffer_mutex.lock();
       
       auto frame_imu = std::find_if(buffer_imu.begin(), buffer_imu.end(),
-                    [&](const auto& imu){return imu.time == time_I0 ;});
-      buffer_imu.erase(buffer_imu.begin(), frame_imu);
+                    [&](const auto& imu){return imu.time == state_imu(0) ;});
+      if (frame_imu != buffer_imu.end())
+        buffer_imu.erase(buffer_imu.begin(), frame_imu);
 
       //! TODO: better dealing with DVL time is same as IMU after initialization
       //!       because most of case, they will not in this case 
 
       //// also remove DVL that time as same as IMU, that's why +1 
+      printf("\n, dvl time:%f", state_dvl(0));
+
+      // ??? handle given_state case, DVL data should not be deleted ???
+      printf("before:\n");
+      for(const auto & dvl : buffer_dvl){
+        printf(": %f\n", dvl.time);
+      }
+      printf("\n");
+
       auto frame_dvl = std::find_if(buffer_dvl.begin(), buffer_dvl.end(),
-                    [&](const auto& dvl){return dvl.time > time_D0 ;});
-      buffer_dvl.erase(buffer_dvl.begin(), frame_dvl+1);
+                    [&](const auto& dvl){return dvl.time > state_dvl(0) ;});
+      if (frame_dvl != buffer_dvl.end())                    
+        buffer_dvl.erase(buffer_dvl.begin(), frame_dvl+1);
+
+      printf("after:\n");
+      for(const auto & dvl : buffer_dvl){
+        printf(": %f\n", dvl.time);
+      }
+      printf("\n");
+
+
 
       //! TODO: clean tracked features before initialization
 
@@ -118,8 +126,9 @@ void MsckfManager::backend() {
       return;
   }
 
+  std::exit(EXIT_FAILURE);
 
-  //// DO DVL 
+/******************** DO DVL  ********************/
 
   bool new_dvl = checkNewDvl();
   if(new_dvl) {
@@ -225,8 +234,6 @@ void MsckfManager::backend() {
 
   }
 
-
-
 }
 
 bool MsckfManager::checkNewDvl() {
@@ -239,6 +246,18 @@ bool MsckfManager::checkNewDvl() {
   buffer_mutex.unlock();
 
   return new_dvl;
+}
+
+bool MsckfManager::checkNewImu() {
+  bool new_imu; 
+
+  buffer_mutex.lock();
+
+  new_imu = buffer_imu.size() > 0 ? true : false;  
+
+  buffer_mutex.unlock();
+
+  return new_imu;
 }
 
 std::vector<ImuMsg> MsckfManager::selectImu(double t_begin, double t_end) {

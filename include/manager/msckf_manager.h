@@ -39,6 +39,8 @@ public:
 
   bool checkNewDvl(); 
 
+  bool checkNewImu();
+  
   bool isInitialized() { return imu_initializer->isInitialized(); }
 
   //! TODO: just for test, better hanlding in visulization_manager

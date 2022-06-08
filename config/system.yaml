@@ -30,7 +30,12 @@ INIT:
   # Note: DVL velocity difference in x-axis(forward direction) shows at the suddenly movement time
   dvl_delta: 0.05
 
+  # use the given initialized state or not
+  init_state_given: false
 
+  # example: t, qx,qy,qz,qw, px,py,pz, vx,vy,vz, bgx,bgy,bgz, bax,bay,baz
+  init_state: [0, 0,0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0]
+  
 #### MSCKF parameters
 MSCKF:
   # enable DVL exterisic rotation calibration 

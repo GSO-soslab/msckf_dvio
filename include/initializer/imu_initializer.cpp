@@ -11,7 +11,18 @@ ImuInitializer::ImuInitializer( paramInit param_init_,
     is_initialized(false), 
     last_index_imu(0), last_index_dvl(0), 
     align_time_imu(-1), align_time_dvl(-1)
-  {}
+  {
+    if(param_init.init_given){
+      // time_I, 
+      // q_I_G, 
+      // v_G_I, 
+      // bg_avg, 
+      // ba_avg, 
+      
+      // time_D, 
+      // time_I_D
+    }
+  }
 
 void ImuInitializer::feedImu(const ImuMsg &data) {
   buffer_mutex.lock();
@@ -326,6 +337,16 @@ void ImuInitializer::linearInterp(const std::vector<ImuMsg> &imu_in,
 
   //// imu_in will have one more data because that data timestamp larger then DVL timestamp
   assert(dvl_out.size() == imu_in.size() - 1);
+  printf("\noriginal dvl\n");
+  for(const auto & dvl:dvl_data){
+    printf("t:%f,",dvl.time);
+  }
+
+  printf("\n interpolate\n");
+  for(const auto & dvl:dvl_out){
+    printf("t:%f, ", dvl.time);
+  }
+  printf("\n");
   
 }
 
@@ -398,7 +419,7 @@ void ImuInitializer::doInitialization(const std::vector<DvlMsg> &dvl_a,
 /**** Velocity assign ***/
 
   //// v_I_hat = R_I_D * v_D - [w_I]x * p_I_D
-  v_I = R_I_D * dvl_a.back().v - toSkewSymmetric(imu_a.back().w) * p_I_D;
+  v_G_I = R_I_D * dvl_a.back().v - toSkewSymmetric(imu_a.back().w) * p_I_D;
 
 /**** timestamp at Initialized state ****/
   time_I = imu_a.at(imu_a.size()-2).time;
@@ -407,12 +428,12 @@ void ImuInitializer::doInitialization(const std::vector<DvlMsg> &dvl_a,
   //// TEST:
   printf("Initialization result at:\n"
           " IMU time:%f, DVL time:%f, time_I_D:%f\n"
-          " v_I:%f,%f,%f\n"
+          " v_G_I:%f,%f,%f\n"
           " ba:%f,%f,%f\n"
           " bg:%f,%f,%f\n"
           " R_I_G:\n %f,%f,%f\n%f,%f,%f\n%f,%f,%f\n",
           time_I, time_D, time_I_D,
-          v_I.x(),v_I.y(),v_I.z(),
+          v_G_I.x(),v_G_I.y(),v_G_I.z(),
           ba_avg.x(),ba_avg.y(),ba_avg.z(),
           bg_avg.x(),bg_avg.y(),bg_avg.z(),
           R_I_G(0,0),R_I_G(0,1),R_I_G(0,2),

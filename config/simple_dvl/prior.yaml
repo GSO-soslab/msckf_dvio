@@ -1,8 +1,8 @@
 ##### 
 
 IMU:
-  # Default:9.81; gravity in the place your robot deployed
-  gravity: 9.81               
+  # Default:9.81; gravity in the place your robot deployed, e.g. GLRC
+  gravity: 9.80733               
 
   # Note: Noise density (continuous-time) from dataset from kalibr_allen
   # Default: 1.926e-04 from datasheet

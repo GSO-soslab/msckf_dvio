@@ -64,6 +64,10 @@ struct paramInit {
   int dvl_window;
   // DVL velocity difference in x-axis(forward direction) shows at the suddenly movement time
   double dvl_delta;
+  // use given init state result or not
+  bool init_given;
+  // gievn state
+  Eigen::Matrix<double, 17, 1> init_state;
 };
 
 //! TODO: set sub-parameters as shared_ptr? 

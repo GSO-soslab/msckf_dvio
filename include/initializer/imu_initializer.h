@@ -25,8 +25,22 @@ public:
 
   void checkInitialization();
 
-  std::tuple<double, Eigen::Vector4d, Eigen::Vector3d, Eigen::Vector3d, Eigen::Vector3d, double, double> 
-    getInitResult() { return std::make_tuple(time_I, q_I_G, v_I, bg_avg, ba_avg, time_D, time_I_D); }
+  std::tuple<Eigen::VectorXd, Eigen::VectorXd> getInitResult() { 
+
+    Eigen::Matrix<double, 17, 1> state_imu;
+    state_imu.segment(0,1) = Eigen::Matrix<double,1,1>(time_I);
+    state_imu.segment(1,4) = q_I_G;
+    state_imu.segment(5,3) = Eigen::Matrix<double,3,1>(0,0,0);
+    state_imu.segment(8,3) = v_G_I;
+    state_imu.segment(11,3) = bg_avg;
+    state_imu.segment(14,3) = ba_avg;
+
+    Eigen::Matrix<double, 2, 1> state_dvl;
+    state_dvl.segment(0,1) = Eigen::Matrix<double,1,1>(time_D);
+    state_dvl.segment(1,1) = Eigen::Matrix<double,1,1>(time_I_D);
+
+    return std::make_tuple(state_imu, state_dvl); 
+  }
 
 private:
 
@@ -72,11 +86,13 @@ private:
 
   //// initialzied result
   double time_I;
-  double time_D;
   Eigen::Vector4d q_I_G;
-  Eigen::Vector3d v_I;
+  Eigen::Vector3d v_G_I;
+  Eigen::Vector3d p_G_I;
   Eigen::Vector3d bg_avg;  
   Eigen::Vector3d ba_avg;
+
+  double time_D;
   double time_I_D;
 
 };

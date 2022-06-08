@@ -51,7 +51,7 @@ Params RosNode::loadParameters() {
   //// get DVL scale factor 
   nh_private_.param<double>("DVL/scale",            params.prior_dvl.scale, 1.0);
   //// DVL BT velocity measurement noise
-  nh_private_.getParam     ("DVL/bt_v_noise", bt_v_noise);
+  nh_private_.getParam     ("DVL/bt_v_noise",       bt_v_noise);
   
   //// convert matrix into pose 
   Eigen::Matrix4d T;
@@ -73,11 +73,24 @@ Params RosNode::loadParameters() {
   nh_private_.param<int>("SYS/backend_hz", params.backend_hz, 20);
 
   nh_private_.param<int>   ("INIT/imu_init_mode", params.init.imu_init_mode, 1);
-  nh_private_.param<int>   ("INIT/imu_window",    params.init.imu_window,   20);
+  nh_private_.param<int>   ("INIT/imu_window",    params.init.imu_window,    20);
   nh_private_.param<double>("INIT/imu_var",       params.init.imu_var,       0.2);
   nh_private_.param<double>("INIT/imu_delta",     params.init.imu_delta,     0.07);
-  nh_private_.param<int>   ("INIT/dvl_window",    params.init.dvl_window,   4);
+  nh_private_.param<int>   ("INIT/dvl_window",    params.init.dvl_window,    4);
   nh_private_.param<double>("INIT/dvl_delta",     params.init.dvl_delta,     0.05);
+  nh_private_.param<double>("INIT/dvl_delta",     params.init.dvl_delta,     0.05);
+  nh_private_.param<bool>  ("INIT/init_given",    params.init.init_given,    false);
+  std::vector<double> init_state(17);
+  if(params.init.init_given ) {
+    nh_private_.getParam   ("INIT/init_state",    init_state);
+
+    params.init.init_state << init_state.at(0), //t
+                              init_state.at(1),init_state.at(2),init_state.at(3),init_state.at(4), //q
+                              init_state.at(5),init_state.at(6),init_state.at(7), //p
+                              init_state.at(8),init_state.at(9),init_state.at(10), //v
+                              init_state.at(11),init_state.at(12),init_state.at(13), //bg
+                              init_state.at(14),init_state.at(15),init_state.at(16); //ba
+  }
 
   nh_private_.param<bool>("MSCKF/dvl_exterisic_R", params.msckf.do_R_I_D,    true);
   nh_private_.param<bool>("MSCKF/dvl_exterisic_p", params.msckf.do_p_I_D,    true);
@@ -130,7 +143,6 @@ void RosNode::imageCallback(const sensor_msgs::ImageConstPtr &msg) {
 void RosNode::process() {
   
   int sleep_t = 1.0 / parameters.backend_hz * 1000.0;
-
 
   while(1) {
     // do the ekf stuff

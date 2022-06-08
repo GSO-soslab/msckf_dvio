@@ -31,11 +31,11 @@ INIT:
   dvl_delta: 0.05
 
   # use the given initialized state or not
-  init_state_given: false
+  init_given: true
 
   # example: t, qx,qy,qz,qw, px,py,pz, vx,vy,vz, bgx,bgy,bgz, bax,bay,baz
-  init_state: [0, 0,0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0]
-  
+  init_state: [1521753106.831427336, 0.74971,-0.214086,-0.166702,0.603583, 0.261997,-1.10573,0.159884, -0.24932,-1.14522,0.0835872, 0,0,0, 0,0,0]
+
 #### MSCKF parameters
 MSCKF:
   # enable DVL exterisic rotation calibration 
