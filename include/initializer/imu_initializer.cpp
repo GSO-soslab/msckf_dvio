@@ -246,6 +246,10 @@ bool ImuInitializer::grabInitializationData(std::vector<DvlMsg> &dvl_a,
   // for(const auto &imu: imu_a) 
   //   printf("t: %f\n", imu.time);
 
+/**** timestamp at Initialized state ****/
+  time_I = imu_a.at(imu_a.size()-2).time;
+  time_D = selected_dvl.back().time;
+
 /*** Get DVL data for accleration initialization ***/
   linearInterp(imu_a, selected_dvl, dvl_a);
   // TEST:
@@ -281,7 +285,10 @@ void ImuInitializer::linearInterp(const std::vector<ImuMsg> &imu_in,
   //// calculate DVL acceleration( v_(t) - v_(t-1) / delta_t), and subtract time_base, and copy velocity
   std::vector<DvlMsg> dvl_data; 
 
-  dvl_data.emplace_back(0.0, dvl_in.front().v, Eigen::Vector3d(0,0,0));
+  // assign first DVL as zero acceleration
+  // dvl_data.emplace_back(0.0, dvl_in.front().v, Eigen::Vector3d(0,0,0));
+  dvl_data.emplace_back(dvl_in.front().time + time_I_D, dvl_in.front().v, Eigen::Vector3d(0,0,0));
+
   for (int i=1; i<dvl_in.size(); i++) {
     Eigen::Vector3d accel = (dvl_in.at(i).v    - dvl_in.at(i-1).v   ) / 
                             (dvl_in.at(i).time - dvl_in.at(i-1).time);
@@ -335,18 +342,10 @@ void ImuInitializer::linearInterp(const std::vector<ImuMsg> &imu_in,
     }
   }
 
+  // this interploated DVL time will equal to IMU time
+
   //// imu_in will have one more data because that data timestamp larger then DVL timestamp
   assert(dvl_out.size() == imu_in.size() - 1);
-  printf("\noriginal dvl\n");
-  for(const auto & dvl:dvl_data){
-    printf("t:%f,",dvl.time);
-  }
-
-  printf("\n interpolate\n");
-  for(const auto & dvl:dvl_out){
-    printf("t:%f, ", dvl.time);
-  }
-  printf("\n");
   
 }
 
@@ -421,21 +420,19 @@ void ImuInitializer::doInitialization(const std::vector<DvlMsg> &dvl_a,
   //// v_I_hat = R_I_D * v_D - [w_I]x * p_I_D
   v_G_I = R_I_D * dvl_a.back().v - toSkewSymmetric(imu_a.back().w) * p_I_D;
 
-/**** timestamp at Initialized state ****/
-  time_I = imu_a.at(imu_a.size()-2).time;
-  time_D = dvl_a.back().time;
+
 
   //// TEST:
   printf("Initialization result at:\n"
           " IMU time:%f, DVL time:%f, time_I_D:%f\n"
           " v_G_I:%f,%f,%f\n"
-          " ba:%f,%f,%f\n"
           " bg:%f,%f,%f\n"
+          " ba:%f,%f,%f\n"
           " R_I_G:\n %f,%f,%f\n%f,%f,%f\n%f,%f,%f\n",
           time_I, time_D, time_I_D,
           v_G_I.x(),v_G_I.y(),v_G_I.z(),
-          ba_avg.x(),ba_avg.y(),ba_avg.z(),
           bg_avg.x(),bg_avg.y(),bg_avg.z(),
+          ba_avg.x(),ba_avg.y(),ba_avg.z(),
           R_I_G(0,0),R_I_G(0,1),R_I_G(0,2),
           R_I_G(1,0),R_I_G(1,1),R_I_G(1,2),
           R_I_G(2,0),R_I_G(2,1),R_I_G(2,2)

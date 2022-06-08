@@ -94,25 +94,11 @@ void MsckfManager::backend() {
       //!       because most of case, they will not in this case 
 
       //// also remove DVL that time as same as IMU, that's why +1 
-      printf("\n, dvl time:%f", state_dvl(0));
-
-      // ??? handle given_state case, DVL data should not be deleted ???
-      printf("before:\n");
-      for(const auto & dvl : buffer_dvl){
-        printf(": %f\n", dvl.time);
-      }
-      printf("\n");
 
       auto frame_dvl = std::find_if(buffer_dvl.begin(), buffer_dvl.end(),
                     [&](const auto& dvl){return dvl.time > state_dvl(0) ;});
       if (frame_dvl != buffer_dvl.end())                    
-        buffer_dvl.erase(buffer_dvl.begin(), frame_dvl+1);
-
-      printf("after:\n");
-      for(const auto & dvl : buffer_dvl){
-        printf(": %f\n", dvl.time);
-      }
-      printf("\n");
+        buffer_dvl.erase(buffer_dvl.begin(), frame_dvl);
 
 
 
