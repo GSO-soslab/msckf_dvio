@@ -3,9 +3,9 @@
   <param name="/use_sim_time" value="true"/>
 
   <!-- play the dataset -->
-  <arg name="bag_start" default="0" /> 
+  <!-- <arg name="bag_start" default="0" /> 
   <arg name="bag" default="/home/lin/develop/data/underIce/sim/sim_udel_gore_imu_dvl_sameframe.bag" />
-  <node pkg="rosbag" type="play" name="rosbag" args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)" required="true"/>
+  <node pkg="rosbag" type="play" name="rosbag" args="-1-pause -1-clock -d 1 -s $(arg bag_start) $(arg bag)" required="true"/> -->
 
   <!-- build with flag: -DCMAKE=debug -->
   <!-- add to roslaunch: launch-prefix="gdb -ex run -1-args" -->

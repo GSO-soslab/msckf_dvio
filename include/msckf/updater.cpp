@@ -97,7 +97,9 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I
   state->cov_ = state->cov_.selfadjointView<Eigen::Upper>();
 }
 
-void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &v_D) {
+void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I, const Eigen::Vector3d &v_D, bool is_simple) {
+  // std::ofstream file;
+
   /********************************************************************************/
   /************************* construct Jacobian H matrix **************************/
   /********************************************************************************/
@@ -115,8 +117,8 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &v_D
   /********************************************************************************/
   // IMU veloicty measurement noise
   Eigen::Matrix3d Rn = Eigen::Matrix3d::Identity();
-  Rn(0,0) = pow(0.01, 2);
-  Rn(1,1) = pow(0.01, 2);
+  Rn(0,0) = pow(0.1, 2);
+  Rn(1,1) = pow(0.1, 2);
   Rn(2,2) = pow(0.1, 2);
 
  // K = P * H^T * (H * P * H^T + Rn) ^-1
@@ -127,23 +129,31 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &v_D
   Eigen::MatrixXd K = K_transpose.transpose();
   // std::cout<<"K1: "<< K<<std::endl;
 
-  // Eigen::MatrixXd K_2 = S.ldlt().solve(state->cov_ * H.transpose());
-  // std::cout<<"K2: "<< K_2<<std::endl;
+  Eigen::Vector3d p_I_D = prior_dvl_.extrinsics.tail(3);
+  Eigen::Vector3d temp = toSkewSymmetric(w_I)*p_I_D;
 
+  Eigen::Vector3d v_I_meas,v_I_meas_2;
+  // v_I_meas  = v_D;
 
-  Eigen::Vector3d v_I_meas;
   v_I_meas << -v_D(0), v_D(1), -v_D(2);
-  // v_I_meas = v_I_meas * (1417/1500.0);
-  // v_I_meas = toRotationMatrix(state->getEstimationValue(IMU,EST_QUATERNION))* v_I_meas * (1417/1500.0);
-  v_I_meas = toRotationMatrix(state->getEstimationValue(IMU,EST_QUATERNION)).transpose() * v_I_meas * (1417/1500.0);
-  // std::cout<<"V_I: "<<v_I_meas<<std::endl;
+  // v_I_meas = toRotationMatrix(state->getEstimationValue(IMU,EST_QUATERNION))* (v_I_meas * (1417/1500.0) - temp);
+  v_I_meas = toRotationMatrix(state->getEstimationValue(IMU,EST_QUATERNION)).transpose() * (v_I_meas * (1417/1500.0) - temp);
+
+  //// v_measurement_1; v_measurement_2; v_before_update; v_after_update
+  // file.open(file_path, std::ios_base::app);//std::ios_base::app
+  // file<< v_I_meas(0)<<","<<v_I_meas(1)<<","<<v_I_meas(2)<<"; ";
+  // file<< v_I_meas_2(0)<<","<<v_I_meas_2(1)<<","<<v_I_meas_2(2)<<"; ";
 
   Eigen::Vector3d r = v_I_meas - state->getEstimationValue(IMU,EST_VELOCITY);
   Eigen::VectorXd delta_X = K * r;
-  // std::cout<<"V_error: "<<delta_X.block(7,0,3,1)<<std::endl;
 
   //update state
+  // Eigen::Vector3d v_bef = state->getEstimationValue(IMU,EST_VELOCITY);
+  // file<< v_bef(0)<<","<<v_bef(1)<<","<<v_bef(2)<<"; ";
   state->updateState(delta_X);
+  // Eigen::Vector3d v_aft = state->getEstimationValue(IMU,EST_VELOCITY);
+  // file<< v_aft(0)<<","<<v_aft(1)<<","<<v_aft(2)<<"\n";
+  // file.close();
 
   //update covariance
   // P_k = P_k-1 - K * H * P_k-1

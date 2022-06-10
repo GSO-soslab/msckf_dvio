@@ -62,7 +62,7 @@ void MsckfManager::feedCamera(const ImageMsg &data) {
 
 void MsckfManager::backend() {
 
-/******************** Check Initialization ********************/
+/******************** Check Initialization with DVL ********************/
   if(!imu_initializer->isInitialized()) {
     
     imu_initializer->checkInitialization();
@@ -85,22 +85,17 @@ void MsckfManager::backend() {
       //// clean manager data buffer before initialization 
       buffer_mutex.lock();
       
+      // delete IMU data used for initialization
       auto frame_imu = std::find_if(buffer_imu.begin(), buffer_imu.end(),
                     [&](const auto& imu){return imu.time == state_imu(0) ;});
       if (frame_imu != buffer_imu.end())
         buffer_imu.erase(buffer_imu.begin(), frame_imu);
 
-      //! TODO: better dealing with DVL time is same as IMU after initialization
-      //!       because most of case, they will not in this case 
-
-      //// also remove DVL that time as same as IMU, that's why +1 
-
+      // delete DVL data used for initialization
       auto frame_dvl = std::find_if(buffer_dvl.begin(), buffer_dvl.end(),
                     [&](const auto& dvl){return dvl.time > state_dvl(0) ;});
       if (frame_dvl != buffer_dvl.end())                    
         buffer_dvl.erase(buffer_dvl.begin(), frame_dvl);
-
-
 
       //! TODO: clean tracked features before initialization
 
@@ -112,7 +107,32 @@ void MsckfManager::backend() {
       return;
   }
 
-  std::exit(EXIT_FAILURE);
+/******************** Check Initialization with given state ********************/
+  // if(!imu_initializer->isInitialized()) {
+    
+  //   imu_initializer->checkInitGiven();
+
+  //   if(imu_initializer->isInitialized()){
+
+  //     //// system initialized, get init result
+  //     Eigen::Matrix<double, 17, 1> state_imu;
+  //     Eigen::Matrix<double, 2, 1>  state_dvl;
+
+  //     std::tie(state_imu, state_dvl) = imu_initializer->getInitResult();
+
+  //     //// update IMU state
+  //     state->setTimestamp(state_imu(0));
+  //     state->setImuValue(state_imu.tail(16));
+
+  //     //// update DVL state
+  //     if(params.msckf.do_time_I_D)
+  //       state->setEstimationValue(DVL, EST_TIMEOFFSET, Eigen::MatrixXd::Constant(1,1,state_dvl(1)));
+  //   }
+  //   else
+  //     //// system not initialized, return 
+  //     return;
+  // }
+
 
 /******************** DO DVL  ********************/
 
@@ -193,7 +213,7 @@ void MsckfManager::backend() {
 
       // update
       // updater->updateDvl(state, last_w_I, last_v_D);
-      updater->updateDvl(state, last_v_D);
+      updater->updateDvl(state, last_w_I, last_v_D, true);
       // file.open(file_path, std::ios_base::app);//std::ios_base::app
       // file<<"\nupdated cov: \n" << state->getCov()<<"\n";
       // file<<"size: "<<state->getCov().rows()<<"X"<<state->getCov().cols()<<"\n";

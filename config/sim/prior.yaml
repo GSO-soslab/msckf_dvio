@@ -32,5 +32,3 @@ DVL:
   scale: 1.0
   # white noise on DVL tottom track 3-axis velocity measurement
   bt_v_noise: [0.005, 0.005, 0.005]
-
-CAM0:

@@ -7,6 +7,7 @@ Panels:
         - /Global Options1
         - /Status1
         - /Odometry1/Shape1
+        - /Grid2
       Splitter Ratio: 0.5
     Tree Height: 294
   - Class: rviz/Selection
@@ -98,7 +99,7 @@ Visualization Manager:
           Scale: 1
           Value: true
         Value: true
-      Enabled: true
+      Enabled: false
       Keep: 10000
       Name: Odometry
       Position Tolerance: 0.10000000149011612
@@ -115,6 +116,48 @@ Visualization Manager:
         Value: Axes
       Topic: /odom
       Unreliable: false
+      Value: false
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz/Path
+      Color: 25; 255; 0
+      Enabled: true
+      Head Diameter: 0.30000001192092896
+      Head Length: 0.20000000298023224
+      Length: 0.30000001192092896
+      Line Style: Lines
+      Line Width: 0.029999999329447746
+      Name: Path
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 255; 85; 255
+      Pose Style: None
+      Queue Size: 10
+      Radius: 0.029999999329447746
+      Shaft Diameter: 0.10000000149011612
+      Shaft Length: 0.10000000149011612
+      Topic: /path
+      Unreliable: false
+      Value: true
+    - Alpha: 0.5
+      Cell Size: 1
+      Class: rviz/Grid
+      Color: 252; 233; 79
+      Enabled: true
+      Line Style:
+        Line Width: 0.029999999329447746
+        Value: Lines
+      Name: Grid
+      Normal Cell Count: 0
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Plane: YZ
+      Plane Cell Count: 4
+      Reference Frame: imu
       Value: true
   Enabled: true
   Global Options:
@@ -144,7 +187,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 85.97176361083984
+      Distance: 112.24005889892578
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -152,17 +195,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: -27.431766510009766
-        Y: -9.037121772766113
-        Z: -8.720990180969238
+        X: -8.377227783203125
+        Y: -3.381828784942627
+        Z: -5.887309551239014
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.8197963833808899
+      Pitch: 0.819797158241272
       Target Frame: <Fixed Frame>
-      Yaw: 1.4553725719451904
+      Yaw: 1.4953798055648804
     Saved: ~
 Window Geometry:
   Displays:

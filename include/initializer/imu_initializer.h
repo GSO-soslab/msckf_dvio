@@ -25,12 +25,14 @@ public:
 
   void checkInitialization();
 
+  void checkInitGiven();
+
   std::tuple<Eigen::VectorXd, Eigen::VectorXd> getInitResult() { 
 
     Eigen::Matrix<double, 17, 1> state_imu;
     state_imu.segment(0,1) = Eigen::Matrix<double,1,1>(time_I);
     state_imu.segment(1,4) = q_I_G;
-    state_imu.segment(5,3) = Eigen::Matrix<double,3,1>(0,0,0);
+    state_imu.segment(5,3) = p_G_I;
     state_imu.segment(8,3) = v_G_I;
     state_imu.segment(11,3) = bg_avg;
     state_imu.segment(14,3) = ba_avg;
@@ -87,8 +89,8 @@ private:
   //// initialzied result
   double time_I;
   Eigen::Vector4d q_I_G;
-  Eigen::Vector3d v_G_I;
   Eigen::Vector3d p_G_I;
+  Eigen::Vector3d v_G_I;
   Eigen::Vector3d bg_avg;  
   Eigen::Vector3d ba_avg;
 

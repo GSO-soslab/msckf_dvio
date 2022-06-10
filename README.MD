@@ -1,5 +1,9 @@
 # In progress...
 
+launch simple DVL update:
+```sh
+roslaunch msckf_dvio test_dvio.launch
+```
 
 # TODO:
 

@@ -2,7 +2,7 @@
 SYS:
   # Default: 20; 
   # Note: frequency for backend processing(MSCKF update), increase if more data need for processing ( keep it as camera fequency)
-  backend_hz: 15
+  backend_hz: 50
 
 
 INIT:
@@ -35,6 +35,7 @@ INIT:
 
   # example: t, qx,qy,qz,qw, px,py,pz, vx,vy,vz, bgx,bgy,bgz, bax,bay,baz
   init_state: [1521753106.831427336, 0.74971,-0.214086,-0.166702,0.603583, 0.261997,-1.10573,0.159884, -0.24932,-1.14522,0.0835872, 0,0,0, 0,0,0]
+
 
 #### MSCKF parameters
 MSCKF:

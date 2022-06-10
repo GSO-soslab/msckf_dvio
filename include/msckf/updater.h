@@ -4,6 +4,7 @@
 #include "types/type_all.h"
 #include "utils/utils.h"
 #include "msckf/state.h"
+#include <fstream>
 
 namespace msckf_dvio
 {
@@ -15,7 +16,7 @@ public:
 
   void updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I, const Eigen::Vector3d &v_D);
 
-  void updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &v_D);
+  void updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I, const Eigen::Vector3d &v_D, bool is_simple);
 
   void marginalizeDvl(std::shared_ptr<State> state);
 
@@ -24,6 +25,8 @@ private:
   priorDvl prior_dvl_;
 
   paramMsckf param_msckf_;
+
+  const char *file_path="/home/lin/develop/ros/soslab_ws/src/slam/msckf_dvio/test_result/msckf_updater.dat";
 };
 
 } // end of namespace msckf_dvio 

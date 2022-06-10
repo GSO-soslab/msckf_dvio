@@ -12,16 +12,6 @@ ImuInitializer::ImuInitializer( paramInit param_init_,
     last_index_imu(0), last_index_dvl(0), 
     align_time_imu(-1), align_time_dvl(-1)
   {
-    if(param_init.init_given){
-      // time_I, 
-      // q_I_G, 
-      // v_G_I, 
-      // bg_avg, 
-      // ba_avg, 
-      
-      // time_D, 
-      // time_I_D
-    }
   }
 
 void ImuInitializer::feedImu(const ImuMsg &data) {
@@ -36,7 +26,42 @@ void ImuInitializer::feedDvl(const DvlMsg &data) {
   buffer_mutex.unlock();
 }
 
+void ImuInitializer::checkInitGiven() {
+  if(param_init.init_given){
+    time_I = param_init.init_state(0);
+    q_I_G = param_init.init_state.segment(1,4);
+    p_G_I = param_init.init_state.segment(5,3);
+    v_G_I = param_init.init_state.segment(8,3);
+    bg_avg = param_init.init_state.segment(11,3);
+    ba_avg = param_init.init_state.segment(14,3);
+    
+    time_D = param_init.init_state(0);
+    time_I_D = 0;
+
+    printf("Initialization result at:\n"
+        " IMU time:%f, DVL time:%f, time_I_D:%f\n"
+        " q_I_G(xyzw):%f,%f,%f,%f\n"
+        " p_G_I:%f,%f,%f\n"
+        " v_G_I:%f,%f,%f\n"
+        " bg:%f,%f,%f\n"
+        " ba:%f,%f,%f\n",
+        time_I, time_D, time_I_D,
+        q_I_G(0),q_I_G(1),q_I_G(2),q_I_G(3),
+        p_G_I(0),p_G_I(1),p_G_I(2),
+        v_G_I.x(),v_G_I.y(),v_G_I.z(),
+        bg_avg.x(),bg_avg.y(),bg_avg.z(),
+        ba_avg.x(),ba_avg.y(),ba_avg.z()
+      );
+
+    is_initialized = true;
+
+    cleanBuffer();
+
+  }
+}
+
 void ImuInitializer::checkInitialization() {
+
 
   //// try to find IMU align time (vehicle suddenly move)
   if(align_time_imu == -1)
@@ -412,10 +437,10 @@ void ImuInitializer::doInitialization(const std::vector<DvlMsg> &dvl_a,
     bg_avg += imu.w;
   bg_avg /= imu_g.size();
   
-/*** Quaternion estimation ***/
+/*** q,p,v estimation ***/
   q_I_G = toQuaternion(R_I_G);
 
-/**** Velocity assign ***/
+  p_G_I = Eigen::Vector3d(0,0,0);
 
   //// v_I_hat = R_I_D * v_D - [w_I]x * p_I_D
   v_G_I = R_I_D * dvl_a.back().v - toSkewSymmetric(imu_a.back().w) * p_I_D;

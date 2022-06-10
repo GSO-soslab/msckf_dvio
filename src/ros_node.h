@@ -9,11 +9,13 @@
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/Image.h>
 #include <cv_bridge/cv_bridge.h>
-// #include <geometry_msgs/TwistWithCovarianceStamped.h>
 #include <nortek_dvl/ButtomTrack.h>
 
 #include <nav_msgs/Odometry.h>
+#include <geometry_msgs/Vector3Stamped.h>
+#include <geometry_msgs/TwistWithCovarianceStamped.h>
 #include <nav_msgs/Path.h>
+#include <geometry_msgs/PoseStamped.h>
 #include <tf/transform_broadcaster.h>
 //
 #include "manager/msckf_manager.h"
@@ -34,6 +36,8 @@ public:
   void imuCallback(const sensor_msgs::ImuConstPtr &msg);
 
   void dvlCallback(const nortek_dvl::ButtomTrack::ConstPtr &msg);
+
+  // void dvlCallback(const geometry_msgs::Vector3Stamped::ConstPtr &msg);
 
   void imageCallback(const sensor_msgs::ImageConstPtr &msg);
 
@@ -56,6 +60,7 @@ private:
   //! TEST:
   ros::Publisher pub_odom, pub_path;
   tf::TransformBroadcaster *odom_broadcaster;
+  nav_msgs::Path path;
 }; // end of class   
 
 } // namespace msckf_dvio

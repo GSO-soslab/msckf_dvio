@@ -2,7 +2,7 @@
 SYS:
   # Default: 20; 
   # Note: frequency for backend processing(MSCKF update), increase if more data need for processing ( keep it as camera fequency)
-  backend_hz: 15
+  backend_hz: 30
 
 
 INIT:

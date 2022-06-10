@@ -120,6 +120,14 @@ void RosNode::dvlCallback(const nortek_dvl::ButtomTrack::ConstPtr &msg) {
   manager->feedDvl(message); 
 }
 
+// void RosNode::dvlCallback(const geometry_msgs::Vector3Stamped::ConstPtr &msg) {
+//   DvlMsg message;
+//   message.time = msg->header.stamp.toSec();
+//   message.v << msg->vector.x, msg->vector.y, msg->vector.z;
+
+//   manager->feedDvl(message); 
+// }
+
 
 // TODO: check if feature tracking in image callback will effect IMU callback(overflow, bad imu-image align)
 void RosNode::imageCallback(const sensor_msgs::ImageConstPtr &msg) {
@@ -188,6 +196,18 @@ void RosNode::process() {
       trans.setOrigin(orig);
       odom_broadcaster->sendTransform(trans);
 
+
+      geometry_msgs::PoseStamped pose;
+
+      pose.header.frame_id = msg_odom.header.frame_id;
+      pose.header.stamp = msg_odom.header.stamp;
+      pose.pose = msg_odom.pose.pose;
+
+      path.header.frame_id = msg_odom.header.frame_id;
+      path.header.stamp = msg_odom.header.stamp;
+      path.poses.push_back(pose);
+
+      pub_path.publish(path);
     }
 
 
