@@ -24,6 +24,8 @@ RosNode::RosNode(const ros::NodeHandle &nh,
   pub_odom = nh_.advertise<nav_msgs::Odometry>("/odom", 10);
   pub_path = nh_.advertise<nav_msgs::Path>("/path", 10);  
 
+  service_ = nh_.advertiseService("cmd",&RosNode::srvCallback, this);
+
   odom_broadcaster = new tf::TransformBroadcaster();
 }    
 
@@ -99,6 +101,13 @@ Params RosNode::loadParameters() {
   nh_private_.param<int> ("MSCKF/dvl_clone",       params.msckf.max_clone_D, 2);
 
   return params;
+}
+
+bool RosNode::srvCallback(std_srvs::Trigger::Request  &req, std_srvs::Trigger::Response &res) {
+  res.success = true;
+  res.message = "received";
+
+  return true;
 }
 
 void RosNode::imuCallback(const sensor_msgs::ImuConstPtr &msg) {

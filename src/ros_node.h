@@ -17,6 +17,7 @@
 #include <nav_msgs/Path.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <tf/transform_broadcaster.h>
+#include <std_srvs/Trigger.h>
 //
 #include "manager/msckf_manager.h"
 #include "types/type_all.h"
@@ -41,6 +42,8 @@ public:
 
   void imageCallback(const sensor_msgs::ImageConstPtr &msg);
 
+  bool srvCallback(std_srvs::Trigger::Request  &req, std_srvs::Trigger::Response &res);
+
   void process();
 
   Params loadParameters();
@@ -52,6 +55,8 @@ private:
   ros::Subscriber imu_sub_;
   ros::Subscriber dvl_sub_;
   ros::Subscriber image_sub_;
+
+  ros::ServiceServer service_;
 
   std::shared_ptr<MsckfManager> manager;
 

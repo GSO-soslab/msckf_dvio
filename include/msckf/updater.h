@@ -26,7 +26,9 @@ private:
 
   paramMsckf param_msckf_;
 
-  const char *file_path="/home/lin/develop/ros/soslab_ws/src/slam/msckf_dvio/test_result/msckf_updater.dat";
+  //! TEST:
+  long long int count;
+  const char *file_path="/home/lin/develop/ros/soslab_ws/src/slam/msckf_dvio/test_result/msckf_updater.csv";
 };
 
 } // end of namespace msckf_dvio 

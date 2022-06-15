@@ -32,7 +32,7 @@ SET(cv_bridge_DIR /home/lin/develop/ros/ros_ws/devel/share/cv_bridge/cmake/)
 find_package(catkin REQUIRED COMPONENTS
   roscpp rospy std_msgs rosbag sensor_msgs nav_msgs
   geometry_msgs cv_bridge message_generation
-  nortek_dvl tf_conversions eigen_conversions
+  nortek_dvl tf_conversions eigen_conversions std_srvs
   dynamic_reconfigure message_filters image_transport tf2
 )
 
@@ -53,7 +53,7 @@ catkin_package(
 #  LIBRARIES feature_tracker
  CATKIN_DEPENDS roscpp rospy std_msgs rosbag sensor_msgs cv_bridge dynamic_reconfigure
                 geometry_msgs message_runtime nortek_dvl tf_conversions eigen_conversions
-                message_filters image_transport visualization_msgs tf nav_msgs tf2
+                message_filters image_transport visualization_msgs tf nav_msgs tf2 std_srvs
 #  DEPENDS system_lib
 )
 

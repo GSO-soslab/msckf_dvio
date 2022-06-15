@@ -205,15 +205,16 @@ void MsckfManager::backend() {
       Eigen::Vector3d last_v_D = selected_dvl.v;
 
       // // use Last angular velocity for cloning when estimating time offset)
-      // predictor->augmentDvl(state, last_w_I);
+      if(params.msckf.max_clone_D != 0)
+        predictor->augmentDvl(state, last_w_I);
       // file.open(file_path, std::ios_base::app);//std::ios_base::app
       // file<<"\naug cov: \n" << state->getCov()<<"\n";
       // file<<"size: "<<state->getCov().rows()<<"X"<<state->getCov().cols()<<"\n";
       // file.close();
 
       // update
-      // updater->updateDvl(state, last_w_I, last_v_D);
-      updater->updateDvl(state, last_w_I, last_v_D, true);
+      updater->updateDvl(state, last_w_I, last_v_D);
+      // updater->updateDvl(state, last_w_I, last_v_D, true);
       // file.open(file_path, std::ios_base::app);//std::ios_base::app
       // file<<"\nupdated cov: \n" << state->getCov()<<"\n";
       // file<<"size: "<<state->getCov().rows()<<"X"<<state->getCov().cols()<<"\n";
@@ -224,11 +225,12 @@ void MsckfManager::backend() {
       //   std::exit(EXIT_FAILURE);
       // }
 
-      // // marginalize 
-      // // if max clone of DVL is reached, then do the marginalize: remove the clone and related covarinace
-      // if(state->getEstimationNum(CLONE_DVL) == params.msckf.max_clone_D) {
-      //   updater->marginalizeDvl(state);
-      // }
+      // marginalize 
+      // if max clone of DVL is reached, then do the marginalize: remove the clone and related covarinace
+      if(params.msckf.max_clone_D != 0 &&
+         params.msckf.max_clone_D == state->getEstimationNum(CLONE_DVL)) {
+        updater->marginalizeDvl(state);
+      }
       // file.open(file_path, std::ios_base::app);//std::ios_base::app
       // file<<"\nmarg cov: \n" << state->getCov()<<"\n";
       // file<<"size: "<<state->getCov().rows()<<"X"<<state->getCov().cols()<<"\n";
