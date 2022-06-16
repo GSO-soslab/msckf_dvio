@@ -37,10 +37,6 @@ public:
 
   void backend();
 
-  bool checkNewDvl(); 
-
-  bool checkNewImu();
-  
   bool isInitialized() { return imu_initializer->isInitialized(); }
 
   //! TODO: just for test, better hanlding in visulization_manager
@@ -55,6 +51,12 @@ public:
 private:
 
   std::vector<ImuMsg> selectImu(double t_begin, double t_end);
+
+  void doDVL();
+
+  void doPressure();
+
+  void doCamera();
 
   std::vector<ImuMsg> buffer_imu;
   std::vector<DvlMsg> buffer_dvl;

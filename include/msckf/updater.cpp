@@ -20,26 +20,22 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I
 
   /*-------------------- elements need for DVL velocity estimation --------------------*/
 
-  Eigen::Matrix3d R_I_G, R_I_D;
-  Eigen::Vector3d p_I_D;
-  double scale;
+  Eigen::Matrix3d R_I_G = toRotationMatrix(state->getEstimationValue(IMU,EST_QUATERNION));
 
-  R_I_G = toRotationMatrix(state->getEstimationValue(IMU,EST_QUATERNION));
   // check if do the DVL extrinsics-rotation online calibration
-  if(param_msckf_.do_R_I_D)
-    R_I_D = toRotationMatrix(state->getEstimationValue(DVL,EST_QUATERNION));
-  else
-    R_I_D = toRotationMatrix(prior_dvl_.extrinsics.head(4)); 
+  Eigen::Matrix3d R_I_D = param_msckf_.do_R_I_D ? 
+                          toRotationMatrix(state->getEstimationValue(DVL,EST_QUATERNION)) :
+                          toRotationMatrix(prior_dvl_.extrinsics.head(4)); 
+
   // check if do the DVL extrinsics-position online calibration
-  if(param_msckf_.do_p_I_D)
-    p_I_D = state->getEstimationValue(DVL,EST_POSITION);
-  else
-    p_I_D = prior_dvl_.extrinsics.tail(3);
+  Eigen::Vector3d p_I_D = param_msckf_.do_p_I_D ? 
+                          state->getEstimationValue(DVL,EST_POSITION) : 
+                          prior_dvl_.extrinsics.tail(3);
+                          
   // check if do the DVL scale online calibration
-  if(param_msckf_.do_scale_D)
-    scale = state->getEstimationValue(DVL,EST_SCALE)(0);
-  else
-    scale = prior_dvl_.scale;
+  double scale = param_msckf_.do_scale_D ? 
+                 state->getEstimationValue(DVL,EST_SCALE)(0) : 
+                 prior_dvl_.scale;
 
   // measurement function:
   // DVL BT velocity estimation: z_hat = 1/S * R_I_D^T * (R_I_G * v_G_I + [w_I]x * p_I_D) + n

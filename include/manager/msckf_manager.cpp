@@ -135,137 +135,124 @@ void MsckfManager::backend() {
 
 
 /******************** DO DVL  ********************/
+  doDVL();
 
-  bool new_dvl = checkNewDvl();
-  if(new_dvl) {
+}
 
-    /******************** select data from buffer ********************/
-    DvlMsg selected_dvl;
-    std::vector<ImuMsg> selected_imu;
+void MsckfManager::doDVL() {
 
-    buffer_mutex.lock();
+  /******************** check if new DVL data is arrived ********************/
 
-    /// select first DVL data
-    selected_dvl = buffer_dvl.front();
+  buffer_mutex.lock();
 
-    //// determine selected IMU range, from last updated to current sensor measurement
-    auto offset = params.msckf.do_time_I_D ? 
-                  state->getEstimationValue(DVL, EST_TIMEOFFSET)(0) : params.prior_dvl.timeoffset;
-    double time_prev_state = state->getTimestamp();
-    double time_curr_state = selected_dvl.time + offset;
+  bool new_dvl = buffer_dvl.size() > 0 ? true : false;  
 
-    //// make sure sensors data is not eariler then current state
-    if(time_curr_state <= time_prev_state) {
-      printf("Manger error: new sensor measurement time:%f is eariler then current state time:%f\n",
-              time_curr_state, time_prev_state);
-      std::exit(EXIT_FAILURE);
-    }
+  buffer_mutex.unlock();
 
-    //// make sure IMU data asscoiated with sensor is arrived, means IMU time > current sensor time 
-    auto frame_imu = std::find_if(buffer_imu.begin(), buffer_imu.end(),
-                 [&](const auto& imu){return imu.time > time_curr_state ;});
-    if(frame_imu != buffer_imu.end()) {
-      //// make sure we have at least 2 IMU data
-      selected_imu = selectImu(time_prev_state, time_curr_state);
+  if(!new_dvl)
+    return;
 
-      // earse selected DVL measurement
-      buffer_dvl.erase(buffer_dvl.begin());
-      // earse selected IMU data
-      // leave one IMU data time <= current state time, so we can interploate later
-      buffer_imu.erase(buffer_imu.begin(), frame_imu-1);      
-    }
+  /******************** select data from buffer ********************/
+  DvlMsg selected_dvl;
+  std::vector<ImuMsg> selected_imu;
 
-    buffer_mutex.unlock();
+  buffer_mutex.lock();
 
-    /******************** do the msckf stuff ********************/
+  /// select first DVL data
+  selected_dvl = buffer_dvl.front();
 
-    if(selected_imu.size() > 0){
+  //// determine selected IMU range, from last updated to current sensor measurement
+  auto offset = params.msckf.do_time_I_D ? 
+                state->getEstimationValue(DVL, EST_TIMEOFFSET)(0) : params.prior_dvl.timeoffset;
+  double time_prev_state = state->getTimestamp();
+  double time_curr_state = selected_dvl.time + offset;
 
-      // printf("beg=%f, end=%f\n", time_prev_state, time_curr_state);
-      // for(const auto &i:selected_imu) {
-      //   printf("t=%f\n", i.time);
-      // }
-
-      test++;
-      std::ofstream file;
-
-
-      predictor->propagate(state, selected_imu);
-      // file.open(file_path, std::ios_base::app);//std::ios_base::app
-      // file <<"\n ==================================  " << test<< "  ====================================";
-      // file<<"\nprop cov: \n" << state->getCov()<<"\n";
-      // file<<"size: "<<state->getCov().rows()<<"X"<<state->getCov().cols()<<"\n";
-      // file.close();
-
-      // We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d)
-      assert(!state->foundSPD());
-
-      // Last angular velocity and linear velocity
-      Eigen::Vector3d last_w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
-      Eigen::Vector3d last_v_D = selected_dvl.v;
-
-      // // use Last angular velocity for cloning when estimating time offset)
-      if(params.msckf.max_clone_D != 0)
-        predictor->augmentDvl(state, last_w_I);
-      // file.open(file_path, std::ios_base::app);//std::ios_base::app
-      // file<<"\naug cov: \n" << state->getCov()<<"\n";
-      // file<<"size: "<<state->getCov().rows()<<"X"<<state->getCov().cols()<<"\n";
-      // file.close();
-
-      // update
-      updater->updateDvl(state, last_w_I, last_v_D);
-      // updater->updateDvl(state, last_w_I, last_v_D, true);
-      // file.open(file_path, std::ios_base::app);//std::ios_base::app
-      // file<<"\nupdated cov: \n" << state->getCov()<<"\n";
-      // file<<"size: "<<state->getCov().rows()<<"X"<<state->getCov().cols()<<"\n";
-      // file.close();
-
-
-      // if(test==2){
-      //   std::exit(EXIT_FAILURE);
-      // }
-
-      // marginalize 
-      // if max clone of DVL is reached, then do the marginalize: remove the clone and related covarinace
-      if(params.msckf.max_clone_D != 0 &&
-         params.msckf.max_clone_D == state->getEstimationNum(CLONE_DVL)) {
-        updater->marginalizeDvl(state);
-      }
-      // file.open(file_path, std::ios_base::app);//std::ios_base::app
-      // file<<"\nmarg cov: \n" << state->getCov()<<"\n";
-      // file<<"size: "<<state->getCov().rows()<<"X"<<state->getCov().cols()<<"\n";
-      // file<<"\nupdated IMU: \n" << state->getImuValue().transpose() <<"\n";
-      // file.close();
-
-      is_odom = true;
-    }
-
+  //// make sure sensors data is not eariler then current state
+  if(time_curr_state <= time_prev_state) {
+    printf("Manger error: new sensor measurement time:%f is eariler then current state time:%f\n",
+            time_curr_state, time_prev_state);
+    std::exit(EXIT_FAILURE);
   }
 
-}
+  //// make sure IMU data asscoiated with sensor is arrived, means IMU time > current sensor time 
+  auto frame_imu = std::find_if(buffer_imu.begin(), buffer_imu.end(),
+                [&](const auto& imu){return imu.time > time_curr_state ;});
+  if(frame_imu != buffer_imu.end()) {
+    //// make sure we have at least 2 IMU data
+    selected_imu = selectImu(time_prev_state, time_curr_state);
 
-bool MsckfManager::checkNewDvl() {
-  bool new_dvl; 
-
-  buffer_mutex.lock();
-
-  new_dvl = buffer_dvl.size() > 0 ? true : false;  
-
-  buffer_mutex.unlock();
-
-  return new_dvl;
-}
-
-bool MsckfManager::checkNewImu() {
-  bool new_imu; 
-
-  buffer_mutex.lock();
-
-  new_imu = buffer_imu.size() > 0 ? true : false;  
+    // earse selected DVL measurement
+    buffer_dvl.erase(buffer_dvl.begin());
+    // earse selected IMU data
+    // leave one IMU data time <= current state time, so we can interploate later
+    buffer_imu.erase(buffer_imu.begin(), frame_imu-1);      
+  }
 
   buffer_mutex.unlock();
 
-  return new_imu;
+  /******************** do the msckf stuff ********************/
+
+  if(selected_imu.size() > 0){
+
+    // printf("beg=%f, end=%f\n", time_prev_state, time_curr_state);
+    // for(const auto &i:selected_imu) {
+    //   printf("t=%f\n", i.time);
+    // }
+
+    test++;
+    std::ofstream file;
+
+
+    predictor->propagate(state, selected_imu);
+    // file.open(file_path, std::ios_base::app);//std::ios_base::app
+    // file <<"\n ==================================  " << test<< "  ====================================";
+    // file<<"\nprop cov: \n" << state->getCov()<<"\n";
+    // file<<"size: "<<state->getCov().rows()<<"X"<<state->getCov().cols()<<"\n";
+    // file.close();
+
+    // We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d)
+    assert(!state->foundSPD());
+
+    // Last angular velocity and linear velocity
+    Eigen::Vector3d last_w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
+    Eigen::Vector3d last_v_D = selected_dvl.v;
+
+    // // use Last angular velocity for cloning when estimating time offset)
+    if(params.msckf.max_clone_D != 0)
+      predictor->augmentDvl(state, last_w_I);
+    // file.open(file_path, std::ios_base::app);//std::ios_base::app
+    // file<<"\naug cov: \n" << state->getCov()<<"\n";
+    // file<<"size: "<<state->getCov().rows()<<"X"<<state->getCov().cols()<<"\n";
+    // file.close();
+
+    // update
+    updater->updateDvl(state, last_w_I, last_v_D);
+    // updater->updateDvl(state, last_w_I, last_v_D, true);
+    // file.open(file_path, std::ios_base::app);//std::ios_base::app
+    // file<<"\nupdated cov: \n" << state->getCov()<<"\n";
+    // file<<"size: "<<state->getCov().rows()<<"X"<<state->getCov().cols()<<"\n";
+    // file.close();
+
+
+    // if(test==2){
+    //   std::exit(EXIT_FAILURE);
+    // }
+
+    // marginalize 
+    // if max clone of DVL is reached, then do the marginalize: remove the clone and related covarinace
+    if(params.msckf.max_clone_D != 0 &&
+        params.msckf.max_clone_D == state->getEstimationNum(CLONE_DVL)) {
+      updater->marginalizeDvl(state);
+    }
+    // file.open(file_path, std::ios_base::app);//std::ios_base::app
+    // file<<"\nmarg cov: \n" << state->getCov()<<"\n";
+    // file<<"size: "<<state->getCov().rows()<<"X"<<state->getCov().cols()<<"\n";
+    // file<<"\nupdated IMU: \n" << state->getImuValue().transpose() <<"\n";
+    // file.close();
+
+    is_odom = true;
+  }
+
 }
 
 std::vector<ImuMsg> MsckfManager::selectImu(double t_begin, double t_end) {
