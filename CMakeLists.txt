@@ -102,7 +102,7 @@ target_link_libraries(dvio_lib ${thirdparty_libraries})
 ############### build src ################
 ##########################################
 
-add_executable(dvio_node src/ros_node.cpp)
+add_executable(dvio_node ros/node.cpp)
 target_link_libraries(dvio_node dvio_lib ${thirdparty_libraries})
 
 
