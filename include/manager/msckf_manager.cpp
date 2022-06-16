@@ -137,6 +137,9 @@ void MsckfManager::backend() {
 /******************** DO DVL  ********************/
   doDVL();
 
+/******************** DO PRESSURE  ********************/
+
+  // doPressure();
 }
 
 void MsckfManager::doDVL() {
@@ -252,6 +255,10 @@ void MsckfManager::doDVL() {
 
     is_odom = true;
   }
+
+}
+
+void MsckfManager::doPressure() {
 
 }
 

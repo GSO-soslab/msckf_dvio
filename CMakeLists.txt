@@ -99,12 +99,14 @@ target_link_libraries(dvio_lib ${thirdparty_libraries})
 
 
 ##########################################
-############### build src ################
+############### build ros ################
 ##########################################
 
 add_executable(dvio_node ros/node.cpp)
 target_link_libraries(dvio_node dvio_lib ${thirdparty_libraries})
 
+add_executable(dvl_helper_node ros/helper/dvl_helper.cpp)
+target_link_libraries(dvl_helper_node ${thirdparty_libraries})
 
 ##########################################
 ############### build test ###############

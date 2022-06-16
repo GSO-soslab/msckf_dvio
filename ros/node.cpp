@@ -121,13 +121,23 @@ void RosNode::imuCallback(const sensor_msgs::ImuConstPtr &msg) {
   manager->feedImu(message);
 }
 
-void RosNode::dvlCallback(const nortek_dvl::ButtomTrack::ConstPtr &msg) {
+void RosNode::dvlCallback(const geometry_msgs::TwistWithCovarianceStamped::ConstPtr &msg) {
   DvlMsg message;
   message.time = msg->header.stamp.toSec();
-  message.v << msg->speed.x, msg->speed.y, msg->speed.z;
+  message.v << msg->twist.twist.linear.x, 
+               msg->twist.twist.linear.y, 
+               msg->twist.twist.linear.z;
 
   manager->feedDvl(message); 
 }
+
+// void RosNode::dvlCallback(const nortek_dvl::ButtomTrack::ConstPtr &msg) {
+//   DvlMsg message;
+//   message.time = msg->header.stamp.toSec();
+//   message.v << msg->speed.x, msg->speed.y, msg->speed.z;
+
+//   manager->feedDvl(message); 
+// }
 
 // void RosNode::dvlCallback(const geometry_msgs::Vector3Stamped::ConstPtr &msg) {
 //   DvlMsg message;

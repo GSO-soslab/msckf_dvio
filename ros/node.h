@@ -36,7 +36,9 @@ public:
 
   void imuCallback(const sensor_msgs::ImuConstPtr &msg);
 
-  void dvlCallback(const nortek_dvl::ButtomTrack::ConstPtr &msg);
+  void dvlCallback(const geometry_msgs::TwistWithCovarianceStamped::ConstPtr &msg);
+
+  // void dvlCallback(const nortek_dvl::ButtomTrack::ConstPtr &msg);
 
   // void dvlCallback(const geometry_msgs::Vector3Stamped::ConstPtr &msg);
 

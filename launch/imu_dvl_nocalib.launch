@@ -29,10 +29,19 @@
       <param name="remove_gravity_vector" value="false"/>
   </node> -->
 
+
+  <!-- Helper: convert DVL raw data to navigation data type -->
+  <node name="dvl_helper_node" pkg="msckf_dvio" type="dvl_helper_node" output="screen" >
+      <remap from="/glrc/bt" to="/rov/sensors/dvl/buttom_track_remap"/>
+      <remap from="/glrc/cp" to="/rov/sensors/dvl/current_profile_remap"/>
+
+      <remap from="/glrc/velocity" to="/rov/sensors/dvl/buttom_track_velocity"/>
+      <remap from="/glrc/pressure" to="/rov/sensors/dvl/pressure"/>
+  </node>
+
   <!-- build with flag: -DCMAKE=debug -->
   <!-- add to roslaunch: launch-prefix="gdb -ex run -1-args" -->
   <!-- type: bt -->
-
 
   <!-- Parmaters: DVL update without online calibration -->
   <arg name="prior_yaml" default="$(find msckf_dvio)/config/dvl_nocalib/prior.yaml"/>
@@ -43,7 +52,7 @@
       <rosparam command="load" file="$(arg system_yaml)"/>
 
       <remap from="imu" to="/rov/sensors/ahrs/imu/data"/>
-      <remap from="dvl" to="/rov/sensors/dvl/buttom_track_remap"/>
+      <remap from="dvl" to="/rov/sensors/dvl/buttom_track_velocity"/>
   </node>
 
 <!-- De-compress the images which compressed for tether transport -->
