@@ -82,7 +82,8 @@ list(APPEND thirdparty_libraries
 ############### build lib ###############
 ##########################################
 add_library(dvio_lib SHARED
-  include/initializer/imu_initializer.cpp
+
+  include/initializer/initializer_dvl_aided.cpp
   
   include/manager/msckf_manager.cpp
 
@@ -118,10 +119,8 @@ target_link_libraries(dvl_helper_node ${thirdparty_libraries})
 # add_executable(test_imu_init_rosbag test/cpp/imu_init_rosbag.cpp)
 # target_link_libraries(test_imu_init_rosbag dvio_lib ${thirdparty_libraries})
 
-
 # add_executable(test_ros_rpy test/cpp/ros_rpy.cpp)
 # target_link_libraries(test_ros_rpy ${thirdparty_libraries})
-
 
 # add_executable(test_eigen test/cpp/eigen.cpp)
 # target_link_libraries(test_eigen ${thirdparty_libraries})

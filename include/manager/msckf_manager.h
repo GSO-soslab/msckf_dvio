@@ -19,7 +19,7 @@
 #include "msckf/predictor.h"
 #include "msckf/updater.h"
 
-#include "initializer/imu_initializer.h"
+#include "initializer/initializer_dvl_aided.h"
 
 namespace msckf_dvio
 {
@@ -37,7 +37,7 @@ public:
 
   void backend();
 
-  bool isInitialized() { return imu_initializer->isInitialized(); }
+  bool isInitialized() { return initializer->isInit(); }
 
   //! TODO: just for test, better hanlding in visulization_manager
   bool isOdom() { return is_odom; }
@@ -66,7 +66,7 @@ private:
 
   std::shared_ptr<State> state;
 
-  std::shared_ptr<ImuInitializer> imu_initializer;
+  std::shared_ptr<Initializer> initializer;
 
   std::shared_ptr<Predictor> predictor;
 

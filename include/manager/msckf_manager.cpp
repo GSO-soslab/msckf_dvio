@@ -12,8 +12,8 @@ MsckfManager::MsckfManager(Params &parameters) : is_odom(false)
   state = std::make_shared<State>(params);
 
   //// setup imu initializer
-  imu_initializer = std::make_shared<ImuInitializer>(params.init, params.prior_imu, params.prior_dvl);
-
+  initializer = std::shared_ptr<InitDvlAided>(new InitDvlAided(params.init, params.prior_imu, params.prior_dvl));
+                                                      
   // setup predictor
   predictor = std::make_shared<Predictor>(params.prior_imu);
 
@@ -29,8 +29,8 @@ void MsckfManager::feedImu(const ImuMsg &data) {
   buffer_mutex.unlock();
 
   //// if imu not initialized, feed to initializer
-  if(!imu_initializer->isInitialized())
-    imu_initializer->feedImu(data);
+  if(!initializer->isInit())
+    initializer->feedImu(data);
 
   //!TODO: delete imu messages that are older then some time, 
   //!      like 10s in case 
@@ -47,8 +47,8 @@ void MsckfManager::feedDvl(const DvlMsg &data) {
   buffer_mutex.unlock();
 
   //// if imu not initialized, feed to initializer
-  if(!imu_initializer->isInitialized())
-    imu_initializer->feedDvl(data);
+  if(!initializer->isInit())
+    initializer->feedDvl(data);
 }
 
 void MsckfManager::feedCamera(const ImageMsg &data) {
@@ -62,50 +62,37 @@ void MsckfManager::feedCamera(const ImageMsg &data) {
 
 void MsckfManager::backend() {
 
-/******************** Check Initialization with DVL ********************/
-  if(!imu_initializer->isInitialized()) {
-    
-    imu_initializer->checkInitialization();
+  if(!initializer->isInit()) {
 
-    if(imu_initializer->isInitialized()){
+    initializer->checkInit();
 
-      //// system initialized, get init result
-      Eigen::Matrix<double, 17, 1> state_imu;
-      Eigen::Matrix<double, 2, 1>  state_dvl;
-
-      std::tie(state_imu, state_dvl) = imu_initializer->getInitResult();
-
-      //// update state
-      state->setTimestamp(state_imu(0));
-      state->setImuValue(state_imu.tail(16));
-
-      if(params.msckf.do_time_I_D)
-        state->setEstimationValue(DVL, EST_TIMEOFFSET, Eigen::MatrixXd::Constant(1,1,state_dvl(1)));
+    if(initializer->isInit()){
+      std::vector<double> data_time;
+      initializer->updateInit(state, params, data_time);
 
       //// clean manager data buffer before initialization 
       buffer_mutex.lock();
       
       // delete IMU data used for initialization
       auto frame_imu = std::find_if(buffer_imu.begin(), buffer_imu.end(),
-                    [&](const auto& imu){return imu.time == state_imu(0) ;});
+                    [&](const auto& imu){return imu.time == data_time.at(0) ;});
       if (frame_imu != buffer_imu.end())
         buffer_imu.erase(buffer_imu.begin(), frame_imu);
 
       // delete DVL data used for initialization
       auto frame_dvl = std::find_if(buffer_dvl.begin(), buffer_dvl.end(),
-                    [&](const auto& dvl){return dvl.time > state_dvl(0) ;});
+                    [&](const auto& dvl){return dvl.time > data_time.at(1) ;});
       if (frame_dvl != buffer_dvl.end())                    
         buffer_dvl.erase(buffer_dvl.begin(), frame_dvl);
 
       //! TODO: clean tracked features before initialization
 
       buffer_mutex.unlock();
-
     }
     else
-      //// system not initialized, return 
       return;
   }
+
 
 /******************** Check Initialization with given state ********************/
   // if(!imu_initializer->isInitialized()) {

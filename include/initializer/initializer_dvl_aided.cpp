@@ -1,67 +1,15 @@
-#include "initializer/imu_initializer.h"
+#include "initializer_dvl_aided.h"
 
 namespace msckf_dvio {
 
-ImuInitializer::ImuInitializer( paramInit param_init_, 
-                                priorImu prior_imu_, 
-                                priorDvl prior_dvl_):
-    param_init(param_init_), prior_imu(prior_imu_),
-    R_I_D(toRotationMatrix(prior_dvl_.extrinsics.head(4))), 
-    p_I_D(prior_dvl_.extrinsics.tail(3)),
-    is_initialized(false), 
-    last_index_imu(0), last_index_dvl(0), 
-    align_time_imu(-1), align_time_dvl(-1)
-  {
-  }
+InitDvlAided::InitDvlAided(paramInit param_init_, priorImu prior_imu_, priorDvl prior_dvl_) 
+   : Initializer(param_init_), 
+     prior_imu(prior_imu_), prior_dvl(prior_dvl_),
+     last_index_imu(0), last_index_dvl(0), 
+     align_time_imu(-1), align_time_dvl(-1)
+  {}
 
-void ImuInitializer::feedImu(const ImuMsg &data) {
-  buffer_mutex.lock();
-  buffer_imu.emplace_back(data);
-  buffer_mutex.unlock();
-}
-
-void ImuInitializer::feedDvl(const DvlMsg &data) {
-  buffer_mutex.lock();
-  buffer_dvl.emplace_back(data);
-  buffer_mutex.unlock();
-}
-
-void ImuInitializer::checkInitGiven() {
-  if(param_init.init_given){
-    time_I = param_init.init_state(0);
-    q_I_G = param_init.init_state.segment(1,4);
-    p_G_I = param_init.init_state.segment(5,3);
-    v_G_I = param_init.init_state.segment(8,3);
-    bg_avg = param_init.init_state.segment(11,3);
-    ba_avg = param_init.init_state.segment(14,3);
-    
-    time_D = param_init.init_state(0);
-    time_I_D = 0;
-
-    printf("Initialization result at:\n"
-        " IMU time:%f, DVL time:%f, time_I_D:%f\n"
-        " q_I_G(xyzw):%f,%f,%f,%f\n"
-        " p_G_I:%f,%f,%f\n"
-        " v_G_I:%f,%f,%f\n"
-        " bg:%f,%f,%f\n"
-        " ba:%f,%f,%f\n",
-        time_I, time_D, time_I_D,
-        q_I_G(0),q_I_G(1),q_I_G(2),q_I_G(3),
-        p_G_I(0),p_G_I(1),p_G_I(2),
-        v_G_I.x(),v_G_I.y(),v_G_I.z(),
-        bg_avg.x(),bg_avg.y(),bg_avg.z(),
-        ba_avg.x(),ba_avg.y(),ba_avg.z()
-      );
-
-    is_initialized = true;
-
-    cleanBuffer();
-
-  }
-}
-
-void ImuInitializer::checkInitialization() {
-
+void InitDvlAided::checkInit() {
 
   //// try to find IMU align time (vehicle suddenly move)
   if(align_time_imu == -1)
@@ -86,7 +34,39 @@ void ImuInitializer::checkInitialization() {
 
 }
 
-void ImuInitializer::findAlignmentImu() {
+void InitDvlAided::updateInit(std::shared_ptr<State> state, const Params &params, std::vector<double> &data_time) {
+
+  // ====================== get init result ====================== //
+
+  Eigen::Matrix<double, 17, 1> state_imu;
+  Eigen::Matrix<double, 2, 1>  state_dvl;
+
+  state_imu.segment(0,1) = Eigen::Matrix<double,1,1>(time_I);
+  state_imu.segment(1,4) = q_I_G;
+  state_imu.segment(5,3) = p_G_I;
+  state_imu.segment(8,3) = v_G_I;
+  state_imu.segment(11,3) = bg_avg;
+  state_imu.segment(14,3) = ba_avg;
+
+  state_dvl.segment(0,1) = Eigen::Matrix<double,1,1>(time_D);
+  state_dvl.segment(1,1) = Eigen::Matrix<double,1,1>(time_I_D);
+
+  // ====================== update IMU state ====================== //
+
+  state->setTimestamp(state_imu(0));
+  state->setImuValue(state_imu.tail(16));
+
+  // ====================== update DVl state ====================== //
+
+  if(params.msckf.do_time_I_D)
+    state->setEstimationValue(DVL, EST_TIMEOFFSET, Eigen::MatrixXd::Constant(1,1,state_dvl(1)));
+
+  // ====================== return data time to clean buffer ====================== //
+  data_time.emplace_back(time_I);
+  data_time.emplace_back(time_D);
+}
+
+void InitDvlAided::findAlignmentImu() {
 
   /*** Select new IMU data for every window size ***/
   std::vector<ImuMsg> selected_imu;
@@ -171,7 +151,8 @@ void ImuInitializer::findAlignmentImu() {
   }
 }
 
-void ImuInitializer::findAlignmentDvl() {
+void InitDvlAided::findAlignmentDvl() {
+  
 /*** Select new DVL data for every window size ***/
   buffer_mutex.lock();
 
@@ -204,9 +185,10 @@ void ImuInitializer::findAlignmentDvl() {
   }
 }
 
-bool ImuInitializer::grabInitializationData(std::vector<DvlMsg> &dvl_a,
-                                            std::vector<ImuMsg> &imu_a, 
-                                            std::vector<ImuMsg> &imu_g) {
+
+bool InitDvlAided::grabInitializationData(std::vector<DvlMsg> &dvl_a,
+                                          std::vector<ImuMsg> &imu_a, 
+                                          std::vector<ImuMsg> &imu_g) {
   //// TODO: erase the data before alignment 
   bool ready = false;
 
@@ -302,9 +284,9 @@ bool ImuInitializer::grabInitializationData(std::vector<DvlMsg> &dvl_a,
   return ready;
 }
 
-void ImuInitializer::linearInterp(const std::vector<ImuMsg> &imu_in,
-                                  const std::vector<DvlMsg> &dvl_in,
-                                        std::vector<DvlMsg> &dvl_out) {
+void InitDvlAided::linearInterp(const std::vector<ImuMsg> &imu_in,
+                                const std::vector<DvlMsg> &dvl_in,
+                                      std::vector<DvlMsg> &dvl_out) {
 /***** Pre-processing: align DVL and IMU timestamp; calculate DVL acceleration *****/
 
   //// calculate DVL acceleration( v_(t) - v_(t-1) / delta_t), and subtract time_base, and copy velocity
@@ -371,17 +353,19 @@ void ImuInitializer::linearInterp(const std::vector<ImuMsg> &imu_in,
 
   //// imu_in will have one more data because that data timestamp larger then DVL timestamp
   assert(dvl_out.size() == imu_in.size() - 1);
-  
 }
+
 
 //// dvl_a: dvl section data for acceleration bias calibration;
 //// imu_a: imu section data for acceleration bias calibration
 //// imu_g: imu section data for gyro bias calibration
-void ImuInitializer::doInitialization(const std::vector<DvlMsg> &dvl_a, 
-                                      const std::vector<ImuMsg> &imu_a,
-                                      const std::vector<ImuMsg> &imu_g) {
-  //// TODO: set manually set bias
-  
+void InitDvlAided::doInitialization(const std::vector<DvlMsg> &dvl_a, 
+                                    const std::vector<ImuMsg> &imu_a,
+                                    const std::vector<ImuMsg> &imu_g) {
+
+  Eigen::Matrix3d R_I_D(toRotationMatrix(prior_dvl.extrinsics.head(4)));
+  Eigen::Vector3d p_I_D(prior_dvl.extrinsics.tail(3));
+
 /*** Acceleration bias and gravity projection estimation ***/
   Eigen::Matrix3d R_I_G;
 
@@ -445,8 +429,6 @@ void ImuInitializer::doInitialization(const std::vector<DvlMsg> &dvl_a,
   //// v_I_hat = R_I_D * v_D - [w_I]x * p_I_D
   v_G_I = R_I_D * dvl_a.back().v - toSkewSymmetric(imu_a.back().w) * p_I_D;
 
-
-
   //// TEST:
   printf("Initialization result at:\n"
           " IMU time:%f, DVL time:%f, time_I_D:%f\n"
@@ -463,13 +445,13 @@ void ImuInitializer::doInitialization(const std::vector<DvlMsg> &dvl_a,
           R_I_G(2,0),R_I_G(2,1),R_I_G(2,2)
         );
 
-  is_initialized = true;
+  initialized = true;
 
   //// clean buffer
   cleanBuffer();
 }
 
-void ImuInitializer::cleanBuffer() {
+void InitDvlAided::cleanBuffer() {
   buffer_mutex.lock();
 
   buffer_imu.clear();
@@ -479,5 +461,6 @@ void ImuInitializer::cleanBuffer() {
 
   buffer_mutex.unlock();
 }
+
 
 }
