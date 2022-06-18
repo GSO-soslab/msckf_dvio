@@ -1,5 +1,6 @@
 #include <Eigen/Eigen>
-
+#include <iostream>
+#include <iomanip>
 
 // Returns skew-symmetric form of a 3-d vector
 inline Eigen::Matrix3d toSkewSymmetric(const Eigen::Vector3d& vec) {
@@ -27,9 +28,35 @@ inline Eigen::Matrix<double, 3, 3> toRotationMatrix(const Eigen::Matrix<double, 
 
 int main()
 {
-  Eigen::Vector4d q = Eigen::VectorXd::Zero(4, 1);
-  q(3) =1;
+  //---------- TEST1: ----------//
+  // Eigen::Vector4d q = Eigen::VectorXd::Zero(4, 1);
+  // q(3) =1;
+
+  // Eigen::Matrix3d r = toRotationMatrix(q);
+
+  //---------- TEST2: ----------//
+  Eigen::Matrix4d T_C_I;
+  T_C_I <<  0.011362662503790503, 0.9998882224979653, 0.00971763400653785, -0.043854791823369293,
+            0.9999302479992342, -0.011330740940760782, -0.0033336835368381165, -0.3111845498969625,
+            -0.003223202912534585, 0.009754835703046718, -0.9999472256791313, -0.2777771992579014,
+            0.0, 0.0, 0.0, 1.0;   
 
 
-  Eigen::Matrix3d r = toRotationMatrix(q);
+  std::cout<<std::setprecision(12);
+  std::cout<<"T_C_I:\n" <<T_C_I<<std::endl;
+
+  Eigen::Matrix4d T_I_C1;
+
+  T_I_C1 = T_C_I.inverse();
+
+  std::cout<<"T_I_C1:\n" << T_I_C1<<std::endl;
+
+
+  Eigen::Matrix4d T_I_C2 = Eigen::Matrix4d::Identity();
+
+  T_I_C2.block(0,0,3,3) = T_C_I.block(0,0,3,3).inverse();
+  T_I_C2.block(0,3,3,1) = - T_C_I.block(0,0,3,3).inverse() * T_C_I.block(0,3,3,1);
+  std::cout<<"T_I_C2:\n" << T_I_C2<<std::endl;
+
 }
+

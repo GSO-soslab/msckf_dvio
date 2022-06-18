@@ -18,6 +18,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <tf/transform_broadcaster.h>
 #include <std_srvs/Trigger.h>
+#include <sensor_msgs/FluidPressure.h>  
 //
 #include "manager/msckf_manager.h"
 #include "types/type_all.h"
@@ -34,15 +35,13 @@ public:
 
   ~RosNode(){}
 
-  void imuCallback(const sensor_msgs::ImuConstPtr &msg);
+  void imuCallback(const sensor_msgs::Imu::ConstPtr &msg);
 
   void dvlCallback(const geometry_msgs::TwistWithCovarianceStamped::ConstPtr &msg);
 
-  // void dvlCallback(const nortek_dvl::ButtomTrack::ConstPtr &msg);
+  void imageCallback(const sensor_msgs::Image::ConstPtr &msg);
 
-  // void dvlCallback(const geometry_msgs::Vector3Stamped::ConstPtr &msg);
-
-  void imageCallback(const sensor_msgs::ImageConstPtr &msg);
+  void pressureCallback(const sensor_msgs::FluidPressure::ConstPtr &msg);
 
   bool srvCallback(std_srvs::Trigger::Request  &req, std_srvs::Trigger::Response &res);
 
@@ -54,9 +53,10 @@ private:
   ros::NodeHandle nh_;
   ros::NodeHandle nh_private_;
 
-  ros::Subscriber imu_sub_;
-  ros::Subscriber dvl_sub_;
-  ros::Subscriber image_sub_;
+  ros::Subscriber sub_imu;
+  ros::Subscriber sub_dvl;
+  ros::Subscriber sub_img;
+  ros::Subscriber sub_pressure;
 
   ros::ServiceServer service_;
 

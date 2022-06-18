@@ -56,6 +56,18 @@ struct ImageMsg {
   bool operator<(const ImageMsg &other) const { return time < other.time; }
 };
 
+struct PressureMsg {
+
+  // pressure
+  double p;
+
+  // Image timestamp
+  double time;
+
+  // Sort image with time
+  bool operator<(const PressureMsg &other) const { return time < other.time; }
+};
+
 } // namespace msckf_dvio
 
 #endif  //MSCKF_TYPE_MSG_H_

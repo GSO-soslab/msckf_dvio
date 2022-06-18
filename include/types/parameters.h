@@ -34,6 +34,12 @@ struct priorDvl {
 };
 
 struct priorCam {
+  // extrinsic transformation between IMU and CAM
+  Eigen::Matrix<double, 7, 1> extrinsics;
+  // distortion coeffs for camera
+  Eigen::Matrix<double, 4, 1> distortion_coeffs;
+  // intrinsics
+  Eigen::Matrix<double, 4, 1> intrinsics;
   // timeoffset between IMU and Camera
   double timeoffset;
 };
@@ -70,6 +76,21 @@ struct paramInit {
   Eigen::Matrix<double, 17, 1> init_state;
 };
 
+struct paramTrack {
+  int num_aruco;
+  int num_pts;
+  int fast_threshold;
+  int grid_x;
+  int grid_y;
+  int min_px_dist;
+  bool downsize_aruco;
+  bool use_stereo;
+  int max_camera;
+  int pyram;
+  int cam_id;
+  double downsample_ratio;
+};
+
 //! TODO: set sub-parameters as shared_ptr? 
 //!       so the paramters will updated automaticly, used for localization failed case?
 struct Params{
@@ -86,11 +107,7 @@ struct Params{
 
   priorDvl prior_dvl;
 
-  //==================== Camera ====================//
-  // extrinsic transformation between IMU and Camera
-    // Pose pose_I_C; // check the derivative**
-  // timeoffset between IMU and Camera
-  double timeoffset_I_C;
+  priorCam prior_cam;
 
 /******************/
 /***** System *****/
@@ -101,8 +118,9 @@ struct Params{
 
   paramInit init;
 
-/***** MSCKF State setting *****/
   paramMsckf msckf;
+
+  paramTrack tracking;
 };
 
 

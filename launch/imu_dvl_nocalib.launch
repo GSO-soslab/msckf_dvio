@@ -46,13 +46,16 @@
   <!-- Parmaters: DVL update without online calibration -->
   <arg name="prior_yaml" default="$(find msckf_dvio)/config/dvl_nocalib/prior.yaml"/>
   <arg name="system_yaml" default="$(find msckf_dvio)/config/dvl_nocalib/system.yaml"/>
+  <arg name="tracking_yaml" default="$(find msckf_dvio)/config/dvl_nocalib/tracking.yaml"/>
 
   <node name="dvio_node" pkg="msckf_dvio" type="dvio_node" output="screen" >
       <rosparam command="load" file="$(arg prior_yaml)"/>
       <rosparam command="load" file="$(arg system_yaml)"/>
+      <rosparam command="load" file="$(arg tracking_yaml)"/>
 
       <remap from="imu" to="/rov/sensors/ahrs/imu/data"/>
       <remap from="dvl" to="/rov/sensors/dvl/buttom_track_velocity"/>
+      <remap from="pressure" to="/rov/sensors/dvl/pressure"/>
   </node>
 
 <!-- De-compress the images which compressed for tether transport -->
