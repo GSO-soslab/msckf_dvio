@@ -1,4 +1,22 @@
 #include "initializer_dvl_aided.h"
+/*
+* Acceleration Bias:
+* it need static-jump meovemnt, use "jump" align IMU and DVL data, use DVL velocity calcualte acceleration,
+* then transform those acceleration into IMU frame, apply interpolation to get full acceleration in IMU timestamp,
+* after acceleration is compensated, acceleration bias is got!
+*
+* Gyro Bias:
+* it need static-jump meovemnt, data before jump conside static, use those data to get averaged gyro bias
+*
+* Init rotation(Gravity vector):
+* todo...
+*
+* Init Velocity:
+* after IMU and DVL data are aligned, use DVL velocity then transform into IMU velocity in global frame as init. 
+*
+* Init Position-Z:
+* it need static-jump meovemnt, data before jump conside static, use those data to get averaged depth
+*/
 
 namespace msckf_dvio {
 
@@ -6,30 +24,32 @@ InitDvlAided::InitDvlAided(paramInit param_init_, priorImu prior_imu_, priorDvl 
    : Initializer(param_init_), 
      prior_imu(prior_imu_), prior_dvl(prior_dvl_),
      last_index_imu(0), last_index_dvl(0), 
-     align_time_imu(-1), align_time_dvl(-1)
+     time_I_align(-1), time_D_align(-1)
   {}
 
 void InitDvlAided::checkInit() {
 
   //// try to find IMU align time (vehicle suddenly move)
-  if(align_time_imu == -1)
+  if(time_I_align == -1)
     findAlignmentImu();
 
   //// try to find DVL align time (vehicle suddenly move)
-  if(align_time_dvl == -1)
+  if(time_D_align == -1)
     findAlignmentDvl();
 
   //// 
-  if(align_time_imu != -1 && align_time_dvl != -1 ) {
+  if(time_I_align != -1 && time_D_align != -1 ) {
 
     std::vector<DvlMsg> dvl_acce;
     std::vector<ImuMsg> imu_acce;
     std::vector<ImuMsg> imu_gyro;
+    std::vector<PressureMsg> pres_align;
+    PressureMsg pres_init; 
 
-    bool is_ready = grabInitializationData(dvl_acce, imu_acce, imu_gyro);
+    bool is_ready = grabInitializationData(dvl_acce, imu_acce, imu_gyro, pres_align, pres_init);
 
     if(is_ready)
-      doInitialization(dvl_acce, imu_acce, imu_gyro);
+      doInitialization(dvl_acce, imu_acce, imu_gyro, pres_align, pres_init);
   }
 
 }
@@ -41,14 +61,14 @@ void InitDvlAided::updateInit(std::shared_ptr<State> state, const Params &params
   Eigen::Matrix<double, 17, 1> state_imu;
   Eigen::Matrix<double, 2, 1>  state_dvl;
 
-  state_imu.segment(0,1) = Eigen::Matrix<double,1,1>(time_I);
+  state_imu.segment(0,1) = Eigen::Matrix<double,1,1>(time_I_init);
   state_imu.segment(1,4) = q_I_G;
   state_imu.segment(5,3) = p_G_I;
   state_imu.segment(8,3) = v_G_I;
   state_imu.segment(11,3) = bg_avg;
   state_imu.segment(14,3) = ba_avg;
 
-  state_dvl.segment(0,1) = Eigen::Matrix<double,1,1>(time_D);
+  state_dvl.segment(0,1) = Eigen::Matrix<double,1,1>(time_D_init);
   state_dvl.segment(1,1) = Eigen::Matrix<double,1,1>(time_I_D);
 
   // ====================== update IMU state ====================== //
@@ -62,8 +82,12 @@ void InitDvlAided::updateInit(std::shared_ptr<State> state, const Params &params
     state->setEstimationValue(DVL, EST_TIMEOFFSET, Eigen::MatrixXd::Constant(1,1,state_dvl(1)));
 
   // ====================== return data time to clean buffer ====================== //
-  data_time.emplace_back(time_I);
-  data_time.emplace_back(time_D);
+  // clean IMU buffer
+  data_time.emplace_back(time_I_init);
+  // clean DVL buffer
+  data_time.emplace_back(time_D_init);
+  // clean pressure buffer
+  data_time.emplace_back(time_D_init);
 }
 
 void InitDvlAided::findAlignmentImu() {
@@ -126,7 +150,7 @@ void InitDvlAided::findAlignmentImu() {
       //   b(2,0) = imu_data.at(i).a.x();
       //   Eigen::Matrix<double, 2, 1> line = temp2 * b;
       //   if(abs(line(0,0)) > 0.05) {
-      //     align_time_imu = imu_data.at(i).time;
+      //     time_I_align = imu_data.at(i).time;
       //     break;
       //   }
       // }
@@ -136,13 +160,13 @@ void InitDvlAided::findAlignmentImu() {
         double delta = imu_data.at(i).a.x()-imu_data.at(i-1).a.x();
         //// align point is the last position that vehicle still static, right before vehcile moving 
         if(abs(delta) > param_init.imu_delta) {
-          align_time_imu = imu_data.at(i-1).time;
-          printf("IMU Initializer: find IMU align point at time:%f\n", align_time_imu);
+          time_I_align = imu_data.at(i-1).time;
+          printf("IMU Initializer: find IMU align point at time:%f\n", time_I_align);
           break;
         }
       }
 
-      if(align_time_imu == -1)
+      if(time_I_align == -1)
           printf("IMU Initializer: no IMU align point found with imu_delta=%f\n",param_init.imu_delta);
     }
 
@@ -170,8 +194,8 @@ void InitDvlAided::findAlignmentDvl() {
       double delta = abs(sections_dvl.at(i).v.x()- sections_dvl.at(i-1).v.x());
 
       if(delta > param_init.dvl_delta) {
-        align_time_dvl = sections_dvl.at(i-1).time;
-        printf("IMU Initializer: find DVL align point at time:%f\n", align_time_dvl);
+        time_D_align = sections_dvl.at(i-1).time;
+        printf("IMU Initializer: find DVL align point at time:%f\n", time_D_align);
         break;
       }
 
@@ -188,18 +212,20 @@ void InitDvlAided::findAlignmentDvl() {
 
 bool InitDvlAided::grabInitializationData(std::vector<DvlMsg> &dvl_a,
                                           std::vector<ImuMsg> &imu_a, 
-                                          std::vector<ImuMsg> &imu_g) {
-  //// TODO: erase the data before alignment 
+                                          std::vector<ImuMsg> &imu_g,
+                                          std::vector<PressureMsg> &pres_align,
+                                          PressureMsg &pres_init) {
   bool ready = false;
 
-  /*** Check if DVL velocity section that always increase is found ***/
+// ===================== Check if init duration if found ===================== //
+  
   /*** grabbed velocity example in x-axis: ... 0, [0, 0.1, 0.2, 0.3, 0.4,] 0.35, ... ***/
   std::vector<DvlMsg> selected_dvl;
   buffer_mutex.lock();
 
-  //// used align_time_dvl find the corresponding index in the buffer
+  //// used time_D_align find the corresponding index in the buffer
   auto selected_frame = std::find_if(buffer_dvl.begin(), buffer_dvl.end(),
-                        [&](const auto& dvl){return dvl.time == align_time_dvl;});
+                        [&](const auto& dvl){return dvl.time == time_D_align;});
   std::copy(selected_frame, buffer_dvl.end(), std::back_inserter(selected_dvl)); 
   
   buffer_mutex.unlock();
@@ -216,7 +242,7 @@ bool InitDvlAided::grabInitializationData(std::vector<DvlMsg> &dvl_a,
   //// if not found, just return
   if(!ready)  {return false;}
 
-  /***** Get IMU data for accleration initialization *****/
+// ===================== Get IMU data for accleration initialization ===================== //
 
   //// grab DVL section that has increaseing velocity
   selected_dvl.erase(selected_dvl.begin() + index, selected_dvl.end());
@@ -225,7 +251,7 @@ bool InitDvlAided::grabInitializationData(std::vector<DvlMsg> &dvl_a,
   //   printf("t: %f, vx: %f\n",dvl.time,dvl.v.x());
 
   //// get time offset between IMU and DVL
-  time_I_D = align_time_imu - align_time_dvl; //// −10.645267
+  time_I_D = time_I_align - time_D_align; //// −10.645267
   double last_dvl_time = selected_dvl.back().time + time_I_D;
 
   buffer_mutex.lock();
@@ -245,7 +271,7 @@ bool InitDvlAided::grabInitializationData(std::vector<DvlMsg> &dvl_a,
 
   //// find IMU at alignment point as begining
   auto frame_beg = std::find_if(imu_a.begin(), imu_a.end(),
-                   [&](const auto& imu){return imu.time == align_time_imu;});
+                   [&](const auto& imu){return imu.time == time_I_align;});
 
   //// earse all the data before align point
   imu_a.erase(imu_a.begin(), frame_beg);
@@ -254,10 +280,10 @@ bool InitDvlAided::grabInitializationData(std::vector<DvlMsg> &dvl_a,
   //   printf("t: %f\n", imu.time);
 
 /**** timestamp at Initialized state ****/
-  time_I = imu_a.at(imu_a.size()-2).time;
-  time_D = selected_dvl.back().time;
+  time_I_init = imu_a.at(imu_a.size()-2).time;
+  time_D_init = selected_dvl.back().time;
 
-/*** Get DVL data for accleration initialization ***/
+// ===================== Get DVL data for accleration initialization ===================== //
   linearInterp(imu_a, selected_dvl, dvl_a);
   // TEST:
   // for(const auto dvl:dvl_a)
@@ -266,17 +292,44 @@ bool InitDvlAided::grabInitializationData(std::vector<DvlMsg> &dvl_a,
   //     " a: "<< dvl.a.x()<<" "<< dvl.a.y()<<" "<< dvl.a.z()<<"\n";
 
 
-/*** Get IMU data for gyro initialization ***/
+// ===================== Get IMU data for gyro initialization ===================== //
 
   //// grab IMU section that before suddenly movement point
   //// assuming gyro data before that point is similar like stationary
   buffer_mutex.lock();
 
   auto frame_gyro = std::find_if(buffer_imu.begin(), buffer_imu.end(),
-                    [&](const auto& imu){return imu.time == align_time_imu ;});
+                    [&](const auto& imu){return imu.time == time_I_align ;});
   std::copy(frame_gyro - 100, frame_gyro, std::back_inserter(imu_g));
 
   buffer_mutex.unlock();
+
+// ===================== Get pressure data for depth initialization ===================== //
+
+  buffer_mutex.lock();
+
+  //// get pressure data at timetsmap from stationary to jump(align)
+  auto frame_pres = std::find_if(buffer_pressure.begin(), buffer_pressure.end(),
+                    [&](const auto& pressure){return pressure.time > time_D_align ;});
+  if(frame_pres != buffer_pressure.end())
+    std::copy(buffer_pressure.begin(), frame_pres, std::back_inserter(pres_align));
+  else
+    ready = false;
+
+  //// get pressure data at the initialzied timestamp
+
+  frame_pres = std::find_if(buffer_pressure.begin(), buffer_pressure.end(),
+                    [&](const auto& pressure){return pressure.time > time_D_init ;});
+  if(frame_pres != buffer_pressure.end()){
+
+    pres_init = interpolatePressure(*(frame_pres-1), *frame_pres, time_D_init);
+  }
+  else
+    ready = false;
+
+  buffer_mutex.unlock();
+
+
   // TEST:
   // for(const auto &imu : imu_g)
   //   printf("t: %f\n", imu.time);
@@ -361,7 +414,9 @@ void InitDvlAided::linearInterp(const std::vector<ImuMsg> &imu_in,
 //// imu_g: imu section data for gyro bias calibration
 void InitDvlAided::doInitialization(const std::vector<DvlMsg> &dvl_a, 
                                     const std::vector<ImuMsg> &imu_a,
-                                    const std::vector<ImuMsg> &imu_g) {
+                                    const std::vector<ImuMsg> &imu_g,
+                                    const std::vector<PressureMsg> &pres_align,
+                                    const PressureMsg &pres_init) {
 
   Eigen::Matrix3d R_I_D(toRotationMatrix(prior_dvl.extrinsics.head(4)));
   Eigen::Vector3d p_I_D(prior_dvl.extrinsics.tail(3));
@@ -420,11 +475,27 @@ void InitDvlAided::doInitialization(const std::vector<DvlMsg> &dvl_a,
   for(const auto &imu : imu_g) 
     bg_avg += imu.w;
   bg_avg /= imu_g.size();
-  
-/*** q,p,v estimation ***/
+
+/*** depth estimation ***/
+  //// get starting pressure before alignment 
+  pressure_align = 0;
+  for(const auto &p : pres_align) 
+    pressure_align += p.p;
+  pressure_align /= pres_align.size();  
+
+  //// get variance 
+  pressure_var = 0;
+  for (const auto &p : pres_align) 
+    pressure_var += pow(p.p - pressure_align,2);
+  pressure_var = std::sqrt(pressure_var / ((int)pres_align.size() - 1));
+
+  //// get initialzied z
+  Eigen::Vector3d p_D = Eigen::Vector3d(0,0, pressure_align - pres_init.p); 
+
+/*** q, p, v estimation ***/
   q_I_G = toQuaternion(R_I_G);
 
-  p_G_I = Eigen::Vector3d(0,0,0);
+  p_G_I = R_I_G.transpose() * R_I_D * p_D;
 
   //// v_I_hat = R_I_D * v_D - [w_I]x * p_I_D
   v_G_I = R_I_D * dvl_a.back().v - toSkewSymmetric(imu_a.back().w) * p_I_D;
@@ -432,11 +503,13 @@ void InitDvlAided::doInitialization(const std::vector<DvlMsg> &dvl_a,
   //// TEST:
   printf("Initialization result at:\n"
           " IMU time:%f, DVL time:%f, time_I_D:%f\n"
+          " p_G_I:%f,%f,%f\n"
           " v_G_I:%f,%f,%f\n"
           " bg:%f,%f,%f\n"
           " ba:%f,%f,%f\n"
           " R_I_G:\n %f,%f,%f\n%f,%f,%f\n%f,%f,%f\n",
-          time_I, time_D, time_I_D,
+          time_I_init, time_D_init, time_I_D,
+          p_G_I.x(),p_G_I.y(),p_G_I.z(),
           v_G_I.x(),v_G_I.y(),v_G_I.z(),
           bg_avg.x(),bg_avg.y(),bg_avg.z(),
           ba_avg.x(),ba_avg.y(),ba_avg.z(),
@@ -445,10 +518,10 @@ void InitDvlAided::doInitialization(const std::vector<DvlMsg> &dvl_a,
           R_I_G(2,0),R_I_G(2,1),R_I_G(2,2)
         );
 
-  initialized = true;
-
   //// clean buffer
   cleanBuffer();
+
+  initialized = true;
 }
 
 void InitDvlAided::cleanBuffer() {
@@ -456,6 +529,7 @@ void InitDvlAided::cleanBuffer() {
 
   buffer_imu.clear();
   buffer_dvl.clear();
+  buffer_pressure.clear();
   sections_imu.clear();
   sections_dvl.clear();
 

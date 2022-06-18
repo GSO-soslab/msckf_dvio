@@ -39,6 +39,12 @@ public:
     buffer_mutex.unlock();
   }
 
+  void feedPressure(const PressureMsg &data) {
+    buffer_mutex.lock();
+    buffer_pressure.emplace_back(data);
+    buffer_mutex.unlock();
+  }
+
 protected:
 
   std::atomic<bool> initialized;
@@ -49,6 +55,7 @@ protected:
 
   std::vector<ImuMsg> buffer_imu;
   std::vector<DvlMsg> buffer_dvl;
+  std::vector<PressureMsg> buffer_pressure;
 
 };
 

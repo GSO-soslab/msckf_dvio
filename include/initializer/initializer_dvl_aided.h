@@ -28,7 +28,9 @@ private:
 
   bool grabInitializationData(std::vector<DvlMsg> &dvl_a, 
                               std::vector<ImuMsg> &imu_a,
-                              std::vector<ImuMsg> &imu_g);
+                              std::vector<ImuMsg> &imu_g,
+                              std::vector<PressureMsg> &pres_align,
+                              PressureMsg &pres_init);
 
   void linearInterp(const std::vector<ImuMsg> &imu_in,
                     const std::vector<DvlMsg> &dvl_in, 
@@ -36,15 +38,14 @@ private:
 
   void doInitialization(const std::vector<DvlMsg> &dvl_a, 
                         const std::vector<ImuMsg> &imu_a,
-                        const std::vector<ImuMsg> &imu_g);
+                        const std::vector<ImuMsg> &imu_g,
+                        const std::vector<PressureMsg> &pres_align,
+                        const PressureMsg &pres_init);
 
   priorImu prior_imu;
   priorDvl prior_dvl;
 
-
   int last_index_imu, last_index_dvl;
-
-  double align_time_imu, align_time_dvl;
 
   //// IMU data, variance for one section in each IMU window
   std::vector<std::tuple<std::vector<ImuMsg>, double>> sections_imu;
@@ -52,15 +53,18 @@ private:
 
   //! TODO: replace this with state update
 
-  double time_I;
+  double time_I_align, time_I_init;
   Eigen::Vector4d q_I_G;
   Eigen::Vector3d p_G_I;
   Eigen::Vector3d v_G_I;
   Eigen::Vector3d bg_avg;  
   Eigen::Vector3d ba_avg;
 
-  double time_D;
+  double time_D_align, time_D_init;
   double time_I_D;
+  double pressure_align;
+  double pressure_init;
+  double pressure_var;
 };
 
 }

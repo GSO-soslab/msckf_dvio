@@ -35,6 +35,8 @@ public:
 
   void feedCamera(const ImageMsg &data);
 
+  void feedPressure(const PressureMsg &data);
+
   void backend();
 
   bool isInitialized() { return initializer->isInit(); }
@@ -61,6 +63,7 @@ private:
   std::vector<ImuMsg> buffer_imu;
   std::vector<DvlMsg> buffer_dvl;
   std::vector<ImageMsg> buffer_img;
+  std::vector<PressureMsg> buffer_pressure;
 
   std::mutex buffer_mutex;
 

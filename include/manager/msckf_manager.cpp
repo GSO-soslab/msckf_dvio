@@ -51,13 +51,24 @@ void MsckfManager::feedDvl(const DvlMsg &data) {
     initializer->feedDvl(data);
 }
 
+void MsckfManager::feedPressure(const PressureMsg &data) {
+  buffer_mutex.unlock();
+  buffer_pressure.emplace_back(data);
+  buffer_mutex.unlock();
+
+  //// if imu not initialized, feed to initializer
+  //! TODO: check if this sensor is need for initialization
+  //! initializer->needSensor(PRESSURE) ?
+  if(!initializer->isInit())
+    initializer->feedPressure(data);
+}
+
 void MsckfManager::feedCamera(const ImageMsg &data) {
   buffer_mutex.unlock();
   buffer_img.emplace_back(data);
   buffer_mutex.unlock();
 
   // tracking feature
-
 }
 
 void MsckfManager::backend() {
@@ -79,11 +90,17 @@ void MsckfManager::backend() {
       if (frame_imu != buffer_imu.end())
         buffer_imu.erase(buffer_imu.begin(), frame_imu);
 
-      // delete DVL data used for initialization
+      // delete DVL BT data used for initialization
       auto frame_dvl = std::find_if(buffer_dvl.begin(), buffer_dvl.end(),
                     [&](const auto& dvl){return dvl.time > data_time.at(1) ;});
       if (frame_dvl != buffer_dvl.end())                    
         buffer_dvl.erase(buffer_dvl.begin(), frame_dvl);
+
+      // delete DVL pressure data used for initialization
+      auto frame_pres = std::find_if(buffer_pressure.begin(), buffer_pressure.end(),
+                    [&](const auto& pressure){return pressure.time > data_time.at(2) ;});
+      if (frame_pres != buffer_pressure.end())                    
+        buffer_pressure.erase(buffer_pressure.begin(), frame_pres);
 
       //! TODO: clean tracked features before initialization
 
