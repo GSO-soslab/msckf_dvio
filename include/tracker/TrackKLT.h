@@ -25,7 +25,7 @@
 
 #include "TrackBase.h"
 
-namespace ov_core {
+namespace msckf_dvio {
 
 /**
  * @brief KLT tracking of features.
@@ -146,6 +146,6 @@ protected:
   std::map<size_t, std::vector<cv::Mat>> img_pyramid_last;
 };
 
-} // namespace ov_core
+} // namespace msckf_dvio
 
 #endif /* OV_CORE_TRACK_KLT_H */

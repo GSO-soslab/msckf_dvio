@@ -30,7 +30,7 @@
 
 #include "Feature.h"
 
-namespace ov_core {
+namespace msckf_dvio {
 
 /**
  * @brief Database containing features we are currently tracking.
@@ -411,6 +411,6 @@ protected:
   std::unordered_map<size_t, std::shared_ptr<Feature>> features_idlookup;
 };
 
-} // namespace ov_core
+} // namespace msckf_dvio
 
 #endif /* OV_CORE_FEATURE_DATABASE_H */

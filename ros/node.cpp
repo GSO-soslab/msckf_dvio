@@ -7,7 +7,7 @@ namespace msckf_dvio
 
 RosNode::RosNode(const ros::NodeHandle &nh,
                  const ros::NodeHandle &nh_private) :
-  nh_(nh), nh_private_(nh_private)
+  nh_(nh), nh_private_(nh_private), it_(nh)
 {
   // get parameters and feed to manager system
   parameters = loadParameters();
@@ -28,6 +28,9 @@ RosNode::RosNode(const ros::NodeHandle &nh,
   service_ = nh_.advertiseService("cmd",&RosNode::srvCallback, this);
 
   odom_broadcaster = new tf::TransformBroadcaster();
+
+  pub_img_1 = it_.advertise("/tracked_img1", 20);
+
 }    
 
 Params RosNode::loadParameters() {
@@ -191,8 +194,15 @@ void RosNode::imageCallback(const sensor_msgs::Image::ConstPtr &msg) {
       return;
   }
 
+  // downsampling
+  cv::Mat img;
+  int width = cv_ptr->image.cols * parameters.tracking.downsample_ratio;
+  int height = cv_ptr->image.rows * parameters.tracking.downsample_ratio;
+  cv::resize(cv_ptr->image, img, cv::Size(width, height));
+
+  // feed img
   ImageMsg message;
-  message.image = cv_ptr->image;
+  message.image = img;
   message.time = msg->header.stamp.toSec();;
 
   manager->feedCamera(message);
@@ -268,6 +278,18 @@ void RosNode::process() {
       pub_path.publish(path);
     }
 
+
+
+    // visualize tracked features
+    if(manager->checkTrackedImg()) {
+      ImageMsg img = manager->getTrackedImg();
+
+      std_msgs::Header header;
+      header.frame_id = "img";
+      header.stamp = ros::Time(img.time);
+      sensor_msgs::ImagePtr msg_img = cv_bridge::CvImage(header, "bgr8", img.image).toImageMsg();
+      pub_img_1.publish(msg_img);
+    }
 
     std::chrono::milliseconds dura(sleep_t);
     std::this_thread::sleep_for(dura);

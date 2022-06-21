@@ -30,7 +30,7 @@
   </node> -->
 
 
-  <!-- Helper: convert DVL raw data to navigation data type -->
+  <!-- DVL Helper: convert DVL raw data to navigation data type -->
   <node name="dvl_helper_node" pkg="msckf_dvio" type="dvl_helper_node" output="screen" >
       <remap from="/glrc/bt" to="/rov/sensors/dvl/buttom_track_remap"/>
       <remap from="/glrc/cp" to="/rov/sensors/dvl/current_profile_remap"/>
@@ -39,15 +39,26 @@
       <remap from="/glrc/pressure" to="/rov/sensors/dvl/pressure"/>
   </node>
 
-  <!-- build with flag: -DCMAKE=debug -->
-  <!-- add to roslaunch: launch-prefix="gdb -ex run -1-args" -->
-  <!-- type: bt -->
+  <!-- Camera Helper: De-compress the images which compressed for tether transport -->
+  <group ns="rov_remote/decompressed">
+        <node name="right_republish" type="republish" pkg="image_transport" output="screen"
+              args="compressed  in:=/rov/sensors/stereo/right/image_raw 
+                    raw        out:=/rov_remote/sensors/stereo/right/image_decompressed" />
+
+        <node name="left_republish" type="republish" pkg="image_transport" output="screen"
+              args="compressed  in:=/rov/sensors/stereo/left/image_raw
+                    raw        out:=/rov_remote/sensors/stereo/left/image_decompressed" />
+  </group>
+
 
   <!-- Parmaters: DVL update without online calibration -->
   <arg name="prior_yaml" default="$(find msckf_dvio)/config/dvl_nocalib/prior.yaml"/>
   <arg name="system_yaml" default="$(find msckf_dvio)/config/dvl_nocalib/system.yaml"/>
   <arg name="tracking_yaml" default="$(find msckf_dvio)/config/dvl_nocalib/tracking.yaml"/>
 
+  <!-- build with flag: -DCMAKE=debug -->
+  <!-- add to roslaunch: launch-prefix="gdb -ex run -1-args" -->
+  <!-- type: bt -->
   <node name="dvio_node" pkg="msckf_dvio" type="dvio_node" output="screen" >
       <rosparam command="load" file="$(arg prior_yaml)"/>
       <rosparam command="load" file="$(arg system_yaml)"/>
@@ -56,18 +67,10 @@
       <remap from="imu" to="/rov/sensors/ahrs/imu/data"/>
       <remap from="dvl" to="/rov/sensors/dvl/buttom_track_velocity"/>
       <remap from="pressure" to="/rov/sensors/dvl/pressure"/>
+      <remap from="image" to="/rov_remote/sensors/stereo/left/image_decompressed"/>
   </node>
 
-<!-- De-compress the images which compressed for tether transport -->
-<group ns="rov_remote/decompressed">
-      <node name="right_republish" type="republish" pkg="image_transport" output="screen"
-            args="compressed  in:=/rov/sensors/stereo/right/image_raw 
-                  raw        out:=/rov_remote/sensors/stereo/right/image_decompressed" />
 
-      <node name="left_republish" type="republish" pkg="image_transport" output="screen"
-            args="compressed  in:=/rov/sensors/stereo/left/image_raw
-                  raw        out:=/rov_remote/sensors/stereo/left/image_decompressed" />
-</group>
 
   <node name="rviz" pkg="rviz" type="rviz"  
         args="--opengl 300 -d $(find msckf_dvio)/launch/rviz/msckf_dvio.rviz" /> 

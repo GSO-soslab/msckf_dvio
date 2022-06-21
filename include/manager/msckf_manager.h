@@ -10,6 +10,8 @@
 #include <iomanip>
 #include <tuple>
 #include <fstream>
+#include <queue>
+
 // customized
 #include "types/type_all.h"
 
@@ -20,6 +22,9 @@
 #include "msckf/updater.h"
 
 #include "initializer/initializer_dvl_aided.h"
+
+#include "tracker/TrackKLT.h"
+
 
 namespace msckf_dvio
 {
@@ -33,7 +38,7 @@ public:
 
   void feedDvl(const DvlMsg &data);
 
-  void feedCamera(const ImageMsg &data);
+  void feedCamera(ImageMsg &data);
 
   void feedPressure(const PressureMsg &data);
 
@@ -49,6 +54,23 @@ public:
   Eigen::VectorXd getNewImuState() {return state->getImuValue(); }
 
   double getTime() {return state->getTimestamp(); }
+
+  bool checkTrackedImg() {
+    buffer_mutex.unlock();
+    int size = tracked_img.size();
+    buffer_mutex.unlock();
+
+    return size > 0 ? true : false;
+  }
+
+  ImageMsg getTrackedImg() {
+    buffer_mutex.unlock();
+    ImageMsg img = tracked_img.front();
+    tracked_img.pop();
+    buffer_mutex.unlock();
+
+    return img;
+  }
 
 private:
 
@@ -75,12 +97,18 @@ private:
 
   std::shared_ptr<Updater> updater;
 
+  std::shared_ptr<TrackBase> tracker;
+  std::map<size_t, bool> camera_fisheye;
+  std::map<size_t, Eigen::VectorXd> camera_calibration;
+
   Params params;
 
   //! TEST: 
   int test=0;
   std::atomic<bool> is_odom;
   const char *file_path="/home/lin/develop/ros/soslab_ws/src/slam/msckf_dvio/test_result/msckf_data.dat";
+
+  std::queue<ImageMsg> tracked_img;
 };
 
 } // namespace msckf_dvio

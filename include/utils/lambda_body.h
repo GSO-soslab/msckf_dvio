@@ -26,7 +26,7 @@
 #include <functional>
 #include <opencv2/opencv.hpp>
 
-namespace ov_core {
+namespace msckf_dvio {
 
 /**
  * This is a utility class required to build with older version of opencv
@@ -42,6 +42,6 @@ private:
   std::function<void(const cv::Range &)> _body;
 };
 
-} /* namespace ov_core */
+} /* namespace msckf_dvio */
 
 #endif /* LAMBDA_BODY_H */

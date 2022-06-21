@@ -13,7 +13,7 @@
 
 #include "utils/lambda_body.h" 
 
-namespace ov_core {
+namespace msckf_dvio {
 
 /**
  * @brief Extracts shi-tomasi corner (STC) features in a grid pattern.
@@ -120,6 +120,6 @@ public:
 
 };
 
-} // namesapce ov_core
+} // namesapce msckf_dvio
 
 #endif /* OV_CORE_GRIDER_STC_H */

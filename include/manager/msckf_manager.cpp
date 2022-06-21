@@ -20,6 +20,24 @@ MsckfManager::MsckfManager(Params &parameters) : is_odom(false)
   // setup updater
   updater = std::make_shared<Updater>(params.prior_dvl, params.msckf);
 
+  // setup tracker
+  tracker = std::shared_ptr<TrackBase>(new TrackKLT (
+    params.tracking.num_pts, params.tracking.num_aruco, params.tracking.fast_threshold,
+    params.tracking.grid_x, params.tracking.grid_y, params.tracking.min_px_dist, params.tracking.pyram));
+
+  Eigen::Matrix<double, 8, 1> cam0_calib;
+  cam0_calib << params.prior_cam.intrinsics(0) * params.tracking.downsample_ratio, 
+                params.prior_cam.intrinsics(1) * params.tracking.downsample_ratio, 
+                params.prior_cam.intrinsics(2) * params.tracking.downsample_ratio, 
+                params.prior_cam.intrinsics(3) * params.tracking.downsample_ratio,
+                params.prior_cam.distortion_coeffs(0), params.prior_cam.distortion_coeffs(1), 
+                params.prior_cam.distortion_coeffs(2), params.prior_cam.distortion_coeffs(3);
+  if(params.tracking.cam_id == 0){
+    camera_fisheye.insert({0, false});
+    camera_calibration.insert({0, cam0_calib});
+  }
+  tracker->set_calibration(camera_calibration, camera_fisheye);
+
 }
 
 void MsckfManager::feedImu(const ImuMsg &data) {
@@ -63,12 +81,36 @@ void MsckfManager::feedPressure(const PressureMsg &data) {
     initializer->feedPressure(data);
 }
 
-void MsckfManager::feedCamera(const ImageMsg &data) {
-  buffer_mutex.unlock();
-  buffer_img.emplace_back(data);
-  buffer_mutex.unlock();
+void MsckfManager::feedCamera(ImageMsg &data) {
+  // buffer_mutex.unlock();
+  // buffer_img.emplace_back(data);
+  // buffer_mutex.unlock();
 
-  // tracking feature
+  // do tracking
+  tracker->feed_monocular(data.time, data.image, 0);
+
+  // process tracked features
+  std::shared_ptr<FeatureDatabase> database = tracker->get_feature_database();
+  std::vector<std::shared_ptr<Feature>> feats_lost = database->features_not_containing_newer(data.time);
+
+  // delete access features
+  for (auto const &f : feats_lost) {
+    f->to_delete = true;
+  }
+  database->cleanup();
+
+  // visualization
+  cv::Mat img_history;
+  tracker->display_history(img_history, 0, 255, 255, 255, 255, 255);
+
+  // store tracked images
+  ImageMsg msg;
+  msg.image = img_history;
+  msg.time = data.time;
+  
+  buffer_mutex.unlock();
+  tracked_img.emplace(msg);
+  buffer_mutex.unlock();
 }
 
 void MsckfManager::backend() {

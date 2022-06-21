@@ -19,6 +19,8 @@
 #include <tf/transform_broadcaster.h>
 #include <std_srvs/Trigger.h>
 #include <sensor_msgs/FluidPressure.h>  
+#include <image_transport/image_transport.h>
+
 //
 #include "manager/msckf_manager.h"
 #include "types/type_all.h"
@@ -68,6 +70,10 @@ private:
   ros::Publisher pub_odom, pub_path;
   tf::TransformBroadcaster *odom_broadcaster;
   nav_msgs::Path path;
+
+  image_transport::ImageTransport it_;
+  image_transport::Publisher pub_img_1;
+
 }; // end of class   
 
 } // namespace msckf_dvio

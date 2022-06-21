@@ -34,7 +34,7 @@
 
 #include "utils/lambda_body.h"
 
-namespace ov_core {
+namespace msckf_dvio {
 
 /**
  * @brief Extracts FAST features in a grid pattern.
@@ -150,6 +150,6 @@ public:
   }
 };
 
-} // namespace ov_core
+} // namespace msckf_dvio
 
 #endif /* OV_CORE_GRIDER_FAST_H */

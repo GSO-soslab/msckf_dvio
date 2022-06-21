@@ -34,7 +34,7 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/opencv.hpp>
 
-#include "Grider_DOG.h"
+// #include "Grider_DOG.h"
 #include "Grider_FAST.h"
 #include "Grider_STC.h"
 
@@ -43,7 +43,7 @@
 #include "utils/colors.h"
 #include "utils/lambda_body.h"
 
-namespace ov_core {
+namespace msckf_dvio {
 
 /**
  * @brief Visual feature tracking base class
@@ -368,6 +368,6 @@ protected:
   std::atomic<size_t> currid;
 };
 
-} // namespace ov_core
+} // namespace msckf_dvio
 
 #endif /* OV_CORE_TRACK_BASE_H */

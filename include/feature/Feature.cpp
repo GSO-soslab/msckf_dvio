@@ -22,7 +22,7 @@
 
 #include "Feature.h"
 
-using namespace ov_core;
+using namespace msckf_dvio;
 
 void Feature::clean_old_measurements(const std::vector<double> &valid_times) {
 

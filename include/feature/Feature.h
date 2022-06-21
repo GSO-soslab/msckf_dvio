@@ -28,7 +28,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace ov_core {
+namespace msckf_dvio {
 
 /**
  * @brief Sparse feature class used to collect measurements
@@ -96,6 +96,6 @@ public:
   void clean_older_measurements(double timestamp);
 };
 
-} // namespace ov_core
+} // namespace msckf_dvio
 
 #endif /* OV_CORE_FEATURE_H */

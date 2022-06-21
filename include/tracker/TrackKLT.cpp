@@ -22,7 +22,7 @@
 
 #include "TrackKLT.h"
 
-using namespace ov_core;
+using namespace msckf_dvio;
 
 void TrackKLT::feed_monocular(double timestamp, cv::Mat &img, size_t cam_id) {
 
