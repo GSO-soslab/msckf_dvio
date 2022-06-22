@@ -18,6 +18,8 @@ public:
 
   void updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I, const Eigen::Vector3d &v_D, bool is_simple);
 
+  void updatePressure(std::shared_ptr<State> state, const double pres_begin, const double pres_curr, bool is_simple);
+  
   void marginalizeDvl(std::shared_ptr<State> state);
 
 private:

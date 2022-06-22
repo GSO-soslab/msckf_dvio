@@ -122,8 +122,8 @@ target_link_libraries(dvl_helper_node ${thirdparty_libraries})
 # add_executable(test_ros_rpy test/cpp/ros_rpy.cpp)
 # target_link_libraries(test_ros_rpy ${thirdparty_libraries})
 
-# add_executable(test_eigen test/cpp/eigen.cpp)
-# target_link_libraries(test_eigen ${thirdparty_libraries})
+add_executable(test_eigen test/cpp/eigen.cpp)
+target_link_libraries(test_eigen ${thirdparty_libraries})
 
 # add_executable(test_remapDVL test/cpp/remap_dvl.cpp)
 # target_link_libraries(test_remapDVL ${thirdparty_libraries})

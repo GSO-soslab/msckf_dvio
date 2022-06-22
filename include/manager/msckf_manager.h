@@ -11,7 +11,7 @@
 #include <tuple>
 #include <fstream>
 #include <queue>
-
+#include <limits>
 // customized
 #include "types/type_all.h"
 
@@ -46,7 +46,8 @@ public:
 
   bool isInitialized() { return initializer->isInit(); }
 
-  //! TODO: just for test, better hanlding in visulization_manager
+  //! TODO: just for test, better handling in visulization_manager
+  //! 
   bool isOdom() { return is_odom; }
 
   void resetOdom() { is_odom = false;}
@@ -82,10 +83,12 @@ private:
 
   void doCamera();
 
+  UpdateSouce selectUpdateSource();
+
   std::vector<ImuMsg> buffer_imu;
   std::vector<DvlMsg> buffer_dvl;
-  std::vector<ImageMsg> buffer_img;
   std::vector<PressureMsg> buffer_pressure;
+  std::vector<double> buffer_img_time;
 
   std::mutex buffer_mutex;
 

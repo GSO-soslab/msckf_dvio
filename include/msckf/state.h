@@ -33,6 +33,13 @@ enum SubStateName{
   CLONE_CAM0
 };
 
+enum UpdateSouce{
+  NONE = 0,
+  VELOCITY_BT,
+  PRESSURE_CP,
+  PRESSURE_BT
+};
+
 namespace msckf_dvio
 {
 
@@ -164,6 +171,11 @@ public:
     return state_[sub_state_name].find(clone_name) != state_[sub_state_name].end() ? true : false; 
   }
   
+  //================================= Pressure ========================================//
+
+  inline void setPressureInit(double value) {pressure_init = value;}
+
+  inline double getPressureInit() {return pressure_init;}
   /********************************************************************************/                       
   /********************************** Covariance **********************************/
   /********************************************************************************/
@@ -203,6 +215,9 @@ private:
 
   // parameters for MSCKF operation
   paramMsckf params_msckf_;
+
+  // other sensor propetry
+  double pressure_init;
 };
   
 } // namespace msckf_dvio

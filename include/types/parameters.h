@@ -28,6 +28,9 @@ struct priorDvl {
   double sound_speed;
   // BT 3-axis veloicty measurement white noise
   Eigen::Vector3d sigma_bt;
+  // the angle that the actual mounting position rotate to the standing position, 
+  // used to transfer pressure measurement into DVL frame's Z
+  double mount_angle;
 
   //! TODO: for initial_covariance
   // Eigen::VectorXd sigma_init;

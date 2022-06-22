@@ -172,6 +172,7 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I
   /********************************************************************************/
   /****************************** Compute Kalman Gain *****************************/
   /********************************************************************************/
+
   // IMU veloicty measurement noise
   Eigen::Matrix3d Rn = Eigen::Matrix3d::Identity();
   Rn(0,0) = pow(0.1, 2);
@@ -185,6 +186,10 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I
   Eigen::MatrixXd K_transpose = S.ldlt().solve(H * state->cov_);
   Eigen::MatrixXd K = K_transpose.transpose();
   // std::cout<<"K1: "<< K<<std::endl;
+
+  /********************************************************************************/
+  /***************************** calculate residual *******************************/
+  /********************************************************************************/
 
   Eigen::Vector3d p_I_D = prior_dvl_.extrinsics.tail(3);
   Eigen::Vector3d temp = toSkewSymmetric(w_I)*p_I_D;
@@ -211,14 +216,114 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I
   // file.close();
 
   Eigen::Vector3d r = v_I_meas - state->getEstimationValue(IMU,EST_VELOCITY);
+
+
+  /********************************************************************************/
+  /************************ update state and covariance ***************************/
+  /********************************************************************************/
+
+  // d_x = K * r
   Eigen::VectorXd delta_X = K * r;
 
   //update state
   state->updateState(delta_X);
 
   //update covariance
+
   // P_k = P_k-1 - K * H * P_k-1
 
+  Eigen::MatrixXd I_KH = Eigen::MatrixXd::Identity(K.rows(), H.cols()) - K*H;
+  state->cov_ = I_KH*state->cov_;
+
+  // Fix the covariance to be symmetric
+  Eigen::MatrixXd state_cov_fixed = (state->cov_ + state->cov_.transpose()) / 2.0;
+  state->cov_ = state_cov_fixed;
+}
+
+//! interpolate DVL CP pressure into DVL BT  Velocity, and update together  
+void Updater::updatePressure(std::shared_ptr<State> state, const double pres_begin, const double pres_curr, bool is_simple) {
+  /********************************************************************************/
+  /************************* construct Jacobian H matrix **************************/
+  /********************************************************************************/
+
+  // ================ temp values ================ // 
+
+  // depth measurement in pressure sensor frame
+  Eigen::Vector3d p_P;
+  p_P << 0, 0, pres_begin - pres_curr;
+
+  // rotation matrix between DVL and pressure
+  Eigen::Matrix3d R_D_P;
+  R_D_P = Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()) * 
+          Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY()) * 
+          Eigen::AngleAxisd(prior_dvl_.mount_angle, Eigen::Vector3d::UnitX());
+
+  Eigen::Matrix3d R_I_G_init;
+  R_I_G_init <<
+          0.999487,0.000000,-0.032023,
+          -0.003259,-0.994808,-0.101722,
+          -0.031856,0.101774,-0.994297;
+
+  Eigen::Matrix3d R_I_D = toRotationMatrix(prior_dvl_.extrinsics.head(4));
+
+  Eigen::Vector3d p_G_I = state->getEstimationValue(IMU, EST_POSITION).transpose();
+  
+  // ================ stack H matrix ================ // 
+  int size_measurement = 1;
+  int size_state = state->getCovCols();
+  Eigen::MatrixXd H = Eigen::MatrixXd::Zero(size_measurement, size_state);
+
+  //! TODO: add access of single state id 
+  // auto id_imu_p_z = state->getEstimationId(IMU,EST_POSITION,2);
+  auto id_imu_p_z = 5;
+  H.block(0,id_imu_p_z,1,1) = Eigen::Matrix<double,1,1>(1.0);
+
+  /********************************************************************************/
+  /****************************** Compute Kalman Gain *****************************/
+  /********************************************************************************/
+
+  // position measurement noise
+  Eigen::Matrix<double,1,1> Rn(0.1);
+
+  // K = P * H^T * (H * P * H^T + Rn) ^-1
+  Eigen::MatrixXd S(Rn.rows(), Rn.rows());
+  S = H * state->cov_ * H.transpose() + Rn;
+
+  Eigen::MatrixXd K_transpose = S.ldlt().solve(H * state->cov_);
+  Eigen::MatrixXd K = K_transpose.transpose();
+
+  /********************************************************************************/
+  /***************************** calculate residual *******************************/
+  /********************************************************************************/
+  // update function:
+  // p_G_I = R_G_I * R_I_D * R_D_P * p_P
+  // p_P = R_D_P^T * R_I_D^T * R_G_I^T * p_G_I
+
+  Eigen::Vector3d p_G_I_hat = R_I_G_init.transpose() * R_I_D * R_D_P * p_P;
+
+  Eigen::Matrix<double,1,1> r;
+  r << p_G_I_hat(2) - p_G_I(2);
+
+  // Eigen::Vector3d p_G_I_hat = R_I_G_init.transpose() * R_I_D * R_D_P * p_P;
+  // std::cout<<"p_P meas in Pressure: "<<p_P.transpose()<<std::endl;
+  // std::cout<<"p_G_I_hat esti in global: "<<p_G_I_hat.transpose()<<std::endl;
+  // Eigen::Vector3d p_P_hat = R_D_P.transpose() * R_I_D.transpose() * R_I_G_init * p_G_I;
+  // std::cout<<"p_G_I in global from IMU: "<<p_G_I.transpose()<<std::endl;
+  // std::cout<<"p_P esti in pressure from IMU: "<<p_P_hat.transpose()<<"\n=============\n";
+
+  /********************************************************************************/
+  /************************ update state and covariance ***************************/
+  /********************************************************************************/
+
+  // d_x = K * r
+  Eigen::VectorXd delta_X = K * r;
+
+  //update state
+  state->updateState(delta_X);
+
+  //update covariance
+
+  // P_k = P_k-1 - K * H * P_k-1
   Eigen::MatrixXd I_KH = Eigen::MatrixXd::Identity(K.rows(), H.cols()) - K*H;
   state->cov_ = I_KH*state->cov_;
 

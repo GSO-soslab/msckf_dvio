@@ -29,8 +29,7 @@ private:
   bool grabInitializationData(std::vector<DvlMsg> &dvl_a, 
                               std::vector<ImuMsg> &imu_a,
                               std::vector<ImuMsg> &imu_g,
-                              std::vector<PressureMsg> &pres_align,
-                              PressureMsg &pres_init);
+                              std::vector<PressureMsg> &pres_align);
 
   void linearInterp(const std::vector<ImuMsg> &imu_in,
                     const std::vector<DvlMsg> &dvl_in, 
@@ -39,8 +38,7 @@ private:
   void doInitialization(const std::vector<DvlMsg> &dvl_a, 
                         const std::vector<ImuMsg> &imu_a,
                         const std::vector<ImuMsg> &imu_g,
-                        const std::vector<PressureMsg> &pres_align,
-                        const PressureMsg &pres_init);
+                        const std::vector<PressureMsg> &pres_align);
 
   priorImu prior_imu;
   priorDvl prior_dvl;
@@ -62,9 +60,11 @@ private:
 
   double time_D_align, time_D_init;
   double time_I_D;
-  double pressure_align;
-  double pressure_init;
-  double pressure_var;
+  
+  double pres_begin_avg;
+  double pres_begin_var;
+  PressureMsg pres_init; 
+
 };
 
 }

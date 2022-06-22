@@ -15,7 +15,7 @@
 * after IMU and DVL data are aligned, use DVL velocity then transform into IMU velocity in global frame as init. 
 *
 * Init Position-Z:
-* it need static-jump meovemnt, data before jump conside static, use those data to get averaged depth
+* interpolate init pressure at the initialized timestamp
 */
 
 namespace msckf_dvio {
@@ -43,13 +43,12 @@ void InitDvlAided::checkInit() {
     std::vector<DvlMsg> dvl_acce;
     std::vector<ImuMsg> imu_acce;
     std::vector<ImuMsg> imu_gyro;
-    std::vector<PressureMsg> pres_align;
-    PressureMsg pres_init; 
+    std::vector<PressureMsg> pres_begin;
 
-    bool is_ready = grabInitializationData(dvl_acce, imu_acce, imu_gyro, pres_align, pres_init);
+    bool is_ready = grabInitializationData(dvl_acce, imu_acce, imu_gyro, pres_begin);
 
     if(is_ready)
-      doInitialization(dvl_acce, imu_acce, imu_gyro, pres_align, pres_init);
+      doInitialization(dvl_acce, imu_acce, imu_gyro, pres_begin);
   }
 
 }
@@ -71,15 +70,18 @@ void InitDvlAided::updateInit(std::shared_ptr<State> state, const Params &params
   state_dvl.segment(0,1) = Eigen::Matrix<double,1,1>(time_D_init);
   state_dvl.segment(1,1) = Eigen::Matrix<double,1,1>(time_I_D);
 
-  // ====================== update IMU state ====================== //
+  // ====================== update IMU related ====================== //
 
   state->setTimestamp(state_imu(0));
   state->setImuValue(state_imu.tail(16));
 
-  // ====================== update DVl state ====================== //
+  // ====================== update DVL related ====================== //
 
   if(params.msckf.do_time_I_D)
     state->setEstimationValue(DVL, EST_TIMEOFFSET, Eigen::MatrixXd::Constant(1,1,state_dvl(1)));
+
+  // ====================== update Pressure related ====================== //
+  state->setPressureInit(pres_init.p);
 
   // ====================== return data time to clean buffer ====================== //
   // clean IMU buffer
@@ -213,8 +215,7 @@ void InitDvlAided::findAlignmentDvl() {
 bool InitDvlAided::grabInitializationData(std::vector<DvlMsg> &dvl_a,
                                           std::vector<ImuMsg> &imu_a, 
                                           std::vector<ImuMsg> &imu_g,
-                                          std::vector<PressureMsg> &pres_align,
-                                          PressureMsg &pres_init) {
+                                          std::vector<PressureMsg> &pres_begin) {
   bool ready = false;
 
 // ===================== Check if init duration if found ===================== //
@@ -312,7 +313,7 @@ bool InitDvlAided::grabInitializationData(std::vector<DvlMsg> &dvl_a,
   auto frame_pres = std::find_if(buffer_pressure.begin(), buffer_pressure.end(),
                     [&](const auto& pressure){return pressure.time > time_D_align ;});
   if(frame_pres != buffer_pressure.end())
-    std::copy(buffer_pressure.begin(), frame_pres, std::back_inserter(pres_align));
+    std::copy(buffer_pressure.begin(), frame_pres, std::back_inserter(pres_begin));
   else
     ready = false;
 
@@ -415,8 +416,7 @@ void InitDvlAided::linearInterp(const std::vector<ImuMsg> &imu_in,
 void InitDvlAided::doInitialization(const std::vector<DvlMsg> &dvl_a, 
                                     const std::vector<ImuMsg> &imu_a,
                                     const std::vector<ImuMsg> &imu_g,
-                                    const std::vector<PressureMsg> &pres_align,
-                                    const PressureMsg &pres_init) {
+                                    const std::vector<PressureMsg> &pres_begin) {
 
   Eigen::Matrix3d R_I_D(toRotationMatrix(prior_dvl.extrinsics.head(4)));
   Eigen::Vector3d p_I_D(prior_dvl.extrinsics.tail(3));
@@ -476,26 +476,23 @@ void InitDvlAided::doInitialization(const std::vector<DvlMsg> &dvl_a,
     bg_avg += imu.w;
   bg_avg /= imu_g.size();
 
-/*** depth estimation ***/
+/*** pressure sensor initialization ***/
   //// get starting pressure before alignment 
-  pressure_align = 0;
-  for(const auto &p : pres_align) 
-    pressure_align += p.p;
-  pressure_align /= pres_align.size();  
+  pres_begin_avg = 0;
+  for(const auto &p : pres_begin) 
+    pres_begin_avg += p.p;
+  pres_begin_avg /= pres_begin.size();  
 
   //// get variance 
-  pressure_var = 0;
-  for (const auto &p : pres_align) 
-    pressure_var += pow(p.p - pressure_align,2);
-  pressure_var = std::sqrt(pressure_var / ((int)pres_align.size() - 1));
-
-  //// get initialzied z
-  Eigen::Vector3d p_D = Eigen::Vector3d(0,0, pressure_align - pres_init.p); 
+  pres_begin_var = 0;
+  for (const auto &p : pres_begin) 
+    pres_begin_var += pow(p.p - pres_begin_avg,2);
+  pres_begin_var = std::sqrt(pres_begin_var / ((int)pres_begin.size() - 1));
 
 /*** q, p, v estimation ***/
   q_I_G = toQuaternion(R_I_G);
 
-  p_G_I = R_I_G.transpose() * R_I_D * p_D;
+  p_G_I = Eigen::Vector3d(0, 0, 0);
 
   //// v_I_hat = R_I_D * v_D - [w_I]x * p_I_D
   v_G_I = R_I_D * dvl_a.back().v - toSkewSymmetric(imu_a.back().w) * p_I_D;

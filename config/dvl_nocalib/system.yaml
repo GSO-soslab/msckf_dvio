@@ -3,6 +3,11 @@ SYS:
   # Default: 20; 
   # Note: frequency for backend processing(MSCKF update), increase if more data need for processing ( keep it as camera fequency)
   backend_hz: 30
+  # Note: 0: pressure from DVL BT; 1: pressure from individual source (pressure from CP)
+  # pressure from BT and CP, only use one. since pressure from CP will has IMU propagation, from BT only simple update
+  pressure_source: 1
+  # DVL mount angle:
+  
 
 
 INIT:
