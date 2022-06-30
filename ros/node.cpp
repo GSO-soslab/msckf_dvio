@@ -160,6 +160,8 @@ bool RosNode::srvCallback(std_srvs::Trigger::Request  &req, std_srvs::Trigger::R
   res.success = true;
   res.message = "received";
 
+  save = true;
+
   return true;
 }
 
@@ -189,12 +191,29 @@ void RosNode::imageCallback(const sensor_msgs::Image::ConstPtr &msg) {
 
   cv_bridge::CvImagePtr cv_ptr;
   try{
-      cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::MONO8);
+      cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::MONO8);//BGR8,MONO8
   }
   catch (cv_bridge::Exception& e){
       ROS_ERROR("cv_bridge exception: %s", e.what());
       return;
   }
+
+  //! TEST: save raw images
+  // double time = msg->header.stamp.toSec();
+  // if(time - last_time > 1.0){
+  //   last_time = time;
+  //   count++;
+
+  //   std::string path = "/home/lin/Desktop/temp/odomtery/groundtruth/GLRC/3_13/left_cam/images/";
+  //   bool check1 = cv::imwrite(path + "jpg/" + std::to_string(time)  + ".jpg", cv_ptr->image);
+  //   bool check2 = cv::imwrite(path + "png/" + std::to_string(time)  + ".png", cv_ptr->image);
+
+  //   if(check1&&check2)
+  //     printf("Saved img at t:%lf, count:%d\n", time,count);
+  //   else
+  //     printf("save failed!\n");
+  // }
+
 
   // downsampling
   cv::Mat img;

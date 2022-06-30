@@ -90,6 +90,8 @@ private:
   std::vector<PressureMsg> buffer_pressure;
   std::vector<double> buffer_img_time;
 
+  DvlMsg last_dvl; 
+  
   std::mutex buffer_mutex;
 
   std::shared_ptr<State> state;
@@ -107,7 +109,7 @@ private:
   Params params;
 
   //! TEST: 
-  int test=0;
+  int exe_counts=0;
   std::atomic<bool> is_odom;
   const char *file_path="/home/lin/develop/ros/soslab_ws/src/slam/msckf_dvio/test_result/msckf_data.dat";
 

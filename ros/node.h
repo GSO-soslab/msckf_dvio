@@ -3,7 +3,7 @@
 
 //c++
 #include <fstream>
-
+#include <atomic>
 // ros
 #include <ros/ros.h>
 #include <sensor_msgs/Imu.h>
@@ -65,6 +65,11 @@ private:
   std::shared_ptr<MsckfManager> manager;
 
   Params parameters;
+
+  //!TEST: save files
+  std::atomic<bool> save{false};
+  double last_time=0.0;
+  int count=0;
 
   //! TEST:
   ros::Publisher pub_odom, pub_path;

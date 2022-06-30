@@ -254,6 +254,16 @@ inline Eigen::Matrix<double, 3, 3> rightJacobSO3(Eigen::Matrix<double, 3, 1> w) 
   return data;
 }
 
+ inline DvlMsg interpolateDvl(const DvlMsg &msg_beg, const DvlMsg &msg_end, double time) {
+  // time-distance lambda
+  double lambda = (time - msg_beg.time) / (msg_end.time - msg_beg.time);
+  // interpolate between the two times
+  DvlMsg data;
+  data.time = time;
+  data.v = (1 - lambda) * msg_beg.v + lambda * msg_end.v;
+  return data;
+}
+
 } // namespace msckf_dvio
 
 #endif  //MSCKF_UTILS_H_

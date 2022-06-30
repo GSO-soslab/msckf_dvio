@@ -278,6 +278,7 @@ void Updater::updatePressure(std::shared_ptr<State> state, const double pres_beg
   auto id_imu_p_z = 5;
   H.block(0,id_imu_p_z,1,1) = Eigen::Matrix<double,1,1>(1.0);
 
+  // std::cout<<"H:\n" << H<<std::endl;
   /********************************************************************************/
   /****************************** Compute Kalman Gain *****************************/
   /********************************************************************************/
@@ -291,6 +292,7 @@ void Updater::updatePressure(std::shared_ptr<State> state, const double pres_beg
 
   Eigen::MatrixXd K_transpose = S.ldlt().solve(H * state->cov_);
   Eigen::MatrixXd K = K_transpose.transpose();
+  // std::cout<<"K:\n" << K <<std::endl;
 
   /********************************************************************************/
   /***************************** calculate residual *******************************/
@@ -323,13 +325,18 @@ void Updater::updatePressure(std::shared_ptr<State> state, const double pres_beg
 
   //update covariance
 
+  // std::cout<<"cov old: \n"<<state->cov_<<std::endl;
+
   // P_k = P_k-1 - K * H * P_k-1
   Eigen::MatrixXd I_KH = Eigen::MatrixXd::Identity(K.rows(), H.cols()) - K*H;
+  // std::cout<<"I_KH:\n "<< I_KH<<std::endl;
   state->cov_ = I_KH*state->cov_;
 
   // Fix the covariance to be symmetric
   Eigen::MatrixXd state_cov_fixed = (state->cov_ + state->cov_.transpose()) / 2.0;
   state->cov_ = state_cov_fixed;
+
+  // std::cout<<"cov new: \n"<<state->cov_<<std::endl;
 }
 
 void Updater::marginalizeDvl(std::shared_ptr<State> state) {

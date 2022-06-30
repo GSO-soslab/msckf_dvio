@@ -60,6 +60,7 @@ private:
 
   double time_D_align, time_D_init;
   double time_I_D;
+  DvlMsg dvl_msg;
   
   double pres_begin_avg;
   double pres_begin_var;
