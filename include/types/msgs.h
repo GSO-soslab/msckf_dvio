@@ -27,16 +27,16 @@ struct ImuMsg {
 struct DvlMsg {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    // DVL timestamp
+    // timestamp
     double time;
 
-    // DVL 3-axis velocity  
+    // 3-axis velocity  
     Eigen::Vector3d v;
 
-    // DVL 3-axis acceleration  
+    // 3-axis acceleration  
     Eigen::Vector3d a;
 
-    // Sort IMU measurement with time
+    // Sort sensor measurement with time
     bool operator<(const DvlMsg &other) const { return time < other.time; }
 
     DvlMsg() {}
@@ -54,6 +54,18 @@ struct ImageMsg {
 
   // Sort image with time
   bool operator<(const ImageMsg &other) const { return time < other.time; }
+};
+
+struct PressureMsg {
+
+  // pressure
+  double p;
+
+  //  timestamp
+  double time;
+
+  // Sort data with time
+  bool operator<(const PressureMsg &other) const { return time < other.time; }
 };
 
 } // namespace msckf_dvio

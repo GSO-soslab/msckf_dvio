@@ -1,5 +1,5 @@
-#ifndef MSCKF_CORE_TYPE_PARAMETERS_H_
-#define MSCKF_CORE_TYPE_PARAMETERS_H_
+#ifndef MSCKF_TYPE_PARAMETERS_H_
+#define MSCKF_TYPE_PARAMETERS_H_
 
 namespace msckf_dvio
 {
@@ -24,14 +24,25 @@ struct priorDvl {
   double timeoffset;
   // Scale factor for DVL: effected by sound speed
   double scale; 
-  // measurement white noise for 3-axis velocity
+  // sound speed: used when not estimate the scale and do sound spped correction
+  double sound_speed;
+  // BT 3-axis veloicty measurement white noise
   Eigen::Vector3d sigma_bt;
+  // the angle that the actual mounting position rotate to the standing position, 
+  // used to transfer pressure measurement into DVL frame's Z
+  double mount_angle;
 
   //! TODO: for initial_covariance
   // Eigen::VectorXd sigma_init;
 };
 
 struct priorCam {
+  // extrinsic transformation between IMU and CAM
+  Eigen::Matrix<double, 7, 1> extrinsics;
+  // distortion coeffs for camera
+  Eigen::Matrix<double, 4, 1> distortion_coeffs;
+  // intrinsics
+  Eigen::Matrix<double, 4, 1> intrinsics;
   // timeoffset between IMU and Camera
   double timeoffset;
 };
@@ -62,6 +73,25 @@ struct paramInit {
   int dvl_window;
   // DVL velocity difference in x-axis(forward direction) shows at the suddenly movement time
   double dvl_delta;
+  // use given init state result or not
+  bool init_given;
+  // gievn state
+  Eigen::Matrix<double, 17, 1> init_state;
+};
+
+struct paramTrack {
+  int num_aruco;
+  int num_pts;
+  int fast_threshold;
+  int grid_x;
+  int grid_y;
+  int min_px_dist;
+  bool downsize_aruco;
+  bool use_stereo;
+  int max_camera;
+  int pyram;
+  int cam_id;
+  double downsample_ratio;
 };
 
 //! TODO: set sub-parameters as shared_ptr? 
@@ -80,11 +110,7 @@ struct Params{
 
   priorDvl prior_dvl;
 
-  //==================== Camera ====================//
-  // extrinsic transformation between IMU and Camera
-    // Pose pose_I_C; // check the derivative**
-  // timeoffset between IMU and Camera
-  double timeoffset_I_C;
+  priorCam prior_cam;
 
 /******************/
 /***** System *****/
@@ -95,8 +121,9 @@ struct Params{
 
   paramInit init;
 
-/***** MSCKF State setting *****/
   paramMsckf msckf;
+
+  paramTrack tracking;
 };
 
 
@@ -104,4 +131,4 @@ struct Params{
 
 } // namespace msckf_dvio
 
-#endif // MSCKF_CORE_TYPE_PARAMETERS_H_
+#endif // MSCKF_TYPE_PARAMETERS_H_

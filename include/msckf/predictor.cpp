@@ -3,9 +3,7 @@
 namespace msckf_dvio
 {
 
-Predictor::Predictor(priorImu prior_imu) :
-    prior_imu_(prior_imu)
-  {}
+Predictor::Predictor(priorImu prior_imu) : prior_imu_(prior_imu) {}
 
 void Predictor::propagate(std::shared_ptr<State> state, const std::vector<ImuMsg> &data) {
 
@@ -66,17 +64,19 @@ void Predictor::propagateCovariance(std::shared_ptr<State> state,
   Eigen::MatrixXd P_II = Q.selfadjointView<Eigen::Upper>();
   P_II.noalias() += 
     Phi * state->cov_.block(id_imu_start, id_imu_start, size_imu, size_imu) * Phi.transpose();
-  // Phi*Covariance_ImuOthers
-  Eigen::MatrixXd P_IOthers = Eigen::MatrixXd::Zero(size_imu, size_other);
-  P_IOthers.noalias() +=
-    Phi * state->cov_.block(id_imu_start, id_imu_after, size_imu, size_other);
 
   state->cov_.block(id_imu_start, id_imu_start, size_imu,   size_imu)   = P_II;
-  state->cov_.block(id_imu_start, id_imu_after, size_imu,   size_other) = P_IOthers;
-  state->cov_.block(id_imu_after, id_imu_start, size_other, size_imu)   = P_IOthers.transpose();
 
-  // We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d)
-  assert(!state->foundSPD());
+  // Phi*Covariance_ImuOthers, in case only IMU state exist
+  if(size_other != 0) {
+    Eigen::MatrixXd P_IOthers = Eigen::MatrixXd::Zero(size_imu, size_other);
+    P_IOthers.noalias() +=
+      Phi * state->cov_.block(id_imu_start, id_imu_after, size_imu, size_other);
+
+    state->cov_.block(id_imu_start, id_imu_after, size_imu,   size_other) = P_IOthers;
+    state->cov_.block(id_imu_after, id_imu_start, size_other, size_imu)   = P_IOthers.transpose();
+  }
+
 }
 
 
@@ -244,9 +244,9 @@ void Predictor::predict_mean_rk4(std::shared_ptr<State> state, double dt,
 
 void Predictor::augmentDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w) {
   // make sure this clone is new
-  auto EST_CLONE = std::to_string(state->getTimestamp());
+  auto EST_CLONE_TIME = std::to_string(state->getTimestamp());
 
-  if(state->foundClone(CLONE_DVL, EST_CLONE)) {
+  if(state->foundClone(CLONE_DVL, EST_CLONE_TIME)) {
     printf("Predictor error: a clone of substate %d already exist!\n", CLONE_DVL);
     std::exit(EXIT_FAILURE);
   }
@@ -264,8 +264,7 @@ void Predictor::augmentDvl(std::shared_ptr<State> state, const Eigen::Vector3d &
   int id_curr = state->cov_.rows();
   clone_pose->setId(id_curr);
 
-  clone[EST_CLONE] = clone_pose;
-  state->state_[SubStateName::CLONE_DVL] = clone;
+  state->state_[SubStateName::CLONE_DVL].emplace(EST_CLONE_TIME, clone_pose);
 
 
   /******************** augment covariance ********************/

@@ -6,17 +6,19 @@ add_compile_options(-std=c++14)
 
 ### Find Library
 
-# SET(OpenCV_DIR /home/lin/develop/3rd/opencv/install/opencv-4.2.0/lib/cmake/opencv4/)
-# find_package(OpenCV 4.2.0 REQUIRED)
-# message(STATUS "OpenCV library status:")
-# message(STATUS "    config: ${OpenCV_DIR}")
-# message(STATUS "    version: ${OpenCV_VERSION}")
-# message(STATUS "    libraries: ${OpenCV_LIBS}")
-# message(STATUS "    include path: ${OpenCV_INCLUDE_DIRS}")
+SET(OpenCV_DIR /home/lin/develop/3rd/opencv/install/opencv-4.2.0/lib/cmake/opencv4/)
+find_package(OpenCV 4.2.0 REQUIRED)
+message(STATUS "OpenCV library status:")
+message(STATUS "    config: ${OpenCV_DIR}")
+message(STATUS "    version: ${OpenCV_VERSION}")
+message(STATUS "    libraries: ${OpenCV_LIBS}")
+message(STATUS "    include path: ${OpenCV_INCLUDE_DIRS}")
 
+
+# find_package(Ceres REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system filesystem thread date_time)
 find_package(Eigen3 REQUIRED)
-# find_package(Ceres REQUIRED)
+find_package(PCL REQUIRED)
 
 # set(Open3D_DIR /home/lin/develop/3rd/Open3D/install/lib/cmake/Open3D)
 # find_package(Open3D)
@@ -27,11 +29,11 @@ find_package(Eigen3 REQUIRED)
 # endif()
 
 ### Find ROS package
-# SET(cv_bridge_DIR /home/lin/develop/ros/ros_ws/devel/share/cv_bridge/cmake/)
+SET(cv_bridge_DIR /home/lin/develop/ros/ros_ws/devel/share/cv_bridge/cmake/)
 find_package(catkin REQUIRED COMPONENTS
   roscpp rospy std_msgs rosbag sensor_msgs nav_msgs
   geometry_msgs cv_bridge message_generation
-  nortek_dvl tf_conversions eigen_conversions
+  nortek_dvl tf_conversions eigen_conversions std_srvs
   dynamic_reconfigure message_filters image_transport tf2
 )
 
@@ -52,8 +54,8 @@ catkin_package(
 #  LIBRARIES feature_tracker
  CATKIN_DEPENDS roscpp rospy std_msgs rosbag sensor_msgs cv_bridge dynamic_reconfigure
                 geometry_msgs message_runtime nortek_dvl tf_conversions eigen_conversions
-                message_filters image_transport visualization_msgs tf nav_msgs tf2
-#  DEPENDS system_lib
+                message_filters image_transport visualization_msgs tf nav_msgs tf2 std_srvs
+ DEPENDS PCL EIGEN3
 )
 
 ###########
@@ -66,7 +68,8 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
   ${Boost_INCLUDE_DIR}
   ${EIGEN3_INCLUDE_DIR}
-  # ${OpenCV_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
+  ${PCL_INCLUDE_DIRS}
   # ${CERES_INCLUDE_DIRS}
   # /home/lin/develop/3rd/kalman-cpp
 )
@@ -74,41 +77,53 @@ include_directories(
 list(APPEND thirdparty_libraries
   ${catkin_LIBRARIES}
   ${Boost_LIBRARIES}
-  # ${OpenCV_LIBRARIES}
+  ${OpenCV_LIBRARIES}
+  ${PCL_LIBRARIES}
 )
 
 ##########################################
 ############### build lib ###############
 ##########################################
 add_library(dvio_lib SHARED
-  include/core/msckf_manager.cpp
-  include/core/imu_initializer.cpp
-  include/core/state.cpp
-  include/core/predictor.cpp
+
+  include/initializer/initializer_dvl_aided.cpp
+  
+  include/manager/msckf_manager.cpp
+
+  include/msckf/state.cpp
+  include/msckf/predictor.cpp
+  include/msckf/updater.cpp
+
+  include/feature/Feature.cpp
+
+  include/tracker/TrackBase.cpp
+  include/tracker/TrackKLT.cpp
 )
 target_link_libraries(dvio_lib ${thirdparty_libraries})
 
 
 ##########################################
-############### build src ################
+############### build ros ################
 ##########################################
-add_executable(dvio_node src/ros_node.cpp)
+
+add_executable(dvio_node ros/node.cpp)
 target_link_libraries(dvio_node dvio_lib ${thirdparty_libraries})
 
+add_executable(dvl_helper_node ros/helper/dvl_helper.cpp)
+target_link_libraries(dvl_helper_node ${thirdparty_libraries})
 
 ##########################################
 ############### build test ###############
 ##########################################
+
 # add_executable(test_imu_init_manual test/cpp/imu_init_manual.cpp)
 # target_link_libraries(test_imu_init_manual dvio_lib ${thirdparty_libraries})
 
 # add_executable(test_imu_init_rosbag test/cpp/imu_init_rosbag.cpp)
 # target_link_libraries(test_imu_init_rosbag dvio_lib ${thirdparty_libraries})
 
-
 # add_executable(test_ros_rpy test/cpp/ros_rpy.cpp)
 # target_link_libraries(test_ros_rpy ${thirdparty_libraries})
-
 
 # add_executable(test_eigen test/cpp/eigen.cpp)
 # target_link_libraries(test_eigen ${thirdparty_libraries})
@@ -123,3 +138,8 @@ target_link_libraries(dvio_node dvio_lib ${thirdparty_libraries})
 # )
 # add_dependencies(test_save ${PROJECT_NAME}_gencfg)
 
+add_executable(test_save test/cpp/save_imu_cloud_odom.cpp)
+target_link_libraries(test_save ${thirdparty_libraries})
+
+add_executable(test_evaluation test/cpp/evaluate_image_stitch.cpp)
+target_link_libraries(test_evaluation ${thirdparty_libraries})

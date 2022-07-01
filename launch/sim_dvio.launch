@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<launch>
+  <param name="/use_sim_time" value="true"/>
+
+  <!-- play the dataset -->
+  <!-- <arg name="bag_start" default="0" /> 
+  <arg name="bag" default="/home/lin/develop/data/underIce/sim/sim_udel_gore_imu_dvl_sameframe.bag" />
+  <node pkg="rosbag" type="play" name="rosbag" args="-1-pause -1-clock -d 1 -s $(arg bag_start) $(arg bag)" required="true"/> -->
+
+  <!-- build with flag: -DCMAKE=debug -->
+  <!-- add to roslaunch: launch-prefix="gdb -ex run -1-args" -->
+  <!-- type: bt -->
+    <!-- Parmaters -->
+  <!-- Simple DVL update -->
+  <arg name="prior_yaml" default="$(find msckf_dvio)/config/sim/prior.yaml"/>
+  <arg name="system_yaml" default="$(find msckf_dvio)/config/sim/system.yaml"/>
+
+  <node name="dvio_node" pkg="msckf_dvio" type="dvio_node" output="screen" >
+      <rosparam command="load" file="$(arg prior_yaml)"/>
+      <rosparam command="load" file="$(arg system_yaml)"/>
+
+      <remap from="imu" to="/ov_msckf/imu_sim"/>
+      <remap from="dvl" to="/ov_msckf/dvl_sim"/>
+  </node>
+
+  <!-- Visulization -->
+  <node name="rviz" pkg="rviz" type="rviz"  
+        args="--opengl 300 -d $(find msckf_dvio)/launch/rviz/msckf_dvio.rviz" /> 
+
+</launch>

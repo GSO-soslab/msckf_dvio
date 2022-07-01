@@ -1,5 +1,5 @@
-#ifndef MSCKF_CORE_STATE_H_
-#define MSCKF_CORE_STATE_H_
+#ifndef MSCKF_MSCKF_STATE_H_
+#define MSCKF_MSCKF_STATE_H_
 
 #include <memory>
 #include <map>
@@ -31,6 +31,13 @@ enum SubStateName{
   CAM0,
   CLONE_DVL,
   CLONE_CAM0
+};
+
+enum UpdateSouce{
+  NONE = 0,
+  VELOCITY_BT,
+  PRESSURE_CP,
+  PRESSURE_BT
 };
 
 namespace msckf_dvio
@@ -85,6 +92,39 @@ public:
     return state_[sub_state_name].at(est_name)->getSize();
   }
 
+  //! @brief how many estimations in SENSOR STATE or CLONE STATE
+  //! @param sub_state_name: each sub state, e.g. SENSOR and CLONE
+  //!
+  inline int getEstimationNum(const SubStateName sub_state_name) {
+    return state_[sub_state_name].size();
+  }
+
+  //! @brief set value of angle estimation of any sub state, will override the original value
+  //! @param sub_state_name: sub state name, e.g. IMU, DVL, CAM, CLONE
+  //! @param est_name: each actual estimation in the sub state, e.g. rostion, position, calibration...
+  //! @param new_value: estimated value
+  //!
+  inline void setEstimationValue(const SubStateName &sub_state_name, const std::string &est_name, const Eigen::MatrixXd &new_value){
+    state_[sub_state_name].at(est_name)->setValue(new_value);
+  }
+
+  //! @brief update state using estimated state error
+  //! @param new_value: estimated state error
+  //!
+  inline void updateState(const Eigen::VectorXd &new_value) {
+    assert(new_value.rows() == cov_.rows());
+
+    // find each sub states: IMU, DVL, CLONE
+    for(auto & sub_state: state_) {
+      // find each estimation: q, p, v, bias, timeoffset ....
+      for(auto &estimation : sub_state.second) {
+        // grab associated block based on state id and state size
+        estimation.second->update(new_value.block(estimation.second->getId(),   0, 
+                                                  estimation.second->getSize(), 1));
+      }
+    }
+  }
+
   //==================================== IMU =====================================//
 
 
@@ -117,27 +157,25 @@ public:
   }
 
 
-
   //==================================== DVL ========================================//
   
-
   inline void setDvl(const Eigen::MatrixXd &new_value) {
     //! TODO: 
     //! check size with actuall size based on DVL MSCKF state setting
     //! accroding to id to setup values
   }
 
-  inline void setDvlEst(const std::string &est_name, const Eigen::MatrixXd &new_value) {
-    state_[DVL].at(est_name)->setValue(new_value);
-  }
-
-
-  //================================= CLONE_DVL ========================================//
+  //================================= CLONE ========================================//
 
   inline bool foundClone(const SubStateName &sub_state_name, const std::string &clone_name) {
     return state_[sub_state_name].find(clone_name) != state_[sub_state_name].end() ? true : false; 
   }
   
+  //================================= Pressure ========================================//
+
+  inline void setPressureInit(double value) {pressure_init = value;}
+
+  inline double getPressureInit() {return pressure_init;}
   /********************************************************************************/                       
   /********************************** Covariance **********************************/
   /********************************************************************************/
@@ -164,7 +202,7 @@ public:
 private:
   friend class Predictor;
 
-  // friend class Updater;
+  friend class Updater;
 
   // Current timestamp (should be the last update time!)
   double timestamp_;
@@ -177,9 +215,12 @@ private:
 
   // parameters for MSCKF operation
   paramMsckf params_msckf_;
+
+  // other sensor propetry
+  double pressure_init;
 };
   
 } // namespace msckf_dvio
 
 
-#endif //MSCKF_CORE_STATE_H_
+#endif //MSCKF_MSCKF_UPDATER_H

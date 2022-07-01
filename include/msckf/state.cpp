@@ -10,6 +10,7 @@ State::State(const Params &param) {
   /********************************************************************************/
   int curr_id = 0;
 
+
   /*==============================  IMU ==============================*/
   SubState imu;
   // rotation
@@ -72,6 +73,7 @@ State::State(const Params &param) {
     timeoffset_I_D->setId(curr_id);
     timeoffset_I_D->setValue(Eigen::MatrixXd::Constant(1,1,param.prior_dvl.timeoffset));
     curr_id += timeoffset_I_D->getSize();
+
     dvl[EST_TIMEOFFSET] = timeoffset_I_D;
   }
 

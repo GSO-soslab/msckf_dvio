@@ -33,8 +33,12 @@
   <!-- add to roslaunch: launch-prefix="gdb -ex run -1-args" -->
   <!-- type: bt -->
     <!-- Parmaters -->
-  <arg name="prior_yaml" default="$(find msckf_dvio)/config/prior.yaml"/>
-  <arg name="system_yaml" default="$(find msckf_dvio)/config/system.yaml"/>
+  <!-- <arg name="prior_yaml" default="$(find msckf_dvio)/config/prior.yaml"/>
+  <arg name="system_yaml" default="$(find msckf_dvio)/config/system.yaml"/> -->
+
+  <!-- Simple DVL update -->
+  <arg name="prior_yaml" default="$(find msckf_dvio)/config/simple_dvl/prior.yaml"/>
+  <arg name="system_yaml" default="$(find msckf_dvio)/config/simple_dvl/system.yaml"/>
 
   <node name="dvio_node" pkg="msckf_dvio" type="dvio_node" output="screen" >
       <rosparam command="load" file="$(arg prior_yaml)"/>
@@ -43,5 +47,19 @@
       <remap from="imu" to="/rov/sensors/ahrs/imu/data"/>
       <remap from="dvl" to="/rov/sensors/dvl/buttom_track_remap"/>
   </node>
+
+<!-- De-compress the images which compressed for tether transport -->
+<group ns="rov_remote/decompressed">
+      <node name="right_republish" type="republish" pkg="image_transport" output="screen"
+            args="compressed  in:=/rov/sensors/stereo/right/image_raw 
+                  raw        out:=/rov_remote/sensors/stereo/right/image_decompressed" />
+
+      <node name="left_republish" type="republish" pkg="image_transport" output="screen"
+            args="compressed  in:=/rov/sensors/stereo/left/image_raw
+                  raw        out:=/rov_remote/sensors/stereo/left/image_decompressed" />
+</group>
+
+  <node name="rviz" pkg="rviz" type="rviz"  
+        args="--opengl 300 -d $(find msckf_dvio)/launch/rviz/msckf_dvio.rviz" /> 
 
 </launch>

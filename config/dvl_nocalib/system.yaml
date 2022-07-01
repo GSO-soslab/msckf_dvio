@@ -2,7 +2,12 @@
 SYS:
   # Default: 20; 
   # Note: frequency for backend processing(MSCKF update), increase if more data need for processing ( keep it as camera fequency)
-  backend_hz: 15
+  backend_hz: 30
+  # Note: 0: pressure from DVL BT; 1: pressure from individual source (pressure from CP)
+  # pressure from BT and CP, only use one. since pressure from CP will has IMU propagation, from BT only simple update
+  pressure_source: 1
+  # DVL mount angle:
+  
 
 
 INIT:
@@ -39,21 +44,12 @@ INIT:
 #### MSCKF parameters
 MSCKF:
   # enable DVL exterisic rotation calibration 
-  dvl_exterisic_R: true
+  dvl_exterisic_R: false
   # enable DVL exterisic translation calibration 
-  dvl_exterisic_p: true
+  dvl_exterisic_p: false
   # enable DVL time offset calibration
-  dvl_timeoffset: true
+  dvl_timeoffset: false
   # enable DVL scale calibration
-  dvl_scale: true
+  dvl_scale: false
   # Max clone storage for DVL
-  dvl_clone: 2 
-
-  # # enable Camera exterisic rotation calibration 
-  # cam_exterisic_R: true
-  # # enable Camera exterisic translation calibration 
-  # cam_exterisic_p: true
-  # # enable Camera time offset calibration
-  # cam_timeoffset: true
-  # # Max clone storage for Camera
-  # cam_clone: 9
+  dvl_clone: 0 
