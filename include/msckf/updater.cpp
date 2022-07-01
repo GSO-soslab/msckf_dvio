@@ -38,7 +38,7 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I
                  prior_dvl_.scale;
 
   // measurement function:
-  // DVL BT velocity estimation: z_hat = 1/S * R_I_D^T * (R_I_G * v_G_I + [w_I]x * p_I_D) + n
+  // DVL BT velocity estimation: v_D = 1/S * R_I_D^T * (R_I_G * v_G_I + [w_I]x * p_I_D) + n
 
   // temp 1: 1/S * R_I_D^T
   Eigen::Matrix3d temp_1 = 1 / scale * R_I_D.transpose();

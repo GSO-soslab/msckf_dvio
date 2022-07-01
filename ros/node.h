@@ -4,12 +4,16 @@
 //c++
 #include <fstream>
 #include <atomic>
+#include <mutex>
+
 // ros
 #include <ros/ros.h>
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/Image.h>
 #include <cv_bridge/cv_bridge.h>
 #include <nortek_dvl/ButtomTrack.h>
+#include <sensor_msgs/FluidPressure.h>  
+#include <sensor_msgs/PointCloud2.h>  
 
 #include <nav_msgs/Odometry.h>
 #include <geometry_msgs/Vector3Stamped.h>
@@ -18,9 +22,7 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <tf/transform_broadcaster.h>
 #include <std_srvs/Trigger.h>
-#include <sensor_msgs/FluidPressure.h>  
 #include <image_transport/image_transport.h>
-
 //
 #include "manager/msckf_manager.h"
 #include "types/type_all.h"
@@ -45,6 +47,8 @@ public:
 
   void pressureCallback(const sensor_msgs::FluidPressure::ConstPtr &msg);
 
+  void pointcloudCallback(const sensor_msgs::PointCloud2::ConstPtr &msg);
+
   bool srvCallback(std_srvs::Trigger::Request  &req, std_srvs::Trigger::Response &res);
 
   void process();
@@ -59,6 +63,7 @@ private:
   ros::Subscriber sub_dvl;
   ros::Subscriber sub_img;
   ros::Subscriber sub_pressure;
+  ros::Subscriber sub_pointcloud;
 
   ros::ServiceServer service_;
 
@@ -66,12 +71,7 @@ private:
 
   Params parameters;
 
-  //!TEST: save files
-  std::atomic<bool> save{false};
-  double last_time=0.0;
-  int count=0;
-
-  //! TEST:
+  //! TEST: visualization
   ros::Publisher pub_odom, pub_path;
   tf::TransformBroadcaster *odom_broadcaster;
   nav_msgs::Path path;

@@ -19,7 +19,7 @@ RosNode::RosNode(const ros::NodeHandle &nh,
   sub_dvl = nh_.subscribe("dvl", 100, &RosNode::dvlCallback, this);
   sub_img = nh_.subscribe("image", 200, &RosNode::imageCallback, this);
   sub_pressure = nh_.subscribe("pressure", 100, &RosNode::pressureCallback, this);
-
+  sub_pointcloud = nh_.subscribe("pointcloud", 100, &RosNode::pointcloudCallback, this);
 
   //! TEST:
   pub_odom = nh_.advertise<nav_msgs::Odometry>("/odom", 10);
@@ -160,8 +160,6 @@ bool RosNode::srvCallback(std_srvs::Trigger::Request  &req, std_srvs::Trigger::R
   res.success = true;
   res.message = "received";
 
-  save = true;
-
   return true;
 }
 
@@ -198,23 +196,6 @@ void RosNode::imageCallback(const sensor_msgs::Image::ConstPtr &msg) {
       return;
   }
 
-  //! TEST: save raw images
-  // double time = msg->header.stamp.toSec();
-  // if(time - last_time > 1.0){
-  //   last_time = time;
-  //   count++;
-
-  //   std::string path = "/home/lin/Desktop/temp/odomtery/groundtruth/GLRC/3_13/left_cam/images/";
-  //   bool check1 = cv::imwrite(path + "jpg/" + std::to_string(time)  + ".jpg", cv_ptr->image);
-  //   bool check2 = cv::imwrite(path + "png/" + std::to_string(time)  + ".png", cv_ptr->image);
-
-  //   if(check1&&check2)
-  //     printf("Saved img at t:%lf, count:%d\n", time,count);
-  //   else
-  //     printf("save failed!\n");
-  // }
-
-
   // downsampling
   cv::Mat img;
   int width = cv_ptr->image.cols * parameters.tracking.downsample_ratio;
@@ -237,6 +218,11 @@ void RosNode::pressureCallback(const sensor_msgs::FluidPressure::ConstPtr &msg) 
   manager->feedPressure(message); 
 }
 
+//! TEST: only for test now
+void RosNode::pointcloudCallback(const sensor_msgs::PointCloud2::ConstPtr &msg){
+
+}
+
 void RosNode::process() {
   
   int sleep_t = 1.0 / parameters.backend_hz * 1000.0;
@@ -253,8 +239,7 @@ void RosNode::process() {
       auto time = manager->getTime();
       manager->resetOdom();
 
-      // std::cout<<"odom: "<< imu_value.transpose()<< " with t: "<< time << std::endl;
-      // prepare msg to be published
+      //// publish odometry
       nav_msgs::Odometry msg_odom;
       msg_odom.header.stamp = ros::Time(time);
       msg_odom.header.frame_id = "odom";
@@ -272,7 +257,7 @@ void RosNode::process() {
 
       pub_odom.publish(msg_odom);
 
-      // Publish our transform on TF
+      // Publish odometry TF
       // NOTE: since we use JPL we have an implicit conversion to Hamilton when we publish
       // NOTE: a rotation from GtoI in JPL has the same xyzw as a ItoG Hamilton rotation
       tf::StampedTransform trans;
@@ -285,7 +270,7 @@ void RosNode::process() {
       trans.setOrigin(orig);
       odom_broadcaster->sendTransform(trans);
 
-
+      //// Publish path
       geometry_msgs::PoseStamped pose;
 
       pose.header.frame_id = msg_odom.header.frame_id;
@@ -298,8 +283,6 @@ void RosNode::process() {
 
       pub_path.publish(path);
     }
-
-
 
     // visualize tracked features
     if(manager->checkTrackedImg()) {

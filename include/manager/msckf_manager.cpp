@@ -296,6 +296,8 @@ void MsckfManager::doDVL() {
   }
   else if(buffer_pressure.size() > 0 && 
           buffer_pressure.front().time < buffer_dvl.front().time){
+    // printf("do intepolated velocity-pressure \n");
+
     //// pressure earlier then velocity: 
     ////    pressure not measure same time as velocity(CP-pressure, or individual pressure sensor)
 
@@ -304,13 +306,14 @@ void MsckfManager::doDVL() {
     new_dvl = interpolateDvl(last_dvl, buffer_dvl.front(), new_pres.time);
     do_pressure = true;
     do_velocity = true;
-    printf("do intepolated velocity-pressure \n");
 
     // clean
     erase_pressure = true;
   }
   else if(buffer_pressure.size() > 0 &&
           buffer_pressure.front().time == buffer_dvl.front().time){
+    // printf("do same velocity-pressure \n");
+
     //// pressure same as velocity: 
     ////    pressure measure same time as velocity(CP-pressure and CP-velocity)
 
@@ -320,7 +323,6 @@ void MsckfManager::doDVL() {
     do_pressure = true;
     do_velocity = true;
 
-    printf("do same velocity-pressure \n");
 
     // clean buffer
     last_dvl = buffer_dvl.front(); 
@@ -329,13 +331,14 @@ void MsckfManager::doDVL() {
   }
   else if(buffer_pressure.size() == 0 ||
           buffer_pressure.front().time > buffer_dvl.front().time){
+    // printf("do pure velocty\n");
+
     //// pure DVL update
 
     // get data
     new_dvl = buffer_dvl.front();
     do_velocity = true;
 
-    printf("do pure velocty\n");
 
     // clean buffer
     last_dvl = buffer_dvl.front(); 
@@ -410,11 +413,9 @@ void MsckfManager::doDVL() {
       buffer_dvl.erase(buffer_dvl.begin());
     
   }
-  else{
-    //! TODO: better logic to select IMU, if IMU time < current sensor time, will lose DVL velocity and pressure data
-    printf("Manger warning: current IMU time:%f not > current sensor time:%f\n", buffer_imu.back().time, time_curr_state);
-
-  }
+  // else{
+  //   printf("Manger warning: current IMU time:%f not > current sensor time:%f\n", buffer_imu.back().time, time_curr_state);
+  // }
 
   buffer_mutex.unlock();
 
@@ -458,7 +459,7 @@ void MsckfManager::doDVL() {
       // update
       updater->updatePressure(state, pres_init, pres_curr, true);
 
-      is_odom = true;
+      // is_odom = true;
     }
   }
 
@@ -544,7 +545,7 @@ void MsckfManager::doPressure() {
     // update
     updater->updatePressure(state, pres_init, pres_curr, true);
 
-    is_odom = true;
+    // is_odom = true;
   }
 
 

@@ -15,9 +15,10 @@ message(STATUS "    libraries: ${OpenCV_LIBS}")
 message(STATUS "    include path: ${OpenCV_INCLUDE_DIRS}")
 
 
+# find_package(Ceres REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system filesystem thread date_time)
 find_package(Eigen3 REQUIRED)
-# find_package(Ceres REQUIRED)
+find_package(PCL REQUIRED)
 
 # set(Open3D_DIR /home/lin/develop/3rd/Open3D/install/lib/cmake/Open3D)
 # find_package(Open3D)
@@ -54,7 +55,7 @@ catkin_package(
  CATKIN_DEPENDS roscpp rospy std_msgs rosbag sensor_msgs cv_bridge dynamic_reconfigure
                 geometry_msgs message_runtime nortek_dvl tf_conversions eigen_conversions
                 message_filters image_transport visualization_msgs tf nav_msgs tf2 std_srvs
-#  DEPENDS system_lib
+ DEPENDS PCL EIGEN3
 )
 
 ###########
@@ -68,6 +69,7 @@ include_directories(
   ${Boost_INCLUDE_DIR}
   ${EIGEN3_INCLUDE_DIR}
   ${OpenCV_INCLUDE_DIRS}
+  ${PCL_INCLUDE_DIRS}
   # ${CERES_INCLUDE_DIRS}
   # /home/lin/develop/3rd/kalman-cpp
 )
@@ -76,6 +78,7 @@ list(APPEND thirdparty_libraries
   ${catkin_LIBRARIES}
   ${Boost_LIBRARIES}
   ${OpenCV_LIBRARIES}
+  ${PCL_LIBRARIES}
 )
 
 ##########################################
@@ -122,8 +125,8 @@ target_link_libraries(dvl_helper_node ${thirdparty_libraries})
 # add_executable(test_ros_rpy test/cpp/ros_rpy.cpp)
 # target_link_libraries(test_ros_rpy ${thirdparty_libraries})
 
-add_executable(test_eigen test/cpp/eigen.cpp)
-target_link_libraries(test_eigen ${thirdparty_libraries})
+# add_executable(test_eigen test/cpp/eigen.cpp)
+# target_link_libraries(test_eigen ${thirdparty_libraries})
 
 # add_executable(test_remapDVL test/cpp/remap_dvl.cpp)
 # target_link_libraries(test_remapDVL ${thirdparty_libraries})
@@ -135,3 +138,8 @@ target_link_libraries(test_eigen ${thirdparty_libraries})
 # )
 # add_dependencies(test_save ${PROJECT_NAME}_gencfg)
 
+add_executable(test_save test/cpp/save_imu_cloud_odom.cpp)
+target_link_libraries(test_save ${thirdparty_libraries})
+
+add_executable(test_evaluation test/cpp/evaluate_image_stitch.cpp)
+target_link_libraries(test_evaluation ${thirdparty_libraries})
