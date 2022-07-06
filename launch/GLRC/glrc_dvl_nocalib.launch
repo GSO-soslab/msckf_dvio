@@ -42,9 +42,9 @@
   <!-- ================================================================================================ -->
 
   <!-- Parmaters: DVL update without online calibration -->
-  <arg name="prior_yaml" default="$(find msckf_dvio)/config/dvl_nocalib/prior.yaml"/>
-  <arg name="system_yaml" default="$(find msckf_dvio)/config/dvl_nocalib/system.yaml"/>
-  <arg name="tracking_yaml" default="$(find msckf_dvio)/config/dvl_nocalib/tracking.yaml"/>
+  <arg name="prior_yaml" default="$(find msckf_dvio)/config/GLRC/dvl_nocalib/prior.yaml"/>
+  <arg name="system_yaml" default="$(find msckf_dvio)/config/GLRC/dvl_nocalib/system.yaml"/>
+  <arg name="tracking_yaml" default="$(find msckf_dvio)/config/GLRC/dvl_nocalib/tracking.yaml"/>
 
   <!-- build with flag: -DCMAKE=debug -->
   <!-- add to roslaunch: launch-prefix="gdb -ex run -1-args" -->

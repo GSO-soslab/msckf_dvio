@@ -32,9 +32,10 @@ find_package(PCL REQUIRED)
 SET(cv_bridge_DIR /home/lin/develop/ros/ros_ws/devel/share/cv_bridge/cmake/)
 find_package(catkin REQUIRED COMPONENTS
   roscpp rospy std_msgs rosbag sensor_msgs nav_msgs
-  geometry_msgs cv_bridge message_generation
-  nortek_dvl tf_conversions eigen_conversions std_srvs
-  dynamic_reconfigure message_filters image_transport tf2
+  geometry_msgs cv_bridge message_generation tf2
+  tf_conversions eigen_conversions std_srvs
+  dynamic_reconfigure message_filters image_transport 
+  ds_sensor_msgs nortek_dvl
 )
 
 ################################################
@@ -125,8 +126,8 @@ target_link_libraries(dvl_helper_node ${thirdparty_libraries})
 # add_executable(test_ros_rpy test/cpp/ros_rpy.cpp)
 # target_link_libraries(test_ros_rpy ${thirdparty_libraries})
 
-# add_executable(test_eigen test/cpp/eigen.cpp)
-# target_link_libraries(test_eigen ${thirdparty_libraries})
+add_executable(test_eigen test/cpp/eigen.cpp)
+target_link_libraries(test_eigen ${thirdparty_libraries})
 
 # add_executable(test_remapDVL test/cpp/remap_dvl.cpp)
 # target_link_libraries(test_remapDVL ${thirdparty_libraries})
@@ -141,5 +142,5 @@ target_link_libraries(dvl_helper_node ${thirdparty_libraries})
 add_executable(test_save test/cpp/save_imu_cloud_odom.cpp)
 target_link_libraries(test_save ${thirdparty_libraries})
 
-add_executable(test_evaluation test/cpp/evaluate_image_stitch.cpp)
-target_link_libraries(test_evaluation ${thirdparty_libraries})
+# add_executable(test_evaluation test/cpp/evaluate_image_stitch.cpp)
+# target_link_libraries(test_evaluation ${thirdparty_libraries})

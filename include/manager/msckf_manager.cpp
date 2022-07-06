@@ -63,10 +63,10 @@ void MsckfManager::feedDvl(const DvlMsg &data) {
   buffer_mutex.lock();
   buffer_dvl.emplace_back(data);
 
-  if(buffer_dvl.size()>200){
-    printf("Manager warning: pressure buffer overflow, drop now!\n");
-    buffer_dvl.erase(buffer_dvl.begin());
-  }
+  // if(buffer_dvl.size()>200){
+  //   printf("Manager warning: DVL velocity buffer overflow, drop now!\n");
+  //   buffer_dvl.erase(buffer_dvl.begin());
+  // }
 
   buffer_mutex.unlock();
 
@@ -80,10 +80,10 @@ void MsckfManager::feedPressure(const PressureMsg &data) {
   buffer_mutex.unlock();
   buffer_pressure.emplace_back(data);
 
-  if(buffer_pressure.size()>60){
-    printf("Manager warning: pressure buffer overflow, drop now!\n");
-    buffer_pressure.erase(buffer_pressure.begin());
-  }
+  // if(buffer_pressure.size()>600){
+  //   printf("Manager warning: pressure buffer overflow, drop now!\n");
+  //   buffer_pressure.erase(buffer_pressure.begin());
+  // }
   buffer_mutex.unlock();
 
   //// if imu not initialized, feed to initializer
@@ -132,6 +132,10 @@ void MsckfManager::feedCamera(ImageMsg &data) {
 
 void MsckfManager::backend() {
 
+/**************************************************************************************/
+/****************************** Sysmtem initailization ********************************/
+/**************************************************************************************/
+
   if(!initializer->isInit()) {
 
     initializer->checkInit();
@@ -139,6 +143,8 @@ void MsckfManager::backend() {
     if(initializer->isInit()){
       std::vector<double> data_time;
       initializer->updateInit(state, params, data_time);
+
+      printf("\n+++++++++++++++\n");
 
       //// clean manager data buffer before initialization 
       buffer_mutex.lock();
@@ -150,16 +156,20 @@ void MsckfManager::backend() {
         buffer_imu.erase(buffer_imu.begin(), frame_imu);
 
       // delete DVL BT Velocity used for initialization
+      printf("dvl init time:%f, buffer end time:%f, buffer size=%ld\n",
+            data_time.at(1), buffer_dvl.at(buffer_dvl.size()-1).time, buffer_dvl.size());
+
       auto frame_dvl = std::find_if(buffer_dvl.begin(), buffer_dvl.end(),
-                    [&](const auto& dvl){return dvl.time > data_time.at(1) ;});
+                    [&](const auto& dvl){return dvl.time >= data_time.at(1) ;});
       if (frame_dvl != buffer_dvl.end()){
         last_dvl = *(frame_dvl);
         buffer_dvl.erase(buffer_dvl.begin(), frame_dvl);
+        printf("after erased:%f\n", buffer_dvl.begin()->time);
       }                    
 
       // delete DVL pressure used for initialization
       auto frame_pres = std::find_if(buffer_pressure.begin(), buffer_pressure.end(),
-                    [&](const auto& pressure){return pressure.time > data_time.at(2) ;});
+                    [&](const auto& pressure){return pressure.time >= data_time.at(2) ;});
       if (frame_pres != buffer_pressure.end())                    
         buffer_pressure.erase(buffer_pressure.begin(), frame_pres);
 
@@ -196,6 +206,11 @@ void MsckfManager::backend() {
   //     //// system not initialized, return 
   //     return;
   // }
+
+
+/**************************************************************************************/
+/***************************** Update for multi-sensors *******************************/
+/**************************************************************************************/
 
   switch(selectUpdateSource()) {
 

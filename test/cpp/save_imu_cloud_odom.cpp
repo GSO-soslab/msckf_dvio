@@ -30,8 +30,9 @@ public:
         sub_cloud = nh_.subscribe("/cloud", 1, &TestDataNode::cloudCallback, this);
         sub_odom = nh_.subscribe("/odom", 1, &TestDataNode::odomCallback, this);
 
-        service = nh_.advertiseService("/cmd",&TestDataNode::srvCallback, this);
-
+        service_multi = nh_.advertiseService("/cmd",&TestDataNode::srvCallback, this);
+        service_img = nh_.advertiseService("/save_img",&TestDataNode::srvImgCallback, this);
+        
         // pub = nh.advertise<sensor_msgs::Image>("/test/sonar_image",1);
         nh_private_.param<int>("/param", param_, 115200);
 
@@ -47,6 +48,8 @@ public:
 
     bool srvCallback(std_srvs::Trigger::Request  &req, std_srvs::Trigger::Response &res);
 
+    bool srvImgCallback(std_srvs::Trigger::Request  &req, std_srvs::Trigger::Response &res);
+
     void refresh();
 
 private:
@@ -57,7 +60,8 @@ private:
     ros::Subscriber sub_cloud;
     ros::Subscriber sub_odom;
 
-    ros::ServiceServer service;
+    ros::ServiceServer service_multi;
+    ros::ServiceServer service_img;
 
     ros::Publisher pub;
 
@@ -68,9 +72,24 @@ private:
 
     int param_;
 
+    // save for multi-sensor purpose
     std::atomic<bool> save{false};
     int count = 0;
+
+    // save for individual image
+    std::atomic<bool> save_img{false};
+    double last_img_t = 0;
+    int count_img = 0;
 };
+
+bool TestDataNode::srvImgCallback(std_srvs::Trigger::Request  &req, std_srvs::Trigger::Response &res) {
+  res.success = true;
+  res.message = "received";
+
+  save_img = true;
+
+  return true;
+}
 
 bool TestDataNode::srvCallback(std_srvs::Trigger::Request  &req, std_srvs::Trigger::Response &res) {
   res.success = true;
@@ -86,6 +105,33 @@ void TestDataNode::imgCallback(const sensor_msgs::Image::ConstPtr& msg) {
     buffer_mutex.lock();
 
     buffer_image.emplace_back(msg);
+
+    // save individual 
+    if (msg->header.stamp.toSec() - last_img_t > 1.0 && save_img){
+      // set global values
+      last_img_t = msg->header.stamp.toSec();
+      count_img++;
+
+      // convert ros to opencv format
+      cv_bridge::CvImagePtr cv_ptr;
+      try{
+          cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
+      }
+      catch (cv_bridge::Exception& e){
+          ROS_ERROR("cv_bridge exception: %s", e.what());
+          return;
+      }
+
+      // save image
+      std::string path = "/home/lin/Desktop/temp/test/";
+      bool check = cv::imwrite(path + std::to_string(last_img_t)  + ".jpg", cv_ptr->image);
+      if(check)
+        printf("Saved img at t:%lf, count:%d\n", last_img_t, count_img);
+      else
+        printf("save failed!\n");
+
+    }
+
 
     // erase for buffer overflow
     if(buffer_image.size()>100)
@@ -223,7 +269,7 @@ int main(int argc, char **argv) {
 
   while (ros::ok())
   {
-    node.refresh();
+    // node.refresh();
     
     ros::spinOnce();
     loop_rate.sleep();
