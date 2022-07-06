@@ -73,6 +73,8 @@ struct paramInit {
   int dvl_window;
   // DVL velocity difference in x-axis(forward direction) shows at the suddenly movement time
   double dvl_delta;
+  // how many second selected for initialization
+  double dvl_init_duration;
   // use given init state result or not
   bool init_given;
   // gievn state
@@ -118,6 +120,8 @@ struct Params{
 
   // Frequency for backend processing(MSCKF update), increase if more data need for processing
   int backend_hz;
+  // use this simply filter bad DVL velocity measurement
+  double dvl_v_threshold;
 
   paramInit init;
 

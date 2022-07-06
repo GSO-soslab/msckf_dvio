@@ -3,11 +3,9 @@ SYS:
   # Default: 20; 
   # Note: frequency for backend processing(MSCKF update), increase if more data need for processing ( keep it as camera fequency)
   backend_hz: 30
-  # Note: 0: pressure from DVL BT; 1: pressure from individual source (pressure from CP)
-  # pressure from BT and CP, only use one. since pressure from CP will has IMU propagation, from BT only simple update
-  pressure_source: 1
-  # DVL mount angle:
-  
+  # Default: 2.0
+  # Note: use this simply filter bad DVL velocity measurement
+  dvl_v_threshold: 2.0 
 
 
 INIT:
@@ -15,17 +13,18 @@ INIT:
   # Note: Estimate IMU bias and find out the rotation matrix between inertial world frame and IMU body frame;
   imu_init_mode: 1      
 
-  # Default: 10
+  # Default: 100hz IMU -> 10; 200hz IMU -> 20
+  # TODO: replace with imu_time_duration: 0.1s
   # Note: how many IMU data is selected to detect IMU jump (suddenly move)  
-  imu_window: 10
+  imu_window: 20
 
   # Default: 0.2
   # Note: the IMU variance threshold that indicates IMU jump inclued
-  imu_var: 0.2
+  imu_var: 0.15
 
   # Default: 0.07
   # Note: IMU accleraion difference in x-axis(forward direction) shows at the suddenly movement time
-  imu_delta: 0.07
+  imu_delta: 0.2
 
   # Default: 5
   # Note: how many DVL data is selected to detect DVL jump (suddenly move)  
@@ -34,6 +33,10 @@ INIT:
   # Default: 0.05
   # Note: DVL velocity difference in x-axis(forward direction) shows at the suddenly movement time
   dvl_delta: 0.05
+
+  # Default: 1s
+  #Note: how many second selected for initialization
+  dvl_init_duration: 2
 
   # use the given initialized state or not
   init_state_given: false

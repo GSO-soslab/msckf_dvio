@@ -63,16 +63,14 @@ int main()
   //---------- TEST 3: ----------//
   // create rotation matrix
   Eigen::Matrix3d R;
-  R = Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()) * 
+  R = Eigen::AngleAxisd(-3.142, Eigen::Vector3d::UnitZ()) * 
       Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY()) * 
-      Eigen::AngleAxisd(PI, Eigen::Vector3d::UnitX());
+      Eigen::AngleAxisd(-3.142, Eigen::Vector3d::UnitX());
 
-  Eigen::Vector3d p(0,0,3);
-
-  Eigen::Vector3d p_new1 = R*p;
+  Eigen::Quaterniond q(0,0,1,0);
+  Eigen::Matrix3d R_q = q.toRotationMatrix();
 
   std::cout<<"R:\n"<<R<<std::endl;
-  std::cout<<"p:\n"<<p<<std::endl; 
-  std::cout<<"p new1:\n"<<p_new1<<std::endl; 
+  std::cout<<"R_q:\n"<<R_q<<std::endl;
 }
 

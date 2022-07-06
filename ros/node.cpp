@@ -108,16 +108,19 @@ Params RosNode::loadParameters() {
 /***************************************************************************************/
 
   // ==================== System ==================== //
-  nh_private_.param<int>("SYS/backend_hz", params.backend_hz, 20);
+  nh_private_.param<int>   ("SYS/backend_hz",      params.backend_hz,      20);
+  nh_private_.param<double>("SYS/dvl_v_threshold", params.dvl_v_threshold, 2.0);
 
   // ==================== Initialization ==================== //
-  nh_private_.param<int>   ("INIT/imu_init_mode", params.init.imu_init_mode, 1);
-  nh_private_.param<int>   ("INIT/imu_window",    params.init.imu_window,    20);
-  nh_private_.param<double>("INIT/imu_var",       params.init.imu_var,       0.2);
-  nh_private_.param<double>("INIT/imu_delta",     params.init.imu_delta,     0.07);
-  nh_private_.param<int>   ("INIT/dvl_window",    params.init.dvl_window,    4);
-  nh_private_.param<double>("INIT/dvl_delta",     params.init.dvl_delta,     0.05);
-  nh_private_.param<double>("INIT/dvl_delta",     params.init.dvl_delta,     0.05);
+  nh_private_.param<int>   ("INIT/imu_init_mode",     params.init.imu_init_mode,     1);
+  nh_private_.param<int>   ("INIT/imu_window",        params.init.imu_window,        20);
+  nh_private_.param<double>("INIT/imu_var",           params.init.imu_var,           0.2);
+  nh_private_.param<double>("INIT/imu_delta",         params.init.imu_delta,         0.07);
+  nh_private_.param<int>   ("INIT/dvl_window",        params.init.dvl_window,        4);
+  nh_private_.param<double>("INIT/dvl_delta",         params.init.dvl_delta,         0.05);
+  nh_private_.param<double>("INIT/dvl_delta",         params.init.dvl_delta,         0.05);
+  nh_private_.param<double>("INIT/dvl_init_duration", params.init.dvl_init_duration, 1.0);
+  
   nh_private_.param<bool>  ("INIT/init_given",    params.init.init_given,    false);
   std::vector<double> init_state(17);
   if(params.init.init_given ) {
@@ -175,13 +178,23 @@ void RosNode::imuCallback(const sensor_msgs::Imu::ConstPtr &msg) {
 }
 
 void RosNode::dvlCallback(const geometry_msgs::TwistWithCovarianceStamped::ConstPtr &msg) {
+  //! TODO: simple fliter here, remove bad velocity measurement 
+  //! TODO: we should think a better way to this diagnosis, like using goodbeams, FOM??
   DvlMsg message;
   message.time = msg->header.stamp.toSec();
   message.v << msg->twist.twist.linear.x, 
-               msg->twist.twist.linear.y, 
-               msg->twist.twist.linear.z;
+              msg->twist.twist.linear.y, 
+              msg->twist.twist.linear.z;
 
   manager->feedDvl(message); 
+
+  if(abs(msg->twist.twist.linear.x) < parameters.dvl_v_threshold &&
+     abs(msg->twist.twist.linear.y) < parameters.dvl_v_threshold &&
+     abs(msg->twist.twist.linear.z) < parameters.dvl_v_threshold ){
+  }
+  else
+    ROS_WARN("ROS node warning: DVL velocity:x=%f,y=%f,z=%f\n", 
+              msg->twist.twist.linear.x,msg->twist.twist.linear.y,msg->twist.twist.linear.z);
 }
 
 // TODO: check if feature tracking in image callback will effect IMU callback(overflow, bad imu-image align)
@@ -218,8 +231,8 @@ void RosNode::pressureCallback(const sensor_msgs::FluidPressure::ConstPtr &msg) 
   manager->feedPressure(message); 
 }
 
-//! TEST: only for test now
 void RosNode::pointcloudCallback(const sensor_msgs::PointCloud2::ConstPtr &msg){
+  //! TODO: multi-path will has degraded measurement, filter multi-path based on sub_map, plane-constrain
 
 }
 

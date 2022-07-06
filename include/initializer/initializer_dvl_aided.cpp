@@ -37,7 +37,7 @@ void InitDvlAided::checkInit() {
   if(time_D_align == -1)
     findAlignmentDvl();
 
-  //// 
+  //// do Initialization
   if(time_I_align != -1 && time_D_align != -1 ) {
 
     std::vector<DvlMsg> dvl_acce;
@@ -138,28 +138,10 @@ void InitDvlAided::findAlignmentImu() {
       imu_data.insert(imu_data.end(), std::get<0>(sections_imu.at(0)).begin(), std::get<0>(sections_imu.at(0)).end());
       imu_data.insert(imu_data.end(), std::get<0>(sections_imu.at(1)).begin(), std::get<0>(sections_imu.at(1)).end());
 
-      //// detemine suddenly movement use 3points finding slope  
-      //// Ax=b
-      ////  x=(A^T A)^(-1) A^T b
-      // Eigen::Matrix<double, 3, 2> A;
-      // A << 1,1,2,1,3,1;
-      // auto temp1 = A.transpose()*A;
-      // auto temp2 =temp1.inverse() * A.transpose();
-      // for(int i=2; i<imu_data.size(); i++) {
-      //   Eigen::Matrix<double, 3, 1> b;
-      //   b(0,0) = imu_data.at(i-2).a.x();
-      //   b(1,0) = imu_data.at(i-1).a.x();
-      //   b(2,0) = imu_data.at(i).a.x();
-      //   Eigen::Matrix<double, 2, 1> line = temp2 * b;
-      //   if(abs(line(0,0)) > 0.05) {
-      //     time_I_align = imu_data.at(i).time;
-      //     break;
-      //   }
-      // }
-
       //// determine suddenly movement use delta of imu X-axis measurement
       for(int i=1; i<imu_data.size(); i++) {
         double delta = imu_data.at(i).a.x()-imu_data.at(i-1).a.x();
+
         //// align point is the last position that vehicle still static, right before vehcile moving 
         if(abs(delta) > param_init.imu_delta) {
           time_I_align = imu_data.at(i-1).time;
@@ -194,6 +176,10 @@ void InitDvlAided::findAlignmentDvl() {
 
     for(int i=1; i<sections_dvl.size(); i++) {
       double delta = abs(sections_dvl.at(i).v.x()- sections_dvl.at(i-1).v.x());
+      printf("IMU Initializer: t=:%f, v:%f, DVL velocity difference:%f\n", 
+              sections_dvl.at(i).time, sections_dvl.at(i).v.x(), delta);
+      // if(delta > param_init.dvl_delta)
+        // printf("\n ++++++++++++++ \n");
 
       if(delta > param_init.dvl_delta) {
         time_D_align = sections_dvl.at(i-1).time;
@@ -201,9 +187,6 @@ void InitDvlAided::findAlignmentDvl() {
         break;
       }
 
-      // TEST:
-      // printf("t:%f, v:%f, d:%f\n", sections_dvl.at(i).time, sections_dvl.at(i).v.x(), 
-      //                              sections_dvl.at(i).v.x()- sections_dvl.at(i-1).v.x());
     }
 
     //// if no jump point found, delete all but the last one
@@ -232,10 +215,19 @@ bool InitDvlAided::grabInitializationData(std::vector<DvlMsg> &dvl_a,
   buffer_mutex.unlock();
 
   //// check if velocity start to decrease
-  int index;
-  for(index=1; index<selected_dvl.size(); index++) {
-    if(abs(selected_dvl.at(index).v.x()) < abs(selected_dvl.at(index-1).v.x())) {
+  // int index;
+  // for(index=1; index<selected_dvl.size(); index++) {
+  //   if(abs(selected_dvl.at(index).v.x()) < abs(selected_dvl.at(index-1).v.x())) {
+  //     ready = true;
+  //     break;
+  //   }
+  // }
+
+  int index=0;
+  for(; index<selected_dvl.size(); index++) {
+    if(selected_dvl.at(index).time - selected_dvl.begin()->time >= param_init.dvl_init_duration){
       ready = true;
+      // printf("t=%f\n", selected_dvl.at(index).time);
       break;
     }
   }
@@ -245,22 +237,22 @@ bool InitDvlAided::grabInitializationData(std::vector<DvlMsg> &dvl_a,
 
 // ===================== Get IMU data for accleration initialization ===================== //
 
-  //// grab DVL section that has increaseing velocity
-  selected_dvl.erase(selected_dvl.begin() + index, selected_dvl.end());
+  //// grab DVL section 
+  selected_dvl.erase(selected_dvl.begin() + index +1, selected_dvl.end());
   // TEST:
   // for(const auto &dvl: selected_dvl)
   //   printf("t: %f, vx: %f\n",dvl.time,dvl.v.x());
 
   //// get time offset between IMU and DVL
   time_I_D = time_I_align - time_D_align; //// −10.645267
-  double last_dvl_time = selected_dvl.back().time + time_I_D;
+  double last_imu_time = selected_dvl.back().time + time_I_D;
 
   buffer_mutex.lock();
 
 
   //// select cooresponding IMU, select IMUs until last one timestamp > DVL timestamp
   auto frame_end = std::find_if(buffer_imu.begin(), buffer_imu.end(),
-                   [&](const auto& imu){return imu.time > last_dvl_time ;});
+                   [&](const auto& imu){return imu.time > last_imu_time ;});
 
   if(frame_end != buffer_imu.end())
     std::copy(buffer_imu.begin(), frame_end + 1, std::back_inserter(imu_a));
@@ -533,5 +525,24 @@ void InitDvlAided::cleanBuffer() {
   buffer_mutex.unlock();
 }
 
-
 }
+
+
+  //// detemine suddenly movement use 3-points finding slope  
+  //// Ax=b
+  ////  x=(A^T A)^(-1) A^T b
+  // Eigen::Matrix<double, 3, 2> A;
+  // A << 1,1,2,1,3,1;
+  // auto temp1 = A.transpose()*A;
+  // auto temp2 =temp1.inverse() * A.transpose();
+  // for(int i=2; i<imu_data.size(); i++) {
+  //   Eigen::Matrix<double, 3, 1> b;
+  //   b(0,0) = imu_data.at(i-2).a.x();
+  //   b(1,0) = imu_data.at(i-1).a.x();
+  //   b(2,0) = imu_data.at(i).a.x();
+  //   Eigen::Matrix<double, 2, 1> line = temp2 * b;
+  //   if(abs(line(0,0)) > 0.05) {
+  //     time_I_align = imu_data.at(i).time;
+  //     break;
+  //   }
+  // }
