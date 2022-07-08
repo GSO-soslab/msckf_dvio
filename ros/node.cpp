@@ -141,6 +141,10 @@ Params RosNode::loadParameters() {
   nh_private_.param<bool>("MSCKF/dvl_scale",       params.msckf.do_scale_D,  true);
   nh_private_.param<int> ("MSCKF/dvl_clone",       params.msckf.max_clone_D, 2);
 
+  nh_private_.param<bool>("MSCKF/cam_exterisic_R", params.msckf.do_R_I_C,    true);
+  nh_private_.param<bool>("MSCKF/cam_exterisic_p", params.msckf.do_p_I_C,    true);
+  nh_private_.param<bool>("MSCKF/cam_timeoffset",  params.msckf.do_time_I_C, true);
+  nh_private_.param<int> ("MSCKF/cam_clone",       params.msckf.max_clone_C, 9);
 
   // ==================== Tracking ==================== //
   nh_private_.param<int>   ("KLT/num_aruco",        params.tracking.num_aruco,        1024);
@@ -180,21 +184,32 @@ void RosNode::imuCallback(const sensor_msgs::Imu::ConstPtr &msg) {
 void RosNode::dvlCallback(const geometry_msgs::TwistWithCovarianceStamped::ConstPtr &msg) {
   //! TODO: simple fliter here, remove bad velocity measurement 
   //! TODO: we should think a better way to this diagnosis, like using goodbeams, FOM??
+
+  // filter bad measurement when DVL is not using right
+  if(msg->twist.twist.linear.x == -32.768f ||
+     msg->twist.twist.linear.y == -32.768f ||
+     msg->twist.twist.linear.z == -32.768f ) {
+
+    ROS_WARN("ROS node warning: DVL velocity:x=%f,y=%f,z=%f, drop it!\n", 
+              msg->twist.twist.linear.x,msg->twist.twist.linear.y,msg->twist.twist.linear.z);
+    return;
+  }
+
   DvlMsg message;
   message.time = msg->header.stamp.toSec();
   message.v << msg->twist.twist.linear.x, 
-              msg->twist.twist.linear.y, 
-              msg->twist.twist.linear.z;
+               msg->twist.twist.linear.y, 
+               msg->twist.twist.linear.z;
 
-  manager->feedDvl(message); 
-
-  if(abs(msg->twist.twist.linear.x) < parameters.dvl_v_threshold &&
-     abs(msg->twist.twist.linear.y) < parameters.dvl_v_threshold &&
-     abs(msg->twist.twist.linear.z) < parameters.dvl_v_threshold ){
+  // simple fliter to remove bad time data
+  if(message.time > last_t_dvl){
+    manager->feedDvl(message);
+    last_t_dvl = message.time;
   }
-  else
-    ROS_WARN("ROS node warning: DVL velocity:x=%f,y=%f,z=%f\n", 
-              msg->twist.twist.linear.x,msg->twist.twist.linear.y,msg->twist.twist.linear.z);
+  else{
+    ROS_WARN("Node: bad DVL time, drop it!");
+  }
+
 }
 
 // TODO: check if feature tracking in image callback will effect IMU callback(overflow, bad imu-image align)
@@ -220,7 +235,14 @@ void RosNode::imageCallback(const sensor_msgs::Image::ConstPtr &msg) {
   message.image = img;
   message.time = msg->header.stamp.toSec();;
 
-  manager->feedCamera(message);
+  // simple fliter to remove bad time image
+  if(message.time > last_t_img){
+    manager->feedCamera(message);
+    last_t_img = message.time;
+  }
+  else{
+    ROS_WARN("Node: bad image time, drop it!");
+  }
 }
 
 void RosNode::pressureCallback(const sensor_msgs::FluidPressure::ConstPtr &msg) {
@@ -228,7 +250,15 @@ void RosNode::pressureCallback(const sensor_msgs::FluidPressure::ConstPtr &msg) 
   message.time = msg->header.stamp.toSec();
   message.p = msg->fluid_pressure;
 
-  manager->feedPressure(message); 
+  // simple fliter to remove bad time data
+  if(message.time > last_t_pressure){
+    manager->feedPressure(message);
+    last_t_pressure = message.time;
+  }
+  else{
+    ROS_WARN("Node: bad Pressure time, drop it!");
+  }
+
 }
 
 void RosNode::pointcloudCallback(const sensor_msgs::PointCloud2::ConstPtr &msg){

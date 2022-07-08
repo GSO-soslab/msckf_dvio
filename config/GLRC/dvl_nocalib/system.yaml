@@ -7,6 +7,9 @@ SYS:
   # Note: use this simply filter bad DVL velocity measurement
   dvl_v_threshold: 2.0 
 
+####################################################################################
+#####################    System Initailization Configuration    ####################
+####################################################################################
 
 INIT:
   # Default: 1; (0: static; 1:DVL-aided; 2:SFM-aided)
@@ -43,8 +46,13 @@ INIT:
   # example: t, qx,qy,qz,qw, px,py,pz, vx,vy,vz, bgx,bgy,bgz, bax,bay,baz
   init_state: [0, 0,0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0]
   
-#### MSCKF parameters
+####################################################################################
+############################    MSCKF estimation setup    ##########################
+####################################################################################
+
 MSCKF:
+  ##################################    DVL    ###################################
+
   # enable DVL exterisic rotation calibration 
   dvl_exterisic_R: false
   # enable DVL exterisic translation calibration 
@@ -53,5 +61,16 @@ MSCKF:
   dvl_timeoffset: false
   # enable DVL scale calibration
   dvl_scale: false
-  # Max clone storage for DVL
+  # Max DVL clone 
   dvl_clone: 0 
+
+  ################################    Camera    ##################################
+
+  # enable camera exterisic rotation calibration 
+  cam_exterisic_R: false
+  # enable camera exterisic translation calibration 
+  cam_exterisic_p: false
+  # enable camera time offset calibration
+  cam_timeoffset: false
+  # Max camera clone
+  cam_clone: 11 

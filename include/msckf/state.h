@@ -23,8 +23,9 @@
 #define EST_TIMEOFFSET "Timeoffset"
 #define EST_SCALE "Scale"
 
-//! Sub State name for each sensor and clone
-// 
+//! TODO: merge SubStateName and UpdateSource into one SensorName ???
+
+//! Use the actual sensor state name
 enum SubStateName{
   IMU = 0,
   DVL,
@@ -33,11 +34,13 @@ enum SubStateName{
   CLONE_CAM0
 };
 
-enum UpdateSouce{
+//! Use the actual data type name
+
+enum SensorName{
   NONE = 0,
-  VELOCITY_BT,
-  PRESSURE_CP,
-  PRESSURE_BT
+  VELOCITY,
+  PRESSURE,
+  IMAGE
 };
 
 namespace msckf_dvio
@@ -100,6 +103,7 @@ public:
   }
 
   //! @brief set value of angle estimation of any sub state, will override the original value
+  //!
   //! @param sub_state_name: sub state name, e.g. IMU, DVL, CAM, CLONE
   //! @param est_name: each actual estimation in the sub state, e.g. rostion, position, calibration...
   //! @param new_value: estimated value
@@ -109,6 +113,7 @@ public:
   }
 
   //! @brief update state using estimated state error
+  //!
   //! @param new_value: estimated state error
   //!
   inline void updateState(const Eigen::VectorXd &new_value) {

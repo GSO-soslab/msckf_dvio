@@ -14,13 +14,13 @@ MsckfManager::MsckfManager(Params &parameters) : is_odom(false)
   //// setup imu initializer
   initializer = std::shared_ptr<InitDvlAided>(new InitDvlAided(params.init, params.prior_imu, params.prior_dvl));
                                                       
-  // setup predictor
+  //// setup predictor
   predictor = std::make_shared<Predictor>(params.prior_imu);
 
-  // setup updater
+  //// setup updater
   updater = std::make_shared<Updater>(params.prior_dvl, params.msckf);
 
-  // setup tracker
+  //// setup tracker
   tracker = std::shared_ptr<TrackBase>(new TrackKLT (
     params.tracking.num_pts, params.tracking.num_aruco, params.tracking.fast_threshold,
     params.tracking.grid_x, params.tracking.grid_y, params.tracking.min_px_dist, params.tracking.pyram));
@@ -94,27 +94,34 @@ void MsckfManager::feedPressure(const PressureMsg &data) {
 }
 
 void MsckfManager::feedCamera(ImageMsg &data) {
-  // append to sensor buffer
-  // buffer_mutex.unlock();
-  // buffer_img_time.emplace_back(data.time);
-  // buffer_mutex.unlock();
+  // check if system is initialized 
 
-  // do tracking
+  //! TODO: need to store image if this not used initialization
+  if(!initializer->isInit())
+    return;
+
+  // system initialized append to sensor buffer
+  buffer_mutex.unlock();
+
+  buffer_time_img.emplace(data.time);
+
+  buffer_mutex.unlock();
+
+  // do front-end tracking for this sensor
   tracker->feed_monocular(data.time, data.image, 0);
 
   //// [time, features(lost+marg)]
 
   //// clean database
 
+  // std::shared_ptr<FeatureDatabase> database = tracker->get_feature_database();
+  // std::vector<std::shared_ptr<Feature>> feats_lost = database->features_not_containing_newer(data.time);
 
-  std::shared_ptr<FeatureDatabase> database = tracker->get_feature_database();
-  std::vector<std::shared_ptr<Feature>> feats_lost = database->features_not_containing_newer(data.time);
-
-  // delete access features
-  for (auto const &f : feats_lost) {
-    f->to_delete = true;
-  }
-  database->cleanup();
+  // // delete access features
+  // for (auto const &f : feats_lost) {
+  //   f->to_delete = true;
+  // }
+  // database->cleanup();
 
   // visualization
   cv::Mat img_history;
@@ -146,7 +153,7 @@ void MsckfManager::backend() {
 
       printf("\n+++++++++++++++\n");
 
-      //// clean manager data buffer before initialization 
+      //// clean manager data buffer which used in initialization
       buffer_mutex.lock();
       
       // delete IMU used for initialization
@@ -172,8 +179,6 @@ void MsckfManager::backend() {
                     [&](const auto& pressure){return pressure.time >= data_time.at(2) ;});
       if (frame_pres != buffer_pressure.end())                    
         buffer_pressure.erase(buffer_pressure.begin(), frame_pres);
-
-      //! TODO: clean tracked features before initialization
 
       buffer_mutex.unlock();
     }
@@ -212,17 +217,22 @@ void MsckfManager::backend() {
 /***************************** Update for multi-sensors *******************************/
 /**************************************************************************************/
 
-  switch(selectUpdateSource()) {
+  switch(selectUpdateSensor()) {
 
     // choose DVL BT velocity to update IMU
-    case VELOCITY_BT: 
+    case VELOCITY: 
       doDVL();
       break;
 
     // // choose DVL CP pressure to update IMU
-    // case PRESSURE_CP: 
+    // case PRESSURE: 
     //   doPressure();
     //   break;
+
+    // choose Camera to update IMU
+    case IMAGE: 
+      doCamera();
+      break;
 
     // no sensor data avaiable
     case NONE: 
@@ -232,35 +242,67 @@ void MsckfManager::backend() {
 
 }
 
-UpdateSouce MsckfManager::selectUpdateSource() {
+SensorName MsckfManager::selectUpdateSensor() {
   double early_time = std::numeric_limits<double>::infinity();
-  UpdateSouce source = NONE;
+  SensorName update_sensor = NONE;
 
   buffer_mutex.lock();
 
-  // check DVL BT velocity
-  if(buffer_dvl.size() > 0){
-    double time = buffer_dvl.front().time;
+  //// check Camera buffer
+  if(buffer_time_img.size() > 0){
+    // get first sensor timestamp into IMU frame
+    double time = buffer_time_img.front();
+    if(params.msckf.do_time_I_C)
+      time += state->getEstimationValue(CAM0, EST_TIMEOFFSET)(0);
+    else
+      time += params.prior_cam.timeoffset;
+
+    // compare with other sensor
     if(time < early_time){
       early_time = time;
-      source = VELOCITY_BT;
+      update_sensor = IMAGE;
     }
   }
 
-  // // check DVL CP pressure
+  //// check DVL velocity buffer
+  if(buffer_dvl.size() > 0){
+    // get first sensor timestamp into IMU frame
+    double time = buffer_dvl.front().time;
+    if(params.msckf.do_time_I_D)
+      time += state->getEstimationValue(DVL, EST_TIMEOFFSET)(0);
+    else
+      time += params.prior_dvl.timeoffset;
+
+    // compare with other sensor
+    if(time < early_time){
+      early_time = time;
+      update_sensor = VELOCITY;
+    }
+  }
+
+  // //// check DVL pressure buffer
   // if(buffer_pressure.size() > 0){
+  //   // get first sensor timestamp into IMU frame
   //   double time = buffer_pressure.front().time;
+  //   if(params.msckf.do_time_I_D)
+  //     time += state->getEstimationValue(DVL, EST_TIMEOFFSET)(0);
+  //   else
+  //     time += params.prior_dvl.timeoffset;
+
+  //   // compare with other sensor
   //   if(time < early_time){
   //     early_time = time;
-  //     source = PRESSURE_CP;
+  //     update_sensor = PRESSURE;
   //   }
   // }
 
-  // check Camera image
-
   buffer_mutex.unlock();
 
-  return source;
+  return update_sensor;
+}
+
+void MsckfManager::doCamera() {
+
 }
 
 void MsckfManager::doDVL() {
@@ -403,9 +445,8 @@ void MsckfManager::doDVL() {
 
   //// make sure sensors data is not eariler then current state
   if(time_curr_state <= time_prev_state) {
-    printf("Manger error: new velocity time:%f is eariler then current state time:%f\n",
+    printf("Manger error: new velocity time:%f is eariler then current state time:%f, drop it now!\n",
             time_curr_state, time_prev_state);
-    std::exit(EXIT_FAILURE);
   }
 
   buffer_mutex.lock();

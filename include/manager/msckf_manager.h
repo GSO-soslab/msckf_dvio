@@ -83,12 +83,14 @@ private:
 
   void doCamera();
 
-  UpdateSouce selectUpdateSource();
+  SensorName selectUpdateSensor();
 
   std::vector<ImuMsg> buffer_imu;
+  
+  //! TODO: change dvl and pressure to queue
   std::vector<DvlMsg> buffer_dvl;
   std::vector<PressureMsg> buffer_pressure;
-  std::vector<double> buffer_img_time;
+  std::queue<double> buffer_time_img;
 
   DvlMsg last_dvl; 
   
