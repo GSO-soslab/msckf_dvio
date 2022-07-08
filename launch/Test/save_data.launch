@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<launch>
+  <param name="/use_sim_time" value="true"/>
+
+  <!-- ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+  <!-- ++++++++++++++++++++++++++++++++++++++ Helpers +++++++++++++++++++++++++++++++++++++++++++++++++ -->
+  <!-- ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+  <!-- ======================================== rosbag helper: play data ====================================== -->
+
+  <arg name="bag_start" default="0" /> 
+  <arg name="bag" default="/home/lin/develop/data/underIce/alaska/03_28/03_28_full_imgCompressed_timeRestamped.bag" />
+  <node pkg="rosbag" type="play" name="rosbag" args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)" required="true"/>
+
+  <!-- =================================== Camera Helper: Decompress ================================== -->
+
+  <node name="right_republish" type="republish" pkg="image_transport" output="screen"
+          args="compressed  in:=/rov_remote/sensors/stereo/right/image_raw_sync 
+              raw        out:=/rov_remote/sensors/stereo/right/image_decompressed" />
+
+  <node name="left_republish" type="republish" pkg="image_transport" output="screen"
+          args="compressed  in:=/rov_remote/sensors/stereo/left/image_raw_sync
+              raw        out:=/rov_remote/sensors/stereo/left/image_decompressed" />
+
+  <!-- =================================== Test Helper: save data... ================================== -->
+
+  <node name="test_node" pkg="msckf_dvio" type="test_save" output="screen" >
+
+      <param name="img_path" value="/home/lin/Desktop/temp/new_test/" />
+
+      <remap from="image" to="/rov_remote/sensors/stereo/left/image_decompressed"/>
+
+      <!-- <remap from="cloud" to="/rov/sensors/dvl/pointcloud"/> -->
+      <!-- <remap from="odom" to="/msckf/odom"/> -->
+      <!-- <remap from="cmd" to="/test/cmd"/> -->
+  </node>
+
+  <!-- ======================================== Visualization Helper ========================================= -->
+  
+  <!-- <node name="rviz" pkg="rviz" type="rviz"  
+        args="-1-opengl 300 -d $(find msckf_dvio)/launch/rviz/msckf_dvio.rviz" />  -->
+
+  <node name = "rqt_node" pkg = "rqt_gui" type = "rqt_gui" respawn = "false" output = "screen" 
+        args = "--perspective-file $(find msckf_dvio)/launch/Test/save_data.perspective"/>
+</launch>

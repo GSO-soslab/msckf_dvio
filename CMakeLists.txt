@@ -126,8 +126,8 @@ target_link_libraries(dvl_helper_node ${thirdparty_libraries})
 # add_executable(test_ros_rpy test/cpp/ros_rpy.cpp)
 # target_link_libraries(test_ros_rpy ${thirdparty_libraries})
 
-add_executable(test_eigen test/cpp/eigen.cpp)
-target_link_libraries(test_eigen ${thirdparty_libraries})
+# add_executable(test_eigen test/cpp/eigen.cpp)
+# target_link_libraries(test_eigen ${thirdparty_libraries})
 
 # add_executable(test_remapDVL test/cpp/remap_dvl.cpp)
 # target_link_libraries(test_remapDVL ${thirdparty_libraries})
@@ -139,8 +139,11 @@ target_link_libraries(test_eigen ${thirdparty_libraries})
 # )
 # add_dependencies(test_save ${PROJECT_NAME}_gencfg)
 
-add_executable(test_save test/cpp/save_imu_cloud_odom.cpp)
+add_executable(test_save test/cpp/save_data.cpp)
 target_link_libraries(test_save ${thirdparty_libraries})
+
+add_executable(test_video_stream test/cpp/view_video_stream.cpp)
+target_link_libraries(test_video_stream ${thirdparty_libraries})
 
 # add_executable(test_evaluation test/cpp/evaluate_image_stitch.cpp)
 # target_link_libraries(test_evaluation ${thirdparty_libraries})
