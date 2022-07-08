@@ -34,8 +34,9 @@ public:
         service_img = nh_.advertiseService("/save_img",&TestDataNode::srvImgCallback, this);
         
         // pub = nh.advertise<sensor_msgs::Image>("/test/sonar_image",1);
-        nh_private_.param<int>("/param", param_, 115200);
 
+        // parameters
+        nh_private_.param<std::string>("img_path", img_path, "/home/lin/Desktop/");
     }
 
     ~TestDataNode() {}
@@ -70,7 +71,8 @@ private:
     std::vector<sensor_msgs::PointCloud2::ConstPtr> buffer_cloud;
     std::vector<nav_msgs::Odometry::ConstPtr> buffer_odom;
 
-    int param_;
+    // parameters
+    std::string img_path;
 
     // save for multi-sensor purpose
     std::atomic<bool> save{false};
@@ -86,7 +88,14 @@ bool TestDataNode::srvImgCallback(std_srvs::Trigger::Request  &req, std_srvs::Tr
   res.success = true;
   res.message = "received";
 
-  save_img = true;
+  if(!save_img){
+    save_img = true;
+    printf("\nStart saving individual image now!\n");
+  }
+  else{
+    save_img = false;
+    printf("\nStop saving individual image now!\n");
+  }
 
   return true;
 }
@@ -123,13 +132,14 @@ void TestDataNode::imgCallback(const sensor_msgs::Image::ConstPtr& msg) {
       }
 
       // save image
-      std::string path = "/home/lin/Desktop/temp/test/";
-      bool check = cv::imwrite(path + std::to_string(last_img_t)  + ".jpg", cv_ptr->image);
-      if(check)
-        printf("Saved img at t:%lf, count:%d\n", last_img_t, count_img);
-      else
+      std::string saved_path = img_path + std::to_string(last_img_t)  + ".jpg";
+      bool check = cv::imwrite(saved_path, cv_ptr->image);
+      if(check){
+        printf("Saved: %s,t:%lf,count:%d\n", saved_path.c_str(), last_img_t, count_img);
+      }
+      else{
         printf("save failed!\n");
-
+      }
     }
 
 
@@ -269,7 +279,7 @@ int main(int argc, char **argv) {
 
   while (ros::ok())
   {
-    // node.refresh();
+    node.refresh();
     
     ros::spinOnce();
     loop_rate.sleep();
