@@ -15,7 +15,7 @@ public:
 
   void checkInit() override;
 
-  void updateInit(std::shared_ptr<State> state, const Params &params, std::vector<double> &data_time) override;
+  void updateInit(std::shared_ptr<State> state, Params &params, std::vector<double> &data_time) override;
 
   void cleanBuffer() override;
 
