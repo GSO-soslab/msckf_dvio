@@ -39,10 +39,10 @@ struct priorDvl {
 struct priorCam {
   // extrinsic transformation between IMU and CAM
   Eigen::Matrix<double, 7, 1> extrinsics;
+  // intrinsics projection transformation 
+  Eigen::Matrix<double, 4, 1> intrinsics;
   // distortion coeffs for camera
   Eigen::Matrix<double, 4, 1> distortion_coeffs;
-  // intrinsics
-  Eigen::Matrix<double, 4, 1> intrinsics;
   // timeoffset between IMU and Camera
   double timeoffset;
 };
@@ -58,6 +58,15 @@ struct paramMsckf {
   bool do_scale_D;
   // max clone for DVL 
   int max_clone_D;
+
+  // enable camera exterisic rotation calibration 
+  bool do_R_I_C;
+  // enable camera exterisic translation calibration 
+  bool do_p_I_C;
+  // enable camera time offset calibration
+  bool do_time_I_C;
+  // max clone for camera 
+  int max_clone_C;
 };
 
 struct paramInit {
