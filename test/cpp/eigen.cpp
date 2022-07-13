@@ -37,21 +37,23 @@ int main()
   // Eigen::Matrix3d r = toRotationMatrix(q);
 
   //---------- TEST2: ----------//
-  // Eigen::Matrix4d T_C_I;
-  // T_C_I <<  0.011362662503790503, 0.9998882224979653, 0.00971763400653785, -0.043854791823369293,
-  //           0.9999302479992342, -0.011330740940760782, -0.0033336835368381165, -0.3111845498969625,
-  //           -0.003223202912534585, 0.009754835703046718, -0.9999472256791313, -0.2777771992579014,
-  //           0.0, 0.0, 0.0, 1.0;   
+
+  Eigen::Matrix4d T_C_I;
+  T_C_I <<  -0.9688065230618990,	-0.1513897344668752,	0.1962016033847924, 10.8091237119852952,	
+              0.0587324669980907,	-0.9094231784477713, -0.4117037524996234,	85.8174314765463890,
+              0.2407580075366810,	-0.3873378767949271,	0.8899466000873116, 42.2335682983946370,
+              0,0,0,1;
 
 
-  // std::cout<<std::setprecision(12);
-  // std::cout<<"T_C_I:\n" <<T_C_I<<std::endl;
+		
+  std::cout<<std::setprecision(12);
+  std::cout<<"T_C_I:\n" <<T_C_I<<std::endl;
 
-  // Eigen::Matrix4d T_I_C1;
+  Eigen::Matrix4d T_I_C1;
 
-  // T_I_C1 = T_C_I.inverse();
+  T_I_C1 = T_C_I.inverse();
 
-  // std::cout<<"T_I_C1:\n" << T_I_C1<<std::endl;
+  std::cout<<"T_I_C1:\n" << T_I_C1<<std::endl;
 
 
   // Eigen::Matrix4d T_I_C2 = Eigen::Matrix4d::Identity();
@@ -61,16 +63,17 @@ int main()
   // std::cout<<"T_I_C2:\n" << T_I_C2<<std::endl;
 
   //---------- TEST 3: ----------//
-  // create rotation matrix
-  Eigen::Matrix3d R;
-  R = Eigen::AngleAxisd(-3.142, Eigen::Vector3d::UnitZ()) * 
-      Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY()) * 
-      Eigen::AngleAxisd(-3.142, Eigen::Vector3d::UnitX());
 
-  Eigen::Quaterniond q(0,0,1,0);
-  Eigen::Matrix3d R_q = q.toRotationMatrix();
+  // // create rotation matrix
+  // Eigen::Matrix3d R;
+  // R = Eigen::AngleAxisd(-3.142, Eigen::Vector3d::UnitZ()) * 
+  //     Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY()) * 
+  //     Eigen::AngleAxisd(-3.142, Eigen::Vector3d::UnitX());
 
-  std::cout<<"R:\n"<<R<<std::endl;
-  std::cout<<"R_q:\n"<<R_q<<std::endl;
+  // Eigen::Quaterniond q(0,0,1,0);
+  // Eigen::Matrix3d R_q = q.toRotationMatrix();
+
+  // std::cout<<"R:\n"<<R<<std::endl;
+  // std::cout<<"R_q:\n"<<R_q<<std::endl;
 }
 
