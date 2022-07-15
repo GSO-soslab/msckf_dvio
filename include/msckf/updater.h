@@ -4,6 +4,7 @@
 #include "types/type_all.h"
 #include "utils/utils.h"
 #include "msckf/state.h"
+#include "feature/Feature.h"
 #include <fstream>
 
 namespace msckf_dvio
@@ -21,6 +22,10 @@ public:
   void updatePressure(std::shared_ptr<State> state, const double pres_begin, const double pres_curr, bool is_simple);
   
   void marginalizeDvl(std::shared_ptr<State> state);
+
+  void marginalize(std::shared_ptr<State> state, SubStateName clone_name);
+
+  void updateCam(std::shared_ptr<State> state, std::vector<std::shared_ptr<Feature>> &features);
 
 private:
   /// prior information for DVL

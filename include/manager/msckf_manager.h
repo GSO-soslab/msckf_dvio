@@ -75,7 +75,6 @@ public:
 
 private:
 
-  std::vector<ImuMsg> selectImu(double t_begin, double t_end);
 
   void doDVL();
 
@@ -84,6 +83,10 @@ private:
   void doCamera();
 
   SensorName selectUpdateSensor();
+
+  std::vector<ImuMsg> selectImu(double t_begin, double t_end);
+
+  std::vector<std::shared_ptr<Feature>> selectFeatures(const double time_curr);
 
   std::vector<ImuMsg> buffer_imu;
   

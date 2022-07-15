@@ -74,3 +74,7 @@ MSCKF:
   cam_timeoffset: false
   # Max camera clone
   cam_clone: 11 
+
+  ################################    Update    ##################################
+
+  max_msckf_update: 40

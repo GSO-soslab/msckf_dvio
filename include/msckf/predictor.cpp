@@ -36,11 +36,9 @@ void Predictor::propagate(std::shared_ptr<State> state, const std::vector<ImuMsg
   // predict covariance (covariance propagation) with our "summed" state transition and IMU noise addition...
   propagateCovariance(state, Phi_summed, Qd_summed);
 
-
   // update state time to the IMU's time that we get new sensor measurement
   // most of time, this IMU is interpolated
   state->setTimestamp(data.back().time);
-
 }
 
 void Predictor::propagateCovariance(std::shared_ptr<State> state, 
@@ -242,11 +240,11 @@ void Predictor::predict_mean_rk4(std::shared_ptr<State> state, double dt,
   new_v = v_0 + (1.0 / 6.0) * k1_v + (1.0 / 3.0) * k2_v + (1.0 / 3.0) * k3_v + (1.0 / 6.0) * k4_v;
 }
 
-void Predictor::augmentDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w) {
+void Predictor::augmentDvl(std::shared_ptr<State> state, double sensor_time, const Eigen::Vector3d &w) {
   // make sure this clone is new
-  auto EST_CLONE_TIME = std::to_string(state->getTimestamp());
+  auto clone_time = std::to_string(sensor_time);
 
-  if(state->foundClone(CLONE_DVL, EST_CLONE_TIME)) {
+  if(state->foundClone(CLONE_DVL, clone_time)) {
     printf("Predictor error: a clone of substate %d already exist!\n", CLONE_DVL);
     std::exit(EXIT_FAILURE);
   }
@@ -264,7 +262,7 @@ void Predictor::augmentDvl(std::shared_ptr<State> state, const Eigen::Vector3d &
   int id_curr = state->cov_.rows();
   clone_pose->setId(id_curr);
 
-  state->state_[SubStateName::CLONE_DVL].emplace(EST_CLONE_TIME, clone_pose);
+  state->state_[SubStateName::CLONE_DVL].emplace(clone_time, clone_pose);
 
 
   /******************** augment covariance ********************/
@@ -287,14 +285,77 @@ void Predictor::augmentDvl(std::shared_ptr<State> state, const Eigen::Vector3d &
     auto id_augment = state->getEstimationId(DVL, EST_TIMEOFFSET);
 
     // Jacobian to augment by
-    Eigen::Matrix<double, 6, 1> dnc_dt = Eigen::MatrixXd::Zero(6, 1);
-    dnc_dt.block(0, 0, 3, 1) = w;
-    dnc_dt.block(3, 0, 3, 1) = state->getEstimationValue(IMU, EST_VELOCITY);
+    Eigen::Matrix<double, 6, 1> dclone_dt = Eigen::MatrixXd::Zero(6, 1);
+    dclone_dt.block(0, 0, 3, 1) = w;
+    dclone_dt.block(3, 0, 3, 1) = state->getEstimationValue(IMU, EST_VELOCITY);
     // Augment covariance with time offset Jacobian
     state->cov_.block(0, id_curr, state->cov_.rows(), 6) +=
-      state->cov_.block(0, id_augment, state->cov_.rows(), 1) * dnc_dt.transpose();
+      state->cov_.block(0, id_augment, state->cov_.rows(), 1) * dclone_dt.transpose();
     state->cov_.block(id_curr, 0, 6, state->cov_.rows()) +=
-      dnc_dt * state->cov_.block(id_augment, 0, 1, state->cov_.rows());
+      dclone_dt * state->cov_.block(id_augment, 0, 1, state->cov_.rows());
+  }
+
+}
+
+void Predictor::augment(SubStateName sensor_name,
+                        SubStateName clone_name, 
+                        std::shared_ptr<State> state,
+                        double sensor_time, 
+                        const Eigen::Vector3d &w) {
+  // make sure this clone is new
+  auto clone_time = std::to_string(sensor_time);
+
+  if(state->foundClone(clone_name, clone_time)) {
+    printf("Predictor error: a clone of substate %d already exist!\n", clone_name);
+    std::exit(EXIT_FAILURE);
+  }
+
+  /******************** clone the IMU pose ********************/
+  SubState clone;
+
+  auto clone_pose = std::make_shared<PoseJPL>();
+
+  Eigen::Matrix<double, 7, 1> pose;
+  pose.block(0, 0, 4, 1) = state->getEstimationValue(IMU, EST_QUATERNION);
+  pose.block(4, 0, 3, 1) = state->getEstimationValue(IMU, EST_POSITION);
+  clone_pose->setValue(pose);
+
+  int id_curr = state->cov_.rows();
+  clone_pose->setId(id_curr);
+
+  state->state_[clone_name].emplace(clone_time, clone_pose);
+
+
+  /******************** augment covariance ********************/
+  //  P =|I|* P *|I J^T|
+  //     |J|
+
+  // increase covariance matrix size at the end of old matrix, like append
+  int size_old = state->cov_.rows();
+  int size_clone = clone_pose->getSize();
+  state->cov_.conservativeResizeLike(Eigen::MatrixXd::Zero(size_old + size_clone, size_old + size_clone));
+
+  // augment covariance for clone
+  auto id_imu = state->getEstimationId(IMU, EST_QUATERNION);
+  state->cov_.block(id_curr, id_curr, size_clone, size_clone) = state->cov_.block(0, id_imu, size_clone, size_clone);
+  state->cov_.block(0, id_curr, size_old, size_clone) = state->cov_.block(0, id_imu, size_old, size_clone);
+  state->cov_.block(id_curr, 0, size_clone, size_old) = state->cov_.block(id_imu, 0, size_clone, size_old);
+
+  // augment covariance for timeoffset calibration
+  if((state->params_msckf_.do_time_I_D && sensor_name == DVL) ||
+     (state->params_msckf_.do_time_C_I && sensor_name == CAM0 )) {
+      
+    auto id_augment = state->getEstimationId(sensor_name, EST_TIMEOFFSET);
+
+    // Jacobian to augment by
+    Eigen::Matrix<double, 6, 1> dclone_dt = Eigen::MatrixXd::Zero(6, 1);
+    dclone_dt.block(0, 0, 3, 1) = w;
+    dclone_dt.block(3, 0, 3, 1) = state->getEstimationValue(IMU, EST_VELOCITY);
+    // Augment covariance with time offset Jacobian
+    state->cov_.block(0, id_curr, state->cov_.rows(), 6) +=
+      state->cov_.block(0, id_augment, state->cov_.rows(), 1) * dclone_dt.transpose();
+    state->cov_.block(id_curr, 0, 6, state->cov_.rows()) +=
+      dclone_dt * state->cov_.block(id_augment, 0, 1, state->cov_.rows());
   }
 
 }

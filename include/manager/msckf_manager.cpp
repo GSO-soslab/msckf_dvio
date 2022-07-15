@@ -238,8 +238,6 @@ void MsckfManager::backend() {
     case NONE: 
       break;
   }
-
-
 }
 
 SensorName MsckfManager::selectUpdateSensor() {
@@ -252,7 +250,7 @@ SensorName MsckfManager::selectUpdateSensor() {
   if(buffer_time_img.size() > 0){
     // get first sensor timestamp into IMU frame
     double time = buffer_time_img.front();
-    if(params.msckf.do_time_I_C)
+    if(params.msckf.do_time_C_I)
       time += state->getEstimationValue(CAM0, EST_TIMEOFFSET)(0);
     else
       time += params.prior_cam.timeoffset;
@@ -302,6 +300,77 @@ SensorName MsckfManager::selectUpdateSensor() {
 }
 
 void MsckfManager::doCamera() {
+
+  /****************************** grab IMU data ******************************/
+  buffer_mutex.lock();
+
+  std::vector<ImuMsg> selected_imu;
+
+  //// determine selected IMU range, from last updated to current sensor measurement
+  auto time_offset = params.msckf.do_time_C_I ? 
+                     state->getEstimationValue(CAM0, EST_TIMEOFFSET)(0) : 
+                     params.prior_cam.timeoffset;
+  auto time_curr_sensor = buffer_time_img.front();
+  auto time_prev_state = state->getTimestamp();
+  auto time_curr_state = time_curr_sensor + time_offset;
+
+  //// make sure sensors data is not eariler then current state
+  if(time_curr_state <= time_prev_state) {
+    printf("Manger error: new image time:%f is eariler then current state time:%f, drop it now!\n",
+            time_curr_state, time_prev_state);
+  }
+
+  //// make sure IMU data asscoiated with sensor is arrived, means IMU time > current sensor time 
+  auto frame_imu = std::find_if(buffer_imu.begin(), buffer_imu.end(),
+                [&](const auto& imu){return imu.time > time_curr_state ;});
+  if(frame_imu != buffer_imu.end()) {
+    //// make sure we have at least 2 IMU data
+    selected_imu = selectImu(time_prev_state, time_curr_state);
+
+    // earse selected IMU data
+    // leave one IMU data time <= current state time, so we can interploate later
+    buffer_imu.erase(buffer_imu.begin(), frame_imu-1);  
+
+    // erase selected image data
+    buffer_time_img.pop();
+  }
+
+  buffer_mutex.unlock();
+
+  /******************** imu propagation + image update ********************/
+  if(selected_imu.size()>0){
+
+    // predictor->propagate(state, selected_imu);
+    // // We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d)
+    // assert(!state->foundSPD());
+
+    Eigen::Vector3d w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
+    //// use Last angular velocity for cloning when estimating time offset)
+    if(params.msckf.max_clone_C > 0)
+      predictor->augment(CAM0, CLONE_CAM0, state, time_curr_sensor, w_I);
+
+    std::vector<std::shared_ptr<Feature>> feature_MSCKF = selectFeatures(time_curr_sensor);
+
+
+    //// feature triangulation, feature update 
+    // updater->updateCam(state, feature_MSCKF);
+
+
+    //// clean up system: 
+
+    //// if max clone is reached, do the marginalization: remove the clone and related covarinace
+    if( (params.msckf.max_clone_C > 0) &&
+        (params.msckf.max_clone_C < state->getEstimationNum(CLONE_CAM0)) ) {
+
+      updater->marginalize(state, CLONE_CAM0);
+    }
+
+    //// erase feature pixels that already used for update  
+
+    //// double check open_vins clean what else
+
+    // is_odom = true;
+  }
 
 }
 
@@ -438,10 +507,11 @@ void MsckfManager::doDVL() {
   std::vector<ImuMsg> selected_imu;
 
   //// determine selected IMU range, from last updated to current sensor measurement
-  auto offset = params.msckf.do_time_I_D ? 
+  auto time_offset = params.msckf.do_time_I_D ? 
                 state->getEstimationValue(DVL, EST_TIMEOFFSET)(0) : params.prior_dvl.timeoffset;
+  auto time_curr_sensor = new_dvl.time;
   double time_prev_state = state->getTimestamp();
-  double time_curr_state = new_dvl.time + offset;
+  double time_curr_state = time_curr_sensor + time_offset;
 
   //// make sure sensors data is not eariler then current state
   if(time_curr_state <= time_prev_state) {
@@ -490,8 +560,8 @@ void MsckfManager::doDVL() {
       Eigen::Vector3d last_v_D = new_dvl.v;
 
       //// use Last angular velocity for cloning when estimating time offset)
-      if(params.msckf.max_clone_D != 0)
-        predictor->augmentDvl(state, last_w_I);
+      if(params.msckf.max_clone_D > 0)
+        predictor->augmentDvl(state, time_curr_sensor, last_w_I);
 
       // update
       updater->updateDvl(state, last_w_I, last_v_D);
@@ -499,9 +569,10 @@ void MsckfManager::doDVL() {
 
       // marginalize 
       // if max clone of DVL is reached, then do the marginalize: remove the clone and related covarinace
-      if(params.msckf.max_clone_D != 0 &&
-          params.msckf.max_clone_D == state->getEstimationNum(CLONE_DVL)) {
-        updater->marginalizeDvl(state);
+      if( (params.msckf.max_clone_D > 0) &&
+          (params.msckf.max_clone_D < state->getEstimationNum(CLONE_DVL)) ) {
+
+        updater->marginalize(state, CLONE_DVL);
       }
 
       is_odom = true;
@@ -649,6 +720,62 @@ std::vector<ImuMsg> MsckfManager::selectImu(double t_begin, double t_end) {
   assert(selected_data.size() > 1);
 
   return selected_data;
+}
+
+
+std::vector<std::shared_ptr<Feature>> MsckfManager::selectFeatures(const double time_curr) {
+
+  // ------------------------------- Grab features ------------------------------------------ //
+
+  // grab lost features 
+  std::vector<std::shared_ptr<Feature>> feature_lost, feature_marg;
+  feature_lost = tracker->get_feature_database()->features_not_containing_newer(time_curr, false, true);
+
+  // grab marginalized features
+  if(state->getEstimationNum(CLONE_CAM0) > params.msckf.max_clone_C) {
+    double time_marg = state->getMarginalizedTime(CLONE_CAM0);
+    feature_marg = tracker->get_feature_database()->features_containing(time_marg, false, true);
+  }
+
+  // We also need to make sure that the max tracks does not contain any lost features
+  // This could happen if the feature was lost in the last frame, but has a measurement at the marg timestep
+  auto it1 = feature_lost.begin();
+  while (it1 != feature_lost.end()) {
+    if (std::find(feature_marg.begin(), feature_marg.end(), (*it1)) != feature_marg.end()) {
+      it1 = feature_marg.erase(it1);
+    } else {
+      it1++;
+    }
+  }
+
+  // ------------------------------- Select features ------------------------------------------ //
+
+  // Concatenate our MSCKF feature arrays: feature lost + feature marginalized 
+  std::vector<std::shared_ptr<Feature>> feature_MSCKF = feature_lost;
+  feature_MSCKF.insert(feature_MSCKF.end(), feature_marg.begin(), feature_marg.end());
+
+  // Sort based on track length
+  // TODO: we should have better selection logic here (i.e. even feature distribution in the FOV etc..)
+  // TODO: right now features that are "lost" are at the front of this vector, while ones at the end are long-tracks
+  std::sort(feature_MSCKF.begin(), feature_MSCKF.end(), [](const std::shared_ptr<Feature> &a, const std::shared_ptr<Feature> &b) -> bool {
+    size_t asize = 0;
+    size_t bsize = 0;
+    for (const auto &pair : a->timestamps)
+      asize += pair.second.size();
+    for (const auto &pair : b->timestamps)
+      bsize += pair.second.size();
+    return asize < bsize;
+  });                     
+
+  // select the longest tracked feature if in limited computational resources device
+  if ((int)feature_MSCKF.size() > params.msckf.max_msckf_update){
+    printf("Manager warning: too many features for update, deleted %d\n", 
+        feature_MSCKF.size() - params.msckf.max_msckf_update);
+        
+    feature_MSCKF.erase(feature_MSCKF.begin(), feature_MSCKF.end() - params.msckf.max_msckf_update);
+  }
+
+  return feature_MSCKF;
 }
 
 } // namespace msckf_dvio

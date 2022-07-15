@@ -83,29 +83,38 @@ public:
 
   //! @brief get each estimated state location in the state vector or covariance
   //! @param sub_state_name: each sub state, e.g. SENSOR and CLONE
-  //! @param est_name: each actual estimation in the sub state, e.g. rostion, position, calibration...
+  //! @param est_name: each actual estimation in the sub state, e.g. rotation, position, calibration...
   inline int getEstimationId(const SubStateName sub_state_name,  const std::string &est_name) {
     return state_[sub_state_name].at(est_name)->getId();
   }
 
   //! @brief get each estimated state size
+  //!
   //! @param sub_state_name: each sub state, e.g. SENSOR and CLONE
-  //! @param est_name: each actual estimation in the sub state, e.g. rostion, position, calibration...
+  //! @param est_name: each actual estimation in the sub state, e.g. rotation, position, calibration...
+  //!
   inline int getEstimationSize(const SubStateName sub_state_name,  const std::string &est_name) {
     return state_[sub_state_name].at(est_name)->getSize();
   }
 
-  //! @brief how many estimations in SENSOR STATE or CLONE STATE
+  //! @brief how many clones in CLONE STATE
+  //!
   //! @param sub_state_name: each sub state, e.g. SENSOR and CLONE
   //!
   inline int getEstimationNum(const SubStateName sub_state_name) {
     return state_[sub_state_name].size();
   }
 
+  //! @brief the timestamp of pose that will marginalize next, the earliest time  
+  //!
+  //! @param sub_state_name: each sub state, e.g. SENSOR and CLONE
+  //!
+  double getMarginalizedTime(const SubStateName sub_state_name);
+
   //! @brief set value of angle estimation of any sub state, will override the original value
   //!
   //! @param sub_state_name: sub state name, e.g. IMU, DVL, CAM, CLONE
-  //! @param est_name: each actual estimation in the sub state, e.g. rostion, position, calibration...
+  //! @param est_name: each actual estimation in the sub state, e.g. rotation, position, calibration...
   //! @param new_value: estimated value
   //!
   inline void setEstimationValue(const SubStateName &sub_state_name, const std::string &est_name, const Eigen::MatrixXd &new_value){

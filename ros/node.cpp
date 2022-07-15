@@ -81,22 +81,22 @@ Params RosNode::loadParameters() {
   std::vector<double> distortion_coeffs(4);
   std::vector<double> intrinsics(4);
 
-  nh_private_.getParam     ("CAM0/T_I_C",             rosparam_cam);
+  nh_private_.getParam     ("CAM0/T_C_I",             rosparam_cam);
   nh_private_.getParam     ("CAM0/distortion_coeffs", distortion_coeffs);
   nh_private_.getParam     ("CAM0/intrinsics",        intrinsics);
-  nh_private_.param<double>("CAM0/timeoffset_I_C",    params.prior_cam.timeoffset, 0.0);
+  nh_private_.param<double>("CAM0/timeoffset_C_I",    params.prior_cam.timeoffset, 0.0);
 
 
   //// convert matrix into pose 
-  Eigen::Matrix4d T_I_C;
+  Eigen::Matrix4d T_C_I;
   ROS_ASSERT(rosparam_cam.getType() == XmlRpc::XmlRpcValue::TypeArray);
   for (int32_t i = 0; i < rosparam_cam.size(); ++i) {
     for(int32_t j=0; j<rosparam_cam[i].size(); ++j) 
-      T_I_C(i,j) = static_cast<double>(rosparam_cam[i][j]);
+      T_C_I(i,j) = static_cast<double>(rosparam_cam[i][j]);
   }
 
-  params.prior_cam.extrinsics.block(0, 0, 4, 1) = toQuaternion(T_I_C.block(0, 0, 3, 3));
-  params.prior_cam.extrinsics.block(4, 0, 3, 1) = T_I_C.block(0, 3, 3, 1);
+  params.prior_cam.extrinsics.block(0, 0, 4, 1) = toQuaternion(T_C_I.block(0, 0, 3, 3));
+  params.prior_cam.extrinsics.block(4, 0, 3, 1) = T_C_I.block(0, 3, 3, 1);
   params.prior_cam.distortion_coeffs << distortion_coeffs.at(0), distortion_coeffs.at(1), 
                                         distortion_coeffs.at(2), distortion_coeffs.at(3);
   params.prior_cam.intrinsics << intrinsics.at(0), intrinsics.at(1), 
@@ -134,18 +134,6 @@ Params RosNode::loadParameters() {
                               init_state.at(14),init_state.at(15),init_state.at(16); //ba
   }
 
-  // ==================== MSCKF ==================== //
-  nh_private_.param<bool>("MSCKF/dvl_exterisic_R", params.msckf.do_R_I_D,    true);
-  nh_private_.param<bool>("MSCKF/dvl_exterisic_p", params.msckf.do_p_I_D,    true);
-  nh_private_.param<bool>("MSCKF/dvl_timeoffset",  params.msckf.do_time_I_D, true);
-  nh_private_.param<bool>("MSCKF/dvl_scale",       params.msckf.do_scale_D,  true);
-  nh_private_.param<int> ("MSCKF/dvl_clone",       params.msckf.max_clone_D, 2);
-
-  nh_private_.param<bool>("MSCKF/cam_exterisic_R", params.msckf.do_R_I_C,    true);
-  nh_private_.param<bool>("MSCKF/cam_exterisic_p", params.msckf.do_p_I_C,    true);
-  nh_private_.param<bool>("MSCKF/cam_timeoffset",  params.msckf.do_time_I_C, true);
-  nh_private_.param<int> ("MSCKF/cam_clone",       params.msckf.max_clone_C, 9);
-
   // ==================== Tracking ==================== //
   nh_private_.param<int>   ("KLT/num_aruco",        params.tracking.num_aruco,        1024);
   nh_private_.param<int>   ("KLT/num_pts",          params.tracking.num_pts,          250);
@@ -159,6 +147,22 @@ Params RosNode::loadParameters() {
   nh_private_.param<int>   ("KLT/pyram",            params.tracking.pyram,            3);
   nh_private_.param<int>   ("KLT/cam_id",           params.tracking.cam_id,           0);
   nh_private_.param<double>("KLT/downsample_ratio", params.tracking.downsample_ratio, 1.0);
+  
+  // ==================== MSCKF ==================== //
+  nh_private_.param<bool>("MSCKF/dvl_exterisic_R", params.msckf.do_R_I_D,    true);
+  nh_private_.param<bool>("MSCKF/dvl_exterisic_p", params.msckf.do_p_I_D,    true);
+  nh_private_.param<bool>("MSCKF/dvl_timeoffset",  params.msckf.do_time_I_D, true);
+  nh_private_.param<bool>("MSCKF/dvl_scale",       params.msckf.do_scale_D,  true);
+  nh_private_.param<int> ("MSCKF/dvl_clone",       params.msckf.max_clone_D, 2);
+
+  nh_private_.param<bool>("MSCKF/cam_exterisic_R", params.msckf.do_R_C_I,    true);
+  nh_private_.param<bool>("MSCKF/cam_exterisic_p", params.msckf.do_p_C_I,    true);
+  nh_private_.param<bool>("MSCKF/cam_timeoffset",  params.msckf.do_time_C_I, true);
+  nh_private_.param<int> ("MSCKF/cam_clone",       params.msckf.max_clone_C, 9);
+
+  nh_private_.param<int> ("MSCKF/max_msckf_update", params.msckf.max_msckf_update, params.tracking.num_pts);
+
+
 
   return params;
 }
@@ -229,6 +233,7 @@ void RosNode::imageCallback(const sensor_msgs::Image::ConstPtr &msg) {
   int width = cv_ptr->image.cols * parameters.tracking.downsample_ratio;
   int height = cv_ptr->image.rows * parameters.tracking.downsample_ratio;
   cv::resize(cv_ptr->image, img, cv::Size(width, height));
+  //! TODO: cv::resize vs. cv::pyrDown
 
   // feed img
   ImageMsg message;
@@ -282,11 +287,34 @@ void RosNode::process() {
       auto time = manager->getTime();
       manager->resetOdom();
 
+      //! TEST:
+      //// JPL form
+      // Eigen::Vector4d q_JPL_I_G;
+      // q_JPL_I_G << imu_value(0), imu_value(1), imu_value(2), imu_value(3);
+      // Eigen::Matrix3d R_I_G = toRotationMatrix(q_JPL_I_G);
+      // std::cout<<"JPL x: "<<q_JPL_I_G(0)<<" y: "<< q_JPL_I_G(1)<< " z: "<<q_JPL_I_G(2)<< " w: "<< q_JPL_I_G(3)<<std::endl;
+      //// Hamilton form
+      // Eigen::Matrix3d R_G_I = R_I_G.transpose();
+      // Eigen::Quaterniond q_Ham_G_I(R_G_I);
+      // q_Ham_G_I.normalize();
+      // std::cout<<"Hamilton x: "<<q_Ham_G_I.x()<<" y: "<<q_Ham_G_I.y()<<" z: "<<q_Ham_G_I.z()<<" w: "<<q_Ham_G_I.w()<<std::endl;
+
+      //// start:
+      // JPL x: -0.992789 y: 0.0683307 z: 0.0790672 w: 0.0587278
+      // Hamilton x: 0.992789 y: -0.0683307 z: -0.0790672 w: -0.0587278
+      //// after turning round, it's wrong ???
+      // JPL x: -0.170721 y: 0.982622 z: -0.051178 w: 0.0518503
+      // Hamilton x: -0.170721 y: 0.982622 z: -0.051178 w: 0.0518503
+
       //// publish odometry
       nav_msgs::Odometry msg_odom;
       msg_odom.header.stamp = ros::Time(time);
       msg_odom.header.frame_id = "odom";
       msg_odom.child_frame_id = "imu";
+      // msg_odom.pose.pose.orientation.x = q_Ham_G_I.x();
+      // msg_odom.pose.pose.orientation.y = q_Ham_G_I.y();
+      // msg_odom.pose.pose.orientation.z = q_Ham_G_I.z();
+      // msg_odom.pose.pose.orientation.w = q_Ham_G_I.w();
       msg_odom.pose.pose.orientation.x = imu_value(0);
       msg_odom.pose.pose.orientation.y = imu_value(1);
       msg_odom.pose.pose.orientation.z = imu_value(2);
@@ -307,7 +335,8 @@ void RosNode::process() {
       trans.stamp_ = ros::Time::now();
       trans.frame_id_ = "odom";
       trans.child_frame_id_ = "imu";
-      tf::Quaternion quat(imu_value(0), imu_value(1), imu_value(2), imu_value(3));
+      tf::Quaternion quat(msg_odom.pose.pose.orientation.x, msg_odom.pose.pose.orientation.y, 
+                          msg_odom.pose.pose.orientation.z, msg_odom.pose.pose.orientation.w);
       trans.setRotation(quat);
       tf::Vector3 orig(imu_value(4), imu_value(5), imu_value(6));
       trans.setOrigin(orig);

@@ -90,37 +90,37 @@ State::State(const Params &param) {
 
   state_[SubStateName::DVL] = dvl;
 
-  /*==============================  CAM0 ==============================*/
+  /* ==============================  CAM0 ============================== */
   SubState cam0;
 
   // extrinsic_rotation
-  if(param.msckf.do_R_I_C){
-    auto extrinsic_q_I_C = std::make_shared<QuatJPL>();
-    extrinsic_q_I_C->setId(curr_id);
-    extrinsic_q_I_C->setValue(param.prior_cam.extrinsics.head(4));
-    curr_id += extrinsic_q_I_C->getSize();
+  if(param.msckf.do_R_C_I) {
+    auto extrinsic_q_C_I = std::make_shared<QuatJPL>();
+    extrinsic_q_C_I->setId(curr_id);
+    extrinsic_q_C_I->setValue(param.prior_cam.extrinsics.head(4));
+    curr_id += extrinsic_q_C_I->getSize();
 
-    cam0[EST_QUATERNION] = extrinsic_q_I_C;
+    cam0[EST_QUATERNION] = extrinsic_q_C_I;
   }
 
   // extrinsic_position: 
-  if(param.msckf.do_p_I_C) {
-    auto extrinsic_p_I_C = std::make_shared<Vec>(3);
-    extrinsic_p_I_C->setId(curr_id);
-    extrinsic_p_I_C->setValue(param.prior_cam.extrinsics.tail(3));
-    curr_id += extrinsic_p_I_C->getSize();
+  if(param.msckf.do_p_C_I) {
+    auto extrinsic_p_C_I = std::make_shared<Vec>(3);
+    extrinsic_p_C_I->setId(curr_id);
+    extrinsic_p_C_I->setValue(param.prior_cam.extrinsics.tail(3));
+    curr_id += extrinsic_p_C_I->getSize();
 
-    cam0[EST_POSITION] = extrinsic_p_I_C;
+    cam0[EST_POSITION] = extrinsic_p_C_I;
   }
 
   // timeoffset: t_imu = t_cam + t_offset
-  if(param.msckf.do_time_I_C) {
-    auto timeoffset_I_C = std::make_shared<Vec>(1);
-    timeoffset_I_C->setId(curr_id);
-    timeoffset_I_C->setValue(Eigen::MatrixXd::Constant(1,1,param.prior_cam.timeoffset));
-    curr_id += timeoffset_I_C->getSize();
+  if(param.msckf.do_time_C_I) {
+    auto timeoffset_C_I = std::make_shared<Vec>(1);
+    timeoffset_C_I->setId(curr_id);
+    timeoffset_C_I->setValue(Eigen::MatrixXd::Constant(1,1,param.prior_cam.timeoffset));
+    curr_id += timeoffset_C_I->getSize();
 
-    cam0[EST_TIMEOFFSET] = timeoffset_I_C;
+    cam0[EST_TIMEOFFSET] = timeoffset_C_I;
   }
 
   state_[SubStateName::CAM0] = cam0;
@@ -159,22 +159,33 @@ State::State(const Params &param) {
   /*==============================  CAM0 ==============================*/
 
   //// priors for cam0 imu extrinsic-rotation calibration
-  if(param.msckf.do_R_I_C){
+  if(param.msckf.do_R_C_I){
     cov_.block(cam0[EST_QUATERNION]->getId(), cam0[EST_QUATERNION]->getId(), 3, 3) = 
       std::pow(0.01, 2) * Eigen::MatrixXd::Identity(3, 3);
   }
 
   //// priors for cam0 imu extrinsic-translation calibration
-  if(param.msckf.do_p_I_C) {
+  if(param.msckf.do_p_C_I) {
     cov_.block(cam0[EST_POSITION]->getId(), cam0[EST_POSITION]->getId(), 3, 3) =
       std::pow(0.01, 2) * Eigen::MatrixXd::Identity(3, 3);
   }
   
   //// priors for cam0 imu timeoffset calibration
-  if(param.msckf.do_time_I_C) {
+  if(param.msckf.do_time_C_I) {
     cov_(cam0[EST_TIMEOFFSET]->getId(), cam0[EST_TIMEOFFSET]->getId()) = std::pow(0.01, 2);
   }
 
+}
+
+double State::getMarginalizedTime(const SubStateName sub_state_name) {
+  double time = INFINITY;
+  for (const auto &clone : state_[sub_state_name]) {
+    double clone_time = std::stod(clone.first);
+    if (clone_time < time) {
+      time = clone_time;
+    }
+  }
+  return time;
 }
 
 }

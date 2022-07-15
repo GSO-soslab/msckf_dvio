@@ -16,7 +16,13 @@ public:
 
   void propagate(std::shared_ptr<State> state, const std::vector<ImuMsg> &data);
 
-  void augmentDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w);
+  void augmentDvl(std::shared_ptr<State> state, double sensor_time, const Eigen::Vector3d &w);
+
+  void augment(SubStateName sensor_name,
+               SubStateName clone_name, 
+               std::shared_ptr<State> state,
+               double sensor_time, 
+               const Eigen::Vector3d &w);
 
 private:
   void propagateState(std::shared_ptr<State> state, 
