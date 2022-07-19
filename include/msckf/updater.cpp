@@ -3,8 +3,8 @@
 namespace msckf_dvio
 {
 
-Updater::Updater(priorDvl prior_dvl, paramMsckf param_msckf) : 
-  prior_dvl_(prior_dvl), param_msckf_(param_msckf), count(0)
+Updater::Updater(priorDvl prior_dvl,  priorCam prior_cam, paramMsckf param_msckf) : 
+  prior_dvl_(prior_dvl), prior_cam_(prior_cam), param_msckf_(param_msckf), count(0)
   {}
 
 void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I, const Eigen::Vector3d &v_D) {
@@ -469,7 +469,88 @@ void Updater::marginalize(std::shared_ptr<State> state, SubStateName clone_name)
 }
 
 void Updater::updateCam(std::shared_ptr<State> state, std::vector<std::shared_ptr<Feature>> &features) {
+
   // ------------------------------- Feature Triangulation -------------------------------------- //
+
+  // Return if no features
+  if (features.empty())
+    return;
+
+  // [0] Get associated Camera Pose and Clone Time
+
+  // get known information
+  Eigen::Matrix3d R_I_G, R_C_I;
+  Eigen::Vector3d p_G_I, p_C_I;
+  R_I_G = toRotationMatrix(state->getEstimationValue(IMU,EST_QUATERNION));
+  p_G_I = state->getEstimationValue(IMU,EST_POSITION);
+  R_C_I = param_msckf_.do_R_C_I ? 
+          toRotationMatrix(state->getEstimationValue(CAM0,EST_QUATERNION)) :
+          toRotationMatrix(prior_cam_.extrinsics.head(4));
+  p_C_I = param_msckf_.do_p_C_I ?
+          state->getEstimationValue(CAM0,EST_POSITION) :
+          prior_cam_.extrinsics.tail(3);
+
+  // get data
+  Eigen::Matrix4d T_G_C = Eigen::Matrix4d::Identity();
+  std::unordered_map<double, Eigen::Matrix4d> cam_poses;
+  std::vector<double> clone_times;
+
+  for (const auto &clone : state->state_[CLONE_CAM0]) {
+    // get camera pose in global frame
+    T_G_C.block(0,0,3,3) = R_I_G.transpose() * R_C_I.transpose();
+    T_G_C.block(0,3,3,1) = p_G_I - T_G_C.block(0,0,3,3) * p_C_I;
+
+    // get clone time, which is the sensor timestamp
+    double cam_time = std::stod(clone.first);
+
+    // insert to container
+    cam_poses.insert({cam_time, T_G_C});
+    clone_times.emplace_back(std::stod(clone.first));
+  }
+
+
+  // [1] Clean all feature measurements: 1)make sure they have associated clone; 2)more then 2 for triangulation 
+  auto it0 = features.begin();
+  while (it0 != features.end()) {
+
+    // Clean the feature that don't have the clonetime
+    (*it0)->clean_old_measurements(clone_times);
+
+    // Count how many measurements
+    int num_measurements = 0;
+    for (const auto &pair : (*it0)->timestamps) {
+      num_measurements += (*it0)->timestamps[pair.first].size();
+    }
+
+    // Remove if we don't have enough
+    if (num_measurements < 2) {
+      (*it0)->to_delete = true;
+      it0 = features.erase(it0);
+    } else {
+      it0++;
+    }
+  }
+
+// [3] Try to triangulate all MSCKF or new SLAM features that have measurements
+  auto it1 = features.begin();
+  while (it1 != features.end()) {
+
+    // Triangulate the feature and remove if it fails
+    bool success_tri = true;
+    bool success_refine = true;
+    
+    success_tri = single_triangulation(it1->get(), cam_poses);
+    success_refine = single_gaussnewton(it1->get(), cam_poses);
+
+    // Remove the feature if not a success
+    if (!success_tri || !success_refine) {
+      (*it1)->to_delete = true;
+      it1 = features.erase(it1);
+      continue;
+    }
+
+    it1++;
+  }
 
 }
 

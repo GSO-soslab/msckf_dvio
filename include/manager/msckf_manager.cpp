@@ -18,7 +18,7 @@ MsckfManager::MsckfManager(Params &parameters) : is_odom(false)
   predictor = std::make_shared<Predictor>(params.prior_imu);
 
   //// setup updater
-  updater = std::make_shared<Updater>(params.prior_dvl, params.msckf);
+  updater = std::make_shared<Updater>(params.prior_dvl, params.prior_cam, params.msckf);
 
   //// setup tracker
   tracker = std::shared_ptr<TrackBase>(new TrackKLT (
@@ -353,7 +353,7 @@ void MsckfManager::doCamera() {
 
 
     //// feature triangulation, feature update 
-    // updater->updateCam(state, feature_MSCKF);
+    updater->updateCam(state, feature_MSCKF);
 
 
     //// clean up system: 

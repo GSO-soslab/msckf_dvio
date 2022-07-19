@@ -5,6 +5,7 @@
 #include "utils/utils.h"
 #include "msckf/state.h"
 #include "feature/Feature.h"
+#include "feature/triangulation.h"
 #include <fstream>
 
 namespace msckf_dvio
@@ -13,7 +14,7 @@ namespace msckf_dvio
 class Updater {
 
 public:
-  Updater(priorDvl prior_dvl, paramMsckf param_msckf);
+  Updater(priorDvl prior_dvl, priorCam prior_cam, paramMsckf param_msckf);
 
   void updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I, const Eigen::Vector3d &v_D);
 
@@ -28,8 +29,9 @@ public:
   void updateCam(std::shared_ptr<State> state, std::vector<std::shared_ptr<Feature>> &features);
 
 private:
-  /// prior information for DVL
   priorDvl prior_dvl_;
+
+  priorCam prior_cam_;
 
   paramMsckf param_msckf_;
 
