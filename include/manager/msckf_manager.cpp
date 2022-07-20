@@ -217,6 +217,8 @@ void MsckfManager::backend() {
 /***************************** Update for multi-sensors *******************************/
 /**************************************************************************************/
 
+  //! TODO: check efficiency on "swith" or "if-else"
+  
   switch(selectUpdateSensor()) {
 
     // choose DVL BT velocity to update IMU
@@ -247,20 +249,20 @@ SensorName MsckfManager::selectUpdateSensor() {
   buffer_mutex.lock();
 
   // check Camera buffer
-  // if(buffer_time_img.size() > 0){
-  //   // get first sensor timestamp into IMU frame
-  //   double time = buffer_time_img.front();
-  //   if(params.msckf.do_time_C_I)
-  //     time += state->getEstimationValue(CAM0, EST_TIMEOFFSET)(0);
-  //   else
-  //     time += params.prior_cam.timeoffset;
+  if(buffer_time_img.size() > 0){
+    // get first sensor timestamp into IMU frame
+    double time = buffer_time_img.front();
+    if(params.msckf.do_time_C_I)
+      time += state->getEstimationValue(CAM0, EST_TIMEOFFSET)(0);
+    else
+      time += params.prior_cam.timeoffset;
 
-  //   // compare with other sensor
-  //   if(time < early_time){
-  //     early_time = time;
-  //     update_sensor = IMAGE;
-  //   }
-  // }
+    // compare with other sensor
+    if(time < early_time){
+      early_time = time;
+      update_sensor = IMAGE;
+    }
+  }
 
   //// check DVL velocity buffer
   if(buffer_dvl.size() > 0){
@@ -339,6 +341,7 @@ void MsckfManager::doCamera() {
 
   /******************** imu propagation + image update ********************/
   if(selected_imu.size()>0){
+    printf("CAM:%ld\n", selected_imu.size());
 
     //// [0] IMU Propagation
     predictor->propagate(state, selected_imu);
@@ -555,6 +558,8 @@ void MsckfManager::doDVL() {
   /******************** imu propagation + velocity update + pressure update(if)********************/
 
   if(selected_imu.size()>0){
+    printf("DVL:%ld\n", selected_imu.size());
+
     if(do_velocity){
 
       predictor->propagate(state, selected_imu);
