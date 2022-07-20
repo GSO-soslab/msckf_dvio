@@ -96,6 +96,7 @@ add_library(dvio_lib SHARED
   include/msckf/updater.cpp
 
   include/feature/Feature.cpp
+  include/feature/triangulation.cpp
 
   include/tracker/TrackBase.cpp
   include/tracker/TrackKLT.cpp

@@ -1,0 +1,41 @@
+############################################
+#### Camera feature tracking parameters ####
+############################################
+
+KLT:
+  num_aruco: 1024
+  num_pts: 250
+  fast_threshold: 15
+  grid_x: 5
+  grid_y: 3
+  min_px_dist: 8
+  downsize_aruco: false
+  use_stereo: false
+  max_camera: 2
+  pyram: 3
+  cam_id: 0
+  downsample_ratio: 0.5
+
+
+############################################
+#### Camera feature triangulation parameters ####
+############################################
+Feature:
+  # Max condition number of linear triangulation matrix accept triangulated features
+  max_cond_number: 100
+  # Minimum distance to accept triangulated features
+  min_dist: 0.10
+  # Minimum distance to accept triangulated features
+  max_dist: 60
+  # Multiplier to increase/decrease lambda
+  lam_mult: 10 
+  # Max runs for Levenberg-Marquardt
+  max_runs: 5
+  # Max lambda for Levenberg-Marquardt optimization
+  max_lamda: 1e10
+  # Cutoff for dx increment to consider as converged
+  min_dx: 1e-6
+  # Cutoff for cost decrement to consider as converged
+  min_dcost: 1e-6
+  # Max baseline ratio to accept triangulated features
+  max_baseline: 40

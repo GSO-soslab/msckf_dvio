@@ -14,7 +14,7 @@ namespace msckf_dvio
 class Updater {
 
 public:
-  Updater(priorDvl prior_dvl, priorCam prior_cam, paramMsckf param_msckf);
+  Updater(Params &params);
 
   void updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I, const Eigen::Vector3d &v_D);
 
@@ -34,6 +34,8 @@ private:
   priorCam prior_cam_;
 
   paramMsckf param_msckf_;
+
+  std::unique_ptr<FeatureTriangulation> triangulater;
 
   //! TEST:
   long long int count;

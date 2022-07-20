@@ -3,9 +3,14 @@
 namespace msckf_dvio
 {
 
-Updater::Updater(priorDvl prior_dvl,  priorCam prior_cam, paramMsckf param_msckf) : 
-  prior_dvl_(prior_dvl), prior_cam_(prior_cam), param_msckf_(param_msckf), count(0)
-  {}
+Updater::Updater(Params &params) : 
+  prior_dvl_(params.prior_dvl), 
+  prior_cam_(params.prior_cam), 
+  param_msckf_(params.msckf), 
+  count(0)
+{
+  triangulater = std::unique_ptr<FeatureTriangulation>(new FeatureTriangulation(params.triangualtion));
+}
 
 void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I, const Eigen::Vector3d &v_D) {
 
@@ -508,7 +513,6 @@ void Updater::updateCam(std::shared_ptr<State> state, std::vector<std::shared_pt
     clone_times.emplace_back(std::stod(clone.first));
   }
 
-
   // [1] Clean all feature measurements: 1)make sure they have associated clone; 2)more then 2 for triangulation 
   auto it0 = features.begin();
   while (it0 != features.end()) {
@@ -531,7 +535,7 @@ void Updater::updateCam(std::shared_ptr<State> state, std::vector<std::shared_pt
     }
   }
 
-// [3] Try to triangulate all MSCKF or new SLAM features that have measurements
+  // [2] Try to triangulate all MSCKF or new SLAM features that have measurements
   auto it1 = features.begin();
   while (it1 != features.end()) {
 
@@ -539,8 +543,8 @@ void Updater::updateCam(std::shared_ptr<State> state, std::vector<std::shared_pt
     bool success_tri = true;
     bool success_refine = true;
     
-    success_tri = single_triangulation(it1->get(), cam_poses);
-    success_refine = single_gaussnewton(it1->get(), cam_poses);
+    success_tri = triangulater->single_triangulation(it1->get(), cam_poses);
+    success_refine = triangulater->single_gaussnewton(it1->get(), cam_poses);
 
     // Remove the feature if not a success
     if (!success_tri || !success_refine) {
@@ -550,6 +554,13 @@ void Updater::updateCam(std::shared_ptr<State> state, std::vector<std::shared_pt
     }
 
     it1++;
+  }
+
+  // [3] Update .....
+
+  // We have used all the left features, delete them
+  for (size_t f = 0; f < features.size(); f++) {
+    features[f]->to_delete = true;
   }
 
 }

@@ -290,6 +290,48 @@ public:
     // std::cout << "feat db = " << sizebefore << " -> " << (int)features_idlookup.size() << std::endl;
   }
 
+  //! @brief remove feature pixels that used for update (older then update_time)
+  //!        not delete feature because tracker may already update new tracked pxiels in another thread
+  void cleanupAsync(double update_time) {
+    std::unique_lock<std::mutex> lck(mtx);
+    for (auto it = features_idlookup.begin(); it != features_idlookup.end();) {
+      // loop all the used features
+      if ((*it).second->to_delete) {
+
+        // check if new tracked pxiel exists
+        auto frame = std::find_if(
+          (*it).second->timestamps.at(0).begin(), 
+          (*it).second->timestamps.at(0).end(),
+          [&](const auto& img_time) {return img_time > update_time ;}
+        );
+
+        // found, only remove old pxiels
+        if(frame != (*it).second->timestamps.at(0).end()){
+          int index = frame - (*it).second->timestamps.at(0).begin();
+          // delete timestamp
+          (*it).second->timestamps.at(0).erase(
+            (*it).second->timestamps.at(0).begin(), 
+            (*it).second->timestamps.at(0).begin() + index);
+          // delete uv
+          (*it).second->uvs.at(0).erase(
+            (*it).second->uvs.at(0).begin(), 
+            (*it).second->uvs.at(0).begin() + index);
+          // delete uv_norm
+          (*it).second->uvs_norm.at(0).erase(
+            (*it).second->uvs_norm.at(0).begin(), 
+            (*it).second->uvs_norm.at(0).begin() + index);                                                                                              
+        } 
+        // not found, delete entire feature
+        else {
+          features_idlookup.erase(it++);
+        }                                  
+      } 
+      else {
+        it++;
+      }
+    }
+  }
+
   /**
    * @brief This function will delete all feature measurements that are older then the specified timestamp
    */

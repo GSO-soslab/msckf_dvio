@@ -18,7 +18,7 @@ MsckfManager::MsckfManager(Params &parameters) : is_odom(false)
   predictor = std::make_shared<Predictor>(params.prior_imu);
 
   //// setup updater
-  updater = std::make_shared<Updater>(params.prior_dvl, params.prior_cam, params.msckf);
+  updater = std::make_shared<Updater>(params);
 
   //// setup tracker
   tracker = std::shared_ptr<TrackBase>(new TrackKLT (
@@ -246,21 +246,21 @@ SensorName MsckfManager::selectUpdateSensor() {
 
   buffer_mutex.lock();
 
-  //// check Camera buffer
-  if(buffer_time_img.size() > 0){
-    // get first sensor timestamp into IMU frame
-    double time = buffer_time_img.front();
-    if(params.msckf.do_time_C_I)
-      time += state->getEstimationValue(CAM0, EST_TIMEOFFSET)(0);
-    else
-      time += params.prior_cam.timeoffset;
+  // check Camera buffer
+  // if(buffer_time_img.size() > 0){
+  //   // get first sensor timestamp into IMU frame
+  //   double time = buffer_time_img.front();
+  //   if(params.msckf.do_time_C_I)
+  //     time += state->getEstimationValue(CAM0, EST_TIMEOFFSET)(0);
+  //   else
+  //     time += params.prior_cam.timeoffset;
 
-    // compare with other sensor
-    if(time < early_time){
-      early_time = time;
-      update_sensor = IMAGE;
-    }
-  }
+  //   // compare with other sensor
+  //   if(time < early_time){
+  //     early_time = time;
+  //     update_sensor = IMAGE;
+  //   }
+  // }
 
   //// check DVL velocity buffer
   if(buffer_dvl.size() > 0){
@@ -340,39 +340,46 @@ void MsckfManager::doCamera() {
   /******************** imu propagation + image update ********************/
   if(selected_imu.size()>0){
 
-    // predictor->propagate(state, selected_imu);
-    // // We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d)
-    // assert(!state->foundSPD());
+    //// [0] IMU Propagation
+    predictor->propagate(state, selected_imu);
+    assert(!state->foundSPD());
 
+    //// [1] State Augmentation: 
     Eigen::Vector3d w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
-    //// use Last angular velocity for cloning when estimating time offset)
-    if(params.msckf.max_clone_C > 0)
+    // use Last angular velocity for cloning when estimating time offset)
+    if(params.msckf.max_clone_C > 0) {
+      // clone IMU pose, augment covariance
       predictor->augment(CAM0, CLONE_CAM0, state, time_curr_sensor, w_I);
-
-    std::vector<std::shared_ptr<Feature>> feature_MSCKF = selectFeatures(time_curr_sensor);
-
-
-    //// feature triangulation, feature update 
-    updater->updateCam(state, feature_MSCKF);
-
-
-    //// clean up system: 
-
-    //// if max clone is reached, do the marginalization: remove the clone and related covarinace
-    if( (params.msckf.max_clone_C > 0) &&
-        (params.msckf.max_clone_C < state->getEstimationNum(CLONE_CAM0)) ) {
-
-      updater->marginalize(state, CLONE_CAM0);
     }
 
-    //// erase feature pixels that already used for update  
+    //// [2] Camera Feature Update
+    // select features
+    std::vector<std::shared_ptr<Feature>> feature_MSCKF = selectFeatures(time_curr_sensor);
+    // feature triangulation, feature update 
+    updater->updateCam(state, feature_MSCKF);
 
-    //// double check open_vins clean what else
+    //! TEST: grab triangulated features:
+    // getFeaturesTest();
+
+    // clean up feature pixels that already used for update  
+    tracker->get_feature_database()->cleanupAsync(time_curr_sensor);
+
+    //// [3] Marginalization(if reach max clone): 
+    if((params.msckf.max_clone_C > 0) &&
+       (params.msckf.max_clone_C < state->getEstimationNum(CLONE_CAM0))) {
+      // remove the clone and related covarinace
+      updater->marginalize(state, CLONE_CAM0);
+      // Cleanup any features older then the marginalization time
+      tracker->get_feature_database()->cleanup_measurements(state->getMarginalizedTime(CLONE_CAM0));
+    }
 
     // is_odom = true;
   }
 
 }
+
+//! TODO: DVL/pressure can still update without IMU propagation
+//!       check how many IMU inside DVL/pressure update
 
 void MsckfManager::doDVL() {
 
@@ -769,7 +776,7 @@ std::vector<std::shared_ptr<Feature>> MsckfManager::selectFeatures(const double 
 
   // select the longest tracked feature if in limited computational resources device
   if ((int)feature_MSCKF.size() > params.msckf.max_msckf_update){
-    printf("Manager warning: too many features for update, deleted %d\n", 
+    printf("Manager warning: too many features for update, deleted %ld\n", 
         feature_MSCKF.size() - params.msckf.max_msckf_update);
         
     feature_MSCKF.erase(feature_MSCKF.begin(), feature_MSCKF.end() - params.msckf.max_msckf_update);

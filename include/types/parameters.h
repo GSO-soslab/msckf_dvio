@@ -108,6 +108,27 @@ struct paramTrack {
   double downsample_ratio;
 };
 
+struct paramTriangulation {
+  /// Max condition number of linear triangulation matrix accept triangulated features
+  double max_cond_number;
+  /// Minimum distance to accept triangulated features
+  double min_dist;
+  /// Minimum distance to accept triangulated features
+  double max_dist;
+  /// Multiplier to increase/decrease lambda
+  double lam_mult; 
+  /// Max runs for Levenberg-Marquardt
+  int max_runs; 
+  /// Max lambda for Levenberg-Marquardt optimization
+  double max_lamda;  
+  /// Cutoff for dx increment to consider as converged
+  double min_dx; 
+  /// Cutoff for cost decrement to consider as converged
+  double min_dcost; 
+  /// Max baseline ratio to accept triangulated features
+  double max_baseline;
+};
+
 //! TODO: set sub-parameters as shared_ptr? 
 //!       so the paramters will updated automaticly, used for localization failed case?
 struct Params{
@@ -140,6 +161,8 @@ struct Params{
   paramMsckf msckf;
 
   paramTrack tracking;
+
+  paramTriangulation triangualtion;
 };
 
 

@@ -3,8 +3,7 @@ Panels:
     Help Height: 77
     Name: Displays
     Property Tree Widget:
-      Expanded:
-        - /Odometry1
+      Expanded: ~
       Splitter Ratio: 0.5
     Tree Height: 258
   - Class: rviz/Selection
@@ -58,15 +57,17 @@ Visualization Manager:
       Name: odom
       Radius: 0.10000000149011612
       Reference Frame: odom
+      Show Trail: false
       Value: true
     - Alpha: 1
       Class: rviz/Axes
-      Enabled: false
+      Enabled: true
       Length: 1
       Name: imu
       Radius: 0.10000000149011612
       Reference Frame: imu
-      Value: false
+      Show Trail: false
+      Value: true
     - Angle Tolerance: 0.10000000149011612
       Class: rviz/Odometry
       Covariance:
@@ -84,7 +85,7 @@ Visualization Manager:
           Scale: 1
           Value: true
         Value: true
-      Enabled: true
+      Enabled: false
       Keep: 1000
       Name: Odometry
       Position Tolerance: 0.10000000149011612
@@ -101,7 +102,7 @@ Visualization Manager:
         Value: Axes
       Topic: /msckf/odom
       Unreliable: false
-      Value: true
+      Value: false
     - Alpha: 1
       Buffer Length: 1
       Class: rviz/Path
@@ -183,9 +184,7 @@ Visualization Manager:
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 4096
       Min Color: 0; 0; 0
-      Min Intensity: 0
       Name: PointCloud2
       Position Transformer: ""
       Queue Size: 10
@@ -226,7 +225,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 100.55117797851562
+      Distance: 60.30007553100586
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -234,9 +233,9 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: -27.399370193481445
-        Y: -9.53739070892334
-        Z: -11.43603515625
+        X: -12.55484676361084
+        Y: -5.942957878112793
+        Z: -11.050105094909668
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false

@@ -200,6 +200,8 @@ public:
 
   inline int getCovCols()  const { return cov_.cols(); }
 
+  //! @brief: We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d) 
+  //!
   inline bool foundSPD() {
     Eigen::VectorXd diags = cov_.diagonal();
 

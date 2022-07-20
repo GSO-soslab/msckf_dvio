@@ -148,6 +148,16 @@ Params RosNode::loadParameters() {
   nh_private_.param<int>   ("KLT/cam_id",           params.tracking.cam_id,           0);
   nh_private_.param<double>("KLT/downsample_ratio", params.tracking.downsample_ratio, 1.0);
   
+  nh_private_.param<double>("Feature/max_cond_number",  params.triangualtion.max_cond_number, 10000);
+  nh_private_.param<double>("Feature/min_dist",         params.triangualtion.min_dist,        0.10);
+  nh_private_.param<double>("Feature/max_dist",         params.triangualtion.max_dist,        60);
+  nh_private_.param<double>("Feature/lam_mult",         params.triangualtion.lam_mult,        10);
+  nh_private_.param<int>   ("Feature/max_runs",         params.triangualtion.max_runs,        5);
+  nh_private_.param<double>("Feature/max_lamda",        params.triangualtion.max_lamda,       1e10);
+  nh_private_.param<double>("Feature/min_dx",           params.triangualtion.min_dx,          1e-6);
+  nh_private_.param<double>("Feature/min_dcost",        params.triangualtion.min_dcost,       1e-6);
+  nh_private_.param<double>("Feature/max_baseline",     params.triangualtion.max_baseline,    40);
+
   // ==================== MSCKF ==================== //
   nh_private_.param<bool>("MSCKF/dvl_exterisic_R", params.msckf.do_R_I_D,    true);
   nh_private_.param<bool>("MSCKF/dvl_exterisic_p", params.msckf.do_p_I_D,    true);
