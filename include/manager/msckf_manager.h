@@ -76,7 +76,12 @@ public:
 private:
 
 
-  void doDVL();
+  void doDVL_test();
+
+  void doPressure_test();
+
+  
+  void doVelocity();
 
   void doPressure();
 

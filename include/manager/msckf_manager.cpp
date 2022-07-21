@@ -218,17 +218,17 @@ void MsckfManager::backend() {
 /**************************************************************************************/
 
   //! TODO: check efficiency on "swith" or "if-else"
-  
+
   switch(selectUpdateSensor()) {
 
     // choose DVL BT velocity to update IMU
     case VELOCITY: 
-      doDVL();
+      doDVL_test();
       break;
 
     // // choose DVL CP pressure to update IMU
     // case PRESSURE: 
-    //   doPressure();
+    //   doPressure_test();
     //   break;
 
     // choose Camera to update IMU
@@ -264,6 +264,25 @@ SensorName MsckfManager::selectUpdateSensor() {
     }
   }
 
+  //! TODO: make sure do pressure first, pressure may interpolate from Velocity,
+  //!       then velocity is actually update 
+
+  //// check DVL pressure buffer
+  if(buffer_pressure.size() > 0){
+    // get first sensor timestamp into IMU frame
+    double time = buffer_pressure.front().time;
+    if(params.msckf.do_time_I_D)
+      time += state->getEstimationValue(DVL, EST_TIMEOFFSET)(0);
+    else
+      time += params.prior_dvl.timeoffset;
+
+    // compare with other sensor
+    if(time < early_time){
+      early_time = time;
+      update_sensor = PRESSURE;
+    }
+  }
+
   //// check DVL velocity buffer
   if(buffer_dvl.size() > 0){
     // get first sensor timestamp into IMU frame
@@ -279,22 +298,6 @@ SensorName MsckfManager::selectUpdateSensor() {
       update_sensor = VELOCITY;
     }
   }
-
-  // //// check DVL pressure buffer
-  // if(buffer_pressure.size() > 0){
-  //   // get first sensor timestamp into IMU frame
-  //   double time = buffer_pressure.front().time;
-  //   if(params.msckf.do_time_I_D)
-  //     time += state->getEstimationValue(DVL, EST_TIMEOFFSET)(0);
-  //   else
-  //     time += params.prior_dvl.timeoffset;
-
-  //   // compare with other sensor
-  //   if(time < early_time){
-  //     early_time = time;
-  //     update_sensor = PRESSURE;
-  //   }
-  // }
 
   buffer_mutex.unlock();
 
@@ -381,10 +384,96 @@ void MsckfManager::doCamera() {
 
 }
 
+
+void MsckfManager::doVelocity() {
+
+}
+
+//! TODO: add pressure as individual sensor setup, e.g. prior information, not from DVL
+
+void MsckfManager::doPressure() {
+
+  // ------------------------------  Select Data ------------------------------ // 
+
+  std::vector<ImuMsg> selected_imu;
+  PressureMsg selected_pres;
+  DvlMsg selected_dvl;
+
+  buffer_mutex.lock();
+
+  // make sure has new DVL velocity after Pressure data 
+  // because pressure only update with velocity or interpolated velocity
+  if((buffer_dvl.size() > 0) && 
+     (buffer_pressure.front().time <= buffer_dvl.front().time)) {
+
+    // select pressure sensor data
+    selected_pres = buffer_pressure.front();
+
+    // convert sensor time into IMU time
+    auto offset = params.msckf.do_time_I_D ? 
+                  state->getEstimationValue(DVL, EST_TIMEOFFSET)(0) : 
+                  params.prior_dvl.timeoffset;
+    double time_prev_state = state->getTimestamp();
+    double time_curr_state = selected_pres.time + offset;
+    // make sure sensor data is not eariler then current state
+    if(time_curr_state <= time_prev_state) {
+      printf("Manger error: new pressure measurement time:%f" 
+             "is eariler then current state time:%f\n",
+             time_curr_state, time_prev_state);
+      std::exit(EXIT_FAILURE);
+    }
+
+    //// make sure IMU data asscoiated with sensor is arrived, means IMU time > current sensor time 
+    auto frame_imu = std::find_if(buffer_imu.begin(), buffer_imu.end(),
+                  [&](const auto& imu){return imu.time > time_curr_state ;});
+    if(frame_imu != buffer_imu.end()) {
+      // select IMU
+      selected_imu = selectImu(time_prev_state, time_curr_state);
+      // select DVL
+      selected_dvl = interpolateDvl(last_dvl, buffer_dvl.front(), selected_pres.time);
+
+      // erase selected pressure
+      buffer_pressure.erase(buffer_pressure.begin());
+      // erase selected IMU, but leave one for next interpolate
+      buffer_imu.erase(buffer_imu.begin(), frame_imu-1);   
+      // erase selected DVL velocity, store for next interpolate
+      last_dvl = buffer_dvl.front(); 
+      buffer_dvl.erase(buffer_dvl.begin());  
+    }
+  }
+
+  buffer_mutex.unlock();
+
+  // ------------------------------  Update ------------------------------ // 
+
+  if(selected_imu.size() > 0) {
+      // [0] IMU propagation
+      predictor->propagate(state, selected_imu);
+      assert(!state->foundSPD());
+
+      // [1] State Update with velocity(interpolated or same time)
+      Eigen::Vector3d last_w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
+      Eigen::Vector3d last_v_D = selected_dvl.v;
+      updater->updateDvl(state, last_w_I, last_v_D);
+      // updater->updateDvl(state, last_w_I, last_v_D, true);
+
+      // [2] State Update with Pressure
+      // get the begin pressure value
+      double pres_init = state->getPressureInit();
+      double pres_curr = selected_pres.p;
+      // update
+      updater->updatePressure(state, pres_init, pres_curr, true);
+
+      is_odom = true;
+  }
+
+}
+
+
 //! TODO: DVL/pressure can still update without IMU propagation
 //!       check how many IMU inside DVL/pressure update
 
-void MsckfManager::doDVL() {
+void MsckfManager::doDVL_test() {
 
 /**************************************************/
 /**************************************************/
@@ -604,7 +693,7 @@ void MsckfManager::doDVL() {
 
 }
 
-void MsckfManager::doPressure() {
+void MsckfManager::doPressure_test() {
 
   /********************* no imu propagation ********************/
   // // select pressure data
@@ -639,7 +728,8 @@ void MsckfManager::doPressure() {
   //// deal with pressure from CP
   //// determine selected IMU range, from last updated to current sensor measurement
   auto offset = params.msckf.do_time_I_D ? 
-                state->getEstimationValue(DVL, EST_TIMEOFFSET)(0) : params.prior_dvl.timeoffset;
+                state->getEstimationValue(DVL, EST_TIMEOFFSET)(0) : 
+                params.prior_dvl.timeoffset;
   double time_prev_state = state->getTimestamp();
   double time_curr_state = selected_pres.time + offset;
 
@@ -647,7 +737,7 @@ void MsckfManager::doPressure() {
   if(time_curr_state <= time_prev_state) {
     printf("Manger error: new pressure measurement time:%f is eariler then current state time:%f\n",
             time_curr_state, time_prev_state);
-    std::exit(EXIT_FAILURE);
+    // std::exit(EXIT_FAILURE);
   }
 
   //// make sure IMU data asscoiated with sensor is arrived, means IMU time > current sensor time 
