@@ -28,6 +28,11 @@
                     raw        out:=/rov_remote/sensors/stereo/left/image_decompressed" />
   </group>
 
+
+  <!-- URDF Helper:  -->
+    <include file="$(find msckf_dvio)/launch/GLRC/glrc_urdf.launch"/>
+
+
   <!-- Test: some test function, like save data... -->
   <!-- <node name="test_node" pkg="msckf_dvio" type="test_save" output="screen" >
       <remap from="image" to="/rov_remote/sensors/stereo/left/image_decompressed"/>
