@@ -317,14 +317,12 @@ void RosNode::process() {
       // Hamilton x: -0.170721 y: 0.982622 z: -0.051178 w: 0.0518503
 
       //// publish odometry
+      // NOTE: since we use JPL we have an implicit conversion to Hamilton when we publish
+      // NOTE: a rotation from GtoI in JPL has the same xyzw as a ItoG Hamilton rotation
       nav_msgs::Odometry msg_odom;
       msg_odom.header.stamp = ros::Time(time);
       msg_odom.header.frame_id = "odom";
-      msg_odom.child_frame_id = "imu";
-      // msg_odom.pose.pose.orientation.x = q_Ham_G_I.x();
-      // msg_odom.pose.pose.orientation.y = q_Ham_G_I.y();
-      // msg_odom.pose.pose.orientation.z = q_Ham_G_I.z();
-      // msg_odom.pose.pose.orientation.w = q_Ham_G_I.w();
+      msg_odom.child_frame_id = "ahrs";
       msg_odom.pose.pose.orientation.x = imu_value(0);
       msg_odom.pose.pose.orientation.y = imu_value(1);
       msg_odom.pose.pose.orientation.z = imu_value(2);
@@ -336,15 +334,18 @@ void RosNode::process() {
       msg_odom.twist.twist.linear.y    = imu_value(8);
       msg_odom.twist.twist.linear.z    = imu_value(9);
 
+
       pub_odom.publish(msg_odom);
 
       // Publish odometry TF
-      // NOTE: since we use JPL we have an implicit conversion to Hamilton when we publish
-      // NOTE: a rotation from GtoI in JPL has the same xyzw as a ItoG Hamilton rotation
+
+      // R_O_B = R_B_A^T * R_O_A
+      // p_O_B = R_B_A^T * (p_O_A - p_B_A)
+
       tf::StampedTransform trans;
       trans.stamp_ = ros::Time::now();
       trans.frame_id_ = "odom";
-      trans.child_frame_id_ = "imu";
+      trans.child_frame_id_ = "ahrs";
       tf::Quaternion quat(msg_odom.pose.pose.orientation.x, msg_odom.pose.pose.orientation.y, 
                           msg_odom.pose.pose.orientation.z, msg_odom.pose.pose.orientation.w);
       trans.setRotation(quat);

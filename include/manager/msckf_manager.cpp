@@ -41,10 +41,10 @@ MsckfManager::MsckfManager(Params &parameters) : is_odom(false)
 }
 
 void MsckfManager::feedImu(const ImuMsg &data) {
+  std::unique_lock<std::mutex> lck(mtx);
+
   //// append to the buffer 
-  buffer_mutex.lock();
   buffer_imu.emplace_back(data);
-  buffer_mutex.unlock();
 
   //// if imu not initialized, feed to initializer
   if(!initializer->isInit())
@@ -59,8 +59,9 @@ void MsckfManager::feedDvl(const DvlMsg &data) {
   //!  1) correct timeoffset: basic substract time transmit from DVl to bottom, check duraction field of df21
   //!  2) remove spikes noise (Median filtering) and data smoothing (Moving Average Filter)
 
+  std::unique_lock<std::mutex> lck(mtx);
+
   //// append to the buffer 
-  buffer_mutex.lock();
   buffer_dvl.emplace_back(data);
 
   // if(buffer_dvl.size()>200){
@@ -68,23 +69,21 @@ void MsckfManager::feedDvl(const DvlMsg &data) {
   //   buffer_dvl.erase(buffer_dvl.begin());
   // }
 
-  buffer_mutex.unlock();
-
   //// if imu not initialized, feed to initializer
   if(!initializer->isInit())
     initializer->feedDvl(data);
 }
 
 void MsckfManager::feedPressure(const PressureMsg &data) {
+  std::unique_lock<std::mutex> lck(mtx);
+
   //// append to the buffer 
-  buffer_mutex.unlock();
   buffer_pressure.emplace_back(data);
 
   // if(buffer_pressure.size()>600){
   //   printf("Manager warning: pressure buffer overflow, drop now!\n");
   //   buffer_pressure.erase(buffer_pressure.begin());
   // }
-  buffer_mutex.unlock();
 
   //// if imu not initialized, feed to initializer
   //! TODO: check if this sensor is need for initialization
@@ -95,17 +94,15 @@ void MsckfManager::feedPressure(const PressureMsg &data) {
 
 void MsckfManager::feedCamera(ImageMsg &data) {
   // check if system is initialized 
+  std::unique_lock<std::mutex> lck(mtx);
 
   //! TODO: need to store image if this not used initialization
   if(!initializer->isInit())
     return;
 
   // system initialized append to sensor buffer
-  buffer_mutex.unlock();
 
   buffer_time_img.emplace(data.time);
-
-  buffer_mutex.unlock();
 
   // do front-end tracking for this sensor
   tracker->feed_monocular(data.time, data.image, 0);
@@ -132,9 +129,7 @@ void MsckfManager::feedCamera(ImageMsg &data) {
   msg.image = img_history;
   msg.time = data.time;
   
-  buffer_mutex.unlock();
   tracked_img.emplace(msg);
-  buffer_mutex.unlock();
 }
 
 void MsckfManager::backend() {
@@ -154,7 +149,7 @@ void MsckfManager::backend() {
       printf("\n+++++++++++++++\n");
 
       //// clean manager data buffer which used in initialization
-      buffer_mutex.lock();
+      mtx.lock();
       
       // delete IMU used for initialization
       auto frame_imu = std::find_if(buffer_imu.begin(), buffer_imu.end(),
@@ -180,7 +175,7 @@ void MsckfManager::backend() {
       if (frame_pres != buffer_pressure.end())                    
         buffer_pressure.erase(buffer_pressure.begin(), frame_pres);
 
-      buffer_mutex.unlock();
+      mtx.unlock();
     }
     else
       return;
@@ -223,13 +218,19 @@ void MsckfManager::backend() {
 
     // choose DVL BT velocity to update IMU
     case VELOCITY: 
-      doDVL_test();
+      doDVL();
+
+      // // individual BT veloicty update 
+      // doDvlBT();
       break;
 
-    // // choose DVL CP pressure to update IMU
-    // case PRESSURE: 
-    //   doPressure_test();
-    //   break;
+    // choose DVL CP pressure to update IMU
+    case PRESSURE: 
+      doDVL();
+
+      // // individual pressure update
+      // doPressure();
+      break;
 
     // choose Camera to update IMU
     case IMAGE: 
@@ -246,7 +247,7 @@ SensorName MsckfManager::selectUpdateSensor() {
   double early_time = std::numeric_limits<double>::infinity();
   SensorName update_sensor = NONE;
 
-  buffer_mutex.lock();
+  mtx.lock();
 
   // check Camera buffer
   if(buffer_time_img.size() > 0){
@@ -264,8 +265,8 @@ SensorName MsckfManager::selectUpdateSensor() {
     }
   }
 
-  //! TODO: make sure do pressure first, pressure may interpolate from Velocity,
-  //!       then velocity is actually update 
+  //! NOTE: make sure do pressure first, we will update pressure with velocity,
+  //!       if velocity and pressure are same timestamp, then velocity no need to update 
 
   //// check DVL pressure buffer
   if(buffer_pressure.size() > 0){
@@ -297,100 +298,187 @@ SensorName MsckfManager::selectUpdateSensor() {
       early_time = time;
       update_sensor = VELOCITY;
     }
+
   }
 
-  buffer_mutex.unlock();
+  mtx.unlock();
 
   return update_sensor;
 }
 
 void MsckfManager::doCamera() {
 
-  /****************************** grab IMU data ******************************/
-  buffer_mutex.lock();
+  // ------------------------------  Select Data ------------------------------ // 
 
   std::vector<ImuMsg> selected_imu;
 
-  //// determine selected IMU range, from last updated to current sensor measurement
+  mtx.lock();
+
+  // [0] select IMU time duration: 
+  // convert sensor time into IMU time
   auto time_offset = params.msckf.do_time_C_I ? 
                      state->getEstimationValue(CAM0, EST_TIMEOFFSET)(0) : 
                      params.prior_cam.timeoffset;
   auto time_curr_sensor = buffer_time_img.front();
   auto time_prev_state = state->getTimestamp();
   auto time_curr_state = time_curr_sensor + time_offset;
-
-  //// make sure sensors data is not eariler then current state
+  // make sure sensors data is not eariler then current state
   if(time_curr_state <= time_prev_state) {
-    printf("Manger error: new image time:%f is eariler then current state time:%f, drop it now!\n",
+    printf("Manger error: new image time:%f "
+           "is eariler then current state time:%f, drop it now!\n",
+           time_curr_state, time_prev_state);
+    std::exit(EXIT_FAILURE);
+  }
+
+  // make sure IMU data asscoiated with sensor is arrived, means IMU time > current sensor time 
+  auto frame_imu = std::find_if(buffer_imu.begin(), buffer_imu.end(),
+                [&](const auto& imu){return imu.time > time_curr_state ;});
+  if(frame_imu != buffer_imu.end()) {
+    // [1] select IMU
+    selected_imu = selectImu(time_prev_state, time_curr_state);
+
+    // [2] clean buffer
+    // earse selected IMU data, leave one for interpolation
+    buffer_imu.erase(buffer_imu.begin(), frame_imu-1);  
+    // erase selected image data
+    buffer_time_img.pop();
+  }
+
+  mtx.unlock();
+
+  // [3] select tracked features
+  std::vector<std::shared_ptr<Feature>> feature_MSCKF = selectFeatures(time_curr_sensor);
+
+  // ------------------------------  Do Update ------------------------------ // 
+
+  // if no enough IMU data, just return
+  if(selected_imu.size()<1) {
+    return;
+  }
+
+  printf("do cam\n");
+  printf("    IMU:%ld\n", selected_imu.size());
+
+  //// [0] IMU Propagation
+  predictor->propagate(state, selected_imu);
+  assert(!state->foundSPD());
+
+  //// [1] State Augmentation: 
+  Eigen::Vector3d w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
+  // use Last angular velocity for cloning when estimating time offset)
+  if(params.msckf.max_clone_C > 0) {
+    // clone IMU pose, augment covariance
+    predictor->augment(CAM0, CLONE_CAM0, state, time_curr_sensor, w_I);
+  }
+
+  //// [2] Camera Feature Update
+  // feature triangulation, feature update 
+  updater->updateCam(state, feature_MSCKF);
+  
+  //! TEST: grab triangulated features:
+  // getFeaturesTest();
+
+  // clean up feature pixels that already used for update  
+  tracker->get_feature_database()->cleanupAsync(time_curr_sensor);
+
+  //// [3] Marginalization(if reach max clone): 
+  if((params.msckf.max_clone_C > 0) &&
+      (params.msckf.max_clone_C < state->getEstimationNum(CLONE_CAM0))) {
+    // remove the clone and related covarinace
+    updater->marginalize(state, CLONE_CAM0);
+    // Cleanup any features older then the marginalization time
+    tracker->get_feature_database()->cleanup_measurements(state->getMarginalizedTime(CLONE_CAM0));
+  }
+
+  // is_odom = true;
+
+}
+
+
+void MsckfManager::doDvlBT() {
+
+  // ------------------------------  Select Data ------------------------------ // 
+
+  std::vector<ImuMsg> selected_imu;
+  DvlMsg selected_dvl;
+
+  mtx.lock();
+
+  // [0] select DVL
+  selected_dvl = buffer_dvl.front();
+
+  // [1] select IMU time duration: 
+  // convert sensor time into IMU time
+  auto time_offset = params.msckf.do_time_I_D ? 
+                     state->getEstimationValue(DVL, EST_TIMEOFFSET)(0) : 
+                     params.prior_dvl.timeoffset;
+  auto time_curr_sensor = selected_dvl.time;
+  auto time_prev_state = state->getTimestamp();
+  auto time_curr_state = time_curr_sensor + time_offset;
+  // make sure sensor data is not eariler then current state
+  if(time_curr_state <= time_prev_state) {
+    printf("Manger error: DVL BT time:%f is eariler then current state time:%f, drop it now!\n",
             time_curr_state, time_prev_state);
+    std::exit(EXIT_FAILURE);
   }
 
   //// make sure IMU data asscoiated with sensor is arrived, means IMU time > current sensor time 
   auto frame_imu = std::find_if(buffer_imu.begin(), buffer_imu.end(),
                 [&](const auto& imu){return imu.time > time_curr_state ;});
   if(frame_imu != buffer_imu.end()) {
-    //// make sure we have at least 2 IMU data
+    // [2] select IMU
     selected_imu = selectImu(time_prev_state, time_curr_state);
 
-    // earse selected IMU data
-    // leave one IMU data time <= current state time, so we can interploate later
+    // [3] clean buffer
+    // erase selected IMU, but leave one for next interpolate
     buffer_imu.erase(buffer_imu.begin(), frame_imu-1);  
-
-    // erase selected image data
-    buffer_time_img.pop();
+    // erase selected dvl
+    buffer_dvl.erase(buffer_dvl.begin());
   }
 
-  buffer_mutex.unlock();
+  mtx.unlock();
 
-  /******************** imu propagation + image update ********************/
-  if(selected_imu.size()>0){
-    printf("CAM:%ld\n", selected_imu.size());
+  // ------------------------------  Do update ------------------------------ // 
 
-    //// [0] IMU Propagation
-    predictor->propagate(state, selected_imu);
-    assert(!state->foundSPD());
+  // if no enough IMU data, just return
+  if(selected_imu.size()<1) {
+    return;
+  }
+  printf("\nDVL:%ld\n", selected_imu.size());
 
-    //// [1] State Augmentation: 
-    Eigen::Vector3d w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
-    // use Last angular velocity for cloning when estimating time offset)
-    if(params.msckf.max_clone_C > 0) {
-      // clone IMU pose, augment covariance
-      predictor->augment(CAM0, CLONE_CAM0, state, time_curr_sensor, w_I);
-    }
+  // [0] IMU Propagation
+  predictor->propagate(state, selected_imu);
+  assert(!state->foundSPD());
 
-    //// [2] Camera Feature Update
-    // select features
-    std::vector<std::shared_ptr<Feature>> feature_MSCKF = selectFeatures(time_curr_sensor);
-    // feature triangulation, feature update 
-    updater->updateCam(state, feature_MSCKF);
+  // [1] State Augment: clone IMU pose, augment covariance
+  Eigen::Vector3d last_w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
+  Eigen::Vector3d last_v_D = selected_dvl.v;
+  // use Last angular velocity for cloning when estimating time offset)
+  if(params.msckf.max_clone_D > 0)
+    predictor->augmentDvl(state, time_curr_sensor, last_w_I);
 
-    //! TEST: grab triangulated features:
-    // getFeaturesTest();
+  // [2] State Update
+  updater->updateDvl(state, last_w_I, last_v_D);
+  // updater->updateDvl(state, last_w_I, last_v_D, true);
 
-    // clean up feature pixels that already used for update  
-    tracker->get_feature_database()->cleanupAsync(time_curr_sensor);
-
-    //// [3] Marginalization(if reach max clone): 
-    if((params.msckf.max_clone_C > 0) &&
-       (params.msckf.max_clone_C < state->getEstimationNum(CLONE_CAM0))) {
-      // remove the clone and related covarinace
-      updater->marginalize(state, CLONE_CAM0);
-      // Cleanup any features older then the marginalization time
-      tracker->get_feature_database()->cleanup_measurements(state->getMarginalizedTime(CLONE_CAM0));
-    }
-
-    // is_odom = true;
+  // [3] Marginalization: if reach the max clones, remove the clone and related covarinace
+  if( (params.msckf.max_clone_D > 0) &&
+      (params.msckf.max_clone_D < state->getEstimationNum(CLONE_DVL)) ) {
+    updater->marginalize(state, CLONE_DVL);
   }
 
+  is_odom = true;
+    
 }
 
-
-void MsckfManager::doVelocity() {
-
-}
-
-//! TODO: add pressure as individual sensor setup, e.g. prior information, not from DVL
-
+/** 
+ * @brief do the pressure data update for states  
+ *
+ * @details 1) interpolate velocity at pressure time; 
+ *          2) do both veloicty and position update; 
+ * 
+ * @todo add pressure as individual sensor setup, e.g. prior information, not from DVL
+ */
 void MsckfManager::doPressure() {
 
   // ------------------------------  Select Data ------------------------------ // 
@@ -399,81 +487,182 @@ void MsckfManager::doPressure() {
   PressureMsg selected_pres;
   DvlMsg selected_dvl;
 
-  buffer_mutex.lock();
+  getDataForPressure(selected_pres, selected_dvl, selected_imu);
 
-  // make sure has new DVL velocity after Pressure data 
-  // because pressure only update with velocity or interpolated velocity
-  if((buffer_dvl.size() > 0) && 
-     (buffer_pressure.front().time <= buffer_dvl.front().time)) {
+  // mtx.lock();
 
-    // select pressure sensor data
-    selected_pres = buffer_pressure.front();
+  // // make sure has new DVL velocity after Pressure data 
+  // // because pressure only update with velocity or interpolated velocity
+  // if((buffer_dvl.size() > 0) && 
+  //    (buffer_pressure.front().time <= buffer_dvl.front().time)) {
 
-    // convert sensor time into IMU time
-    auto offset = params.msckf.do_time_I_D ? 
-                  state->getEstimationValue(DVL, EST_TIMEOFFSET)(0) : 
-                  params.prior_dvl.timeoffset;
-    double time_prev_state = state->getTimestamp();
-    double time_curr_state = selected_pres.time + offset;
-    // make sure sensor data is not eariler then current state
-    if(time_curr_state <= time_prev_state) {
-      printf("Manger error: new pressure measurement time:%f" 
-             "is eariler then current state time:%f\n",
-             time_curr_state, time_prev_state);
-      std::exit(EXIT_FAILURE);
-    }
+  //   // [0] select pressure 
+  //   selected_pres = buffer_pressure.front();
 
-    //// make sure IMU data asscoiated with sensor is arrived, means IMU time > current sensor time 
-    auto frame_imu = std::find_if(buffer_imu.begin(), buffer_imu.end(),
-                  [&](const auto& imu){return imu.time > time_curr_state ;});
-    if(frame_imu != buffer_imu.end()) {
-      // select IMU
-      selected_imu = selectImu(time_prev_state, time_curr_state);
-      // select DVL
-      selected_dvl = interpolateDvl(last_dvl, buffer_dvl.front(), selected_pres.time);
+  //   // [3] select DVL
+  //   printf("last dvl t:%f\n",last_dvl.time);
+  //   printf("dvl size:%ld, front time:%f\n", buffer_dvl.size(), buffer_dvl.front().time);
+  //   printf("pressure t: %f\n",selected_pres.time);
 
-      // erase selected pressure
-      buffer_pressure.erase(buffer_pressure.begin());
-      // erase selected IMU, but leave one for next interpolate
-      buffer_imu.erase(buffer_imu.begin(), frame_imu-1);   
-      // erase selected DVL velocity, store for next interpolate
-      last_dvl = buffer_dvl.front(); 
-      buffer_dvl.erase(buffer_dvl.begin());  
-    }
-  }
+  //   selected_dvl = interpolateDvl(last_dvl, buffer_dvl.front(), selected_pres.time);
 
-  buffer_mutex.unlock();
+  //   // [1] select IMU time duration
+  //   // convert sensor time into IMU time
+  //   auto offset = params.msckf.do_time_I_D ? 
+  //                 state->getEstimationValue(DVL, EST_TIMEOFFSET)(0) : 
+  //                 params.prior_dvl.timeoffset;
+  //   double time_prev_state = state->getTimestamp();
+  //   double time_curr_state = selected_pres.time + offset;
+  //   // make sure sensor data is not eariler then current state
+  //   if(time_curr_state <= time_prev_state) {
+  //     printf("Manger error: new pressure measurement time:%f" 
+  //            "is eariler then current state time:%f\n",
+  //            time_curr_state, time_prev_state);
+  //     std::exit(EXIT_FAILURE);
+  //   }
+
+  //   // make sure IMU data asscoiated with sensor is arrived, means IMU time > current sensor time 
+  //   auto frame_imu = std::find_if(buffer_imu.begin(), buffer_imu.end(),
+  //                 [&](const auto& imu){return imu.time > time_curr_state ;});
+  //   if(frame_imu != buffer_imu.end()) {
+  //     // [2] select IMU
+  //     selected_imu = selectImu(time_prev_state, time_curr_state);
+
+  //     // [4] clean buffer
+  //     // erase selected pressure
+  //     buffer_pressure.erase(buffer_pressure.begin());
+  //     // erase selected IMU, but leave one for next interpolate
+  //     buffer_imu.erase(buffer_imu.begin(), frame_imu-1);   
+  //     // store for next interpolate, 
+  //     last_dvl = buffer_dvl.front(); 
+  //     // only erase selected DVL if velocity and pressure at same timestamp(e.g. both from DVL BT)
+  //     if(buffer_pressure.front().time == buffer_dvl.front().time) {
+  //       buffer_dvl.erase(buffer_dvl.begin());  
+  //     }
+  //   }
+  // }
+
+  // mtx.unlock();
 
   // ------------------------------  Update ------------------------------ // 
 
-  if(selected_imu.size() > 0) {
-      // [0] IMU propagation
-      predictor->propagate(state, selected_imu);
-      assert(!state->foundSPD());
+  // if no enough IMU data, just return
+  if(selected_imu.size()<1) {
+    return;
+  }
+  printf("\nPressure:%ld\n", selected_imu.size());
 
-      // [1] State Update with velocity(interpolated or same time)
-      Eigen::Vector3d last_w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
-      Eigen::Vector3d last_v_D = selected_dvl.v;
-      updater->updateDvl(state, last_w_I, last_v_D);
-      // updater->updateDvl(state, last_w_I, last_v_D, true);
+  // [0] IMU propagation
+  predictor->propagate(state, selected_imu);
+  assert(!state->foundSPD());
 
-      // [2] State Update with Pressure
-      // get the begin pressure value
-      double pres_init = state->getPressureInit();
-      double pres_curr = selected_pres.p;
-      // update
-      updater->updatePressure(state, pres_init, pres_curr, true);
+  // auto imu_value = getNewImuState();
+  // printf("imu0:q=%f,%f,%f,%f,p:%f,%f,%f\n",imu_value(0),imu_value(1),imu_value(2),imu_value(3)
+  //         ,imu_value(4),imu_value(5),imu_value(6));
 
-      is_odom = true;
+  // [1] State Update with velocity(interpolated or same time)
+  Eigen::Vector3d last_w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
+  Eigen::Vector3d last_v_D = selected_dvl.v;
+  updater->updateDvl(state, last_w_I, last_v_D);
+  // updater->updateDvl(state, last_w_I, last_v_D, true);
+
+  // std::cout<<"v_D: "<< last_v_D.transpose()<<std::endl;
+  // imu_value = getNewImuState();
+  // printf("imu1:q=%f,%f,%f,%f,p:%f,%f,%f\n",imu_value(0),imu_value(1),imu_value(2),imu_value(3)
+  //         ,imu_value(4),imu_value(5),imu_value(6));
+
+  // [2] State Update with Pressure
+  // get the begin pressure value
+  double pres_init = state->getPressureInit();
+  double pres_curr = selected_pres.p;
+  // update
+  updater->updatePressure(state, pres_init, pres_curr, true);
+
+  // is_odom = true;
+
+}
+
+/**
+ *  @brief get all the data need for pressure update, e.g. pressure, DVL BT velocity, IMU
+ * 
+ *  @param pressure: selected pressure data for this update
+ *  @param dvl: selected DVL velocity for this update, same time or interpolated
+ *  @param imus: selected a series of IMU for propagation
+ * 
+ */
+void MsckfManager::getDataForPressure(PressureMsg &pressure, DvlMsg &dvl, std::vector<ImuMsg> &imus) {
+  std::unique_lock<std::mutex> lck(mtx);
+
+  // [0] check if DVL is avaiable
+  if(buffer_dvl.size() < 0 || 
+     buffer_pressure.front().time > buffer_dvl.front().time){
+    return;
+  }
+
+  // [1] select pressure 
+  pressure = buffer_pressure.front();
+
+  // [2] select DVL: pressure inside last and next DVL
+  if(pressure.time > last_dvl.time && 
+     (pressure.time < buffer_dvl.front().time || 
+      pressure.time == buffer_dvl.front().time) ) {
+    dvl = interpolateDvl(last_dvl, buffer_dvl.front(), pressure.time);
+  }
+  else {
+    // send warning
+    printf("Manager warning: pressure interpolated failed, "
+           "last t:%f, interpoated t:%f, next t:%f, will drop this pressure\n",
+           last_dvl.time, pressure.time, buffer_dvl.front().time);
+    // delete bad pressure
+    buffer_pressure.erase(buffer_pressure.begin());
+
+    return;
+  }
+
+  // [3] select IMU time duration
+  // convert sensor time into IMU time
+  auto offset = params.msckf.do_time_I_D ? 
+                state->getEstimationValue(DVL, EST_TIMEOFFSET)(0) : 
+                params.prior_dvl.timeoffset;
+  double time_prev_state = state->getTimestamp();
+  double time_curr_state = pressure.time + offset;
+  // make sure sensor data is not eariler then current state
+  if(time_curr_state <= time_prev_state) {
+    printf("Manger error: new pressure measurement time:%f" 
+            "is eariler then current state time:%f\n",
+            time_curr_state, time_prev_state);
+    std::exit(EXIT_FAILURE);
+  }
+
+  // [4] select IMU data: make sure IMU time > current sensor time for interpolation
+  auto frame_imu = std::find_if(buffer_imu.begin(), buffer_imu.end(),
+                   [&](const auto& imu){return imu.time > time_curr_state ;});
+  if(frame_imu != buffer_imu.end()) {
+    imus = selectImu(time_prev_state, time_curr_state);
+  }
+
+  // [5] clean buffer
+  if(imus.size()>1) {
+    // erase selected pressure
+    buffer_pressure.erase(buffer_pressure.begin());
+
+    // store for next interpolate, 
+    last_dvl = buffer_dvl.front(); 
+    // only erase selected DVL if velocity and pressure at same timestamp(e.g. both from DVL BT)
+    if(buffer_pressure.front().time == buffer_dvl.front().time) {
+      buffer_dvl.erase(buffer_dvl.begin());  
+    }
+
+    // erase selected IMU, but leave one for next interpolate
+    buffer_imu.erase(buffer_imu.begin(), frame_imu-1);   
   }
 
 }
 
-
 //! TODO: DVL/pressure can still update without IMU propagation
 //!       check how many IMU inside DVL/pressure update
 
-void MsckfManager::doDVL_test() {
+void MsckfManager::doDVL() {
 
 /**************************************************/
 /**************************************************/
@@ -508,10 +697,10 @@ void MsckfManager::doDVL_test() {
   DvlMsg new_dvl;
   PressureMsg new_pres;
 
-  buffer_mutex.lock();
+  mtx.lock();
 
   if(buffer_pressure.size() > 0 && 
-     buffer_pressure.front().time < buffer_dvl.front().time &&
+    //  buffer_pressure.front().time < buffer_dvl.front().time &&
      buffer_pressure.front().time <= state->getTimestamp()){
     //// this pressure timetsamp is wrong: maybe dely by ros callback, should be process by previous velocity
 
@@ -519,9 +708,9 @@ void MsckfManager::doDVL_test() {
             buffer_pressure.front().time, state->getTimestamp());
     buffer_pressure.erase(buffer_pressure.begin());
   }
-  else if(buffer_pressure.size() > 0 && 
+  else if(buffer_pressure.size() > 0 && buffer_dvl.size() > 0 &&
           buffer_pressure.front().time < buffer_dvl.front().time){
-    // printf("do intepolated velocity-pressure \n");
+    printf("do intepolated velocity-pressure \n");
 
     //// pressure earlier then velocity: 
     ////    pressure not measure same time as velocity(CP-pressure, or individual pressure sensor)
@@ -535,9 +724,9 @@ void MsckfManager::doDVL_test() {
     // clean
     erase_pressure = true;
   }
-  else if(buffer_pressure.size() > 0 &&
+  else if(buffer_pressure.size() > 0 && buffer_dvl.size() > 0 &&
           buffer_pressure.front().time == buffer_dvl.front().time){
-    // printf("do same velocity-pressure \n");
+    printf("do same velocity-pressure \n");
 
     //// pressure same as velocity: 
     ////    pressure measure same time as velocity(CP-pressure and CP-velocity)
@@ -554,9 +743,11 @@ void MsckfManager::doDVL_test() {
     erase_pressure = true;
     erase_velocity = true;
   }
-  else if(buffer_pressure.size() == 0 ||
-          buffer_pressure.front().time > buffer_dvl.front().time){
-    // printf("do pure velocty\n");
+  else if(
+          // buffer_pressure.size() == 0 ||
+          // buffer_pressure.front().time > buffer_dvl.front().time)
+          buffer_dvl.size() > 0)  {
+    printf("do pure velocty\n");
 
     //// pure DVL update
 
@@ -569,19 +760,19 @@ void MsckfManager::doDVL_test() {
     last_dvl = buffer_dvl.front(); 
     erase_velocity = true;
   }
-  else{
-    printf("\n---------------\nDVL-BT-Velocity:\n");
-    if(buffer_dvl.size()>0){
-      for(const auto &data: buffer_dvl)
-        printf("t: %f, ", data.time);
-    }
+  // else{
+  //   printf("\n---------------\nDVL-BT-Velocity:\n");
+  //   if(buffer_dvl.size()>0){
+  //     for(const auto &data: buffer_dvl)
+  //       printf("t: %f, ", data.time);
+  //   }
 
-    printf("\nDVL-CP-Pressure:\n");
-    if(buffer_pressure.size()>0){
-      for(const auto &data: buffer_pressure)
-        printf("t: %f, ", data.time);
-    }
-  }
+  //   printf("\nDVL-CP-Pressure:\n");
+  //   if(buffer_pressure.size()>0){
+  //     for(const auto &data: buffer_pressure)
+  //       printf("t: %f, ", data.time);
+  //   }
+  // }
 
 
   //! TEST: for only IMU-Velocity MSCKF
@@ -594,7 +785,7 @@ void MsckfManager::doDVL_test() {
   // last_dvl = buffer_dvl.front(); 
   // erase_velocity = true;
 
-  buffer_mutex.unlock();
+  mtx.unlock();
 
 
   if(!do_velocity){
@@ -618,7 +809,7 @@ void MsckfManager::doDVL_test() {
             time_curr_state, time_prev_state);
   }
 
-  buffer_mutex.lock();
+  mtx.lock();
 
   //// make sure IMU data asscoiated with sensor is arrived, means IMU time > current sensor time 
   auto frame_imu = std::find_if(buffer_imu.begin(), buffer_imu.end(),
@@ -634,20 +825,21 @@ void MsckfManager::doDVL_test() {
     if(erase_pressure)
       buffer_pressure.erase(buffer_pressure.begin());
     // erase selected DVL BT velocity data
-    if(erase_velocity)
+    if(erase_velocity){
       buffer_dvl.erase(buffer_dvl.begin());
+    }
     
   }
   // else{
   //   printf("Manger warning: current IMU time:%f not > current sensor time:%f\n", buffer_imu.back().time, time_curr_state);
   // }
 
-  buffer_mutex.unlock();
+  mtx.unlock();
 
   /******************** imu propagation + velocity update + pressure update(if)********************/
 
   if(selected_imu.size()>0){
-    printf("DVL:%ld\n", selected_imu.size());
+    printf("    IMU:%ld\n\n", selected_imu.size());
 
     if(do_velocity){
 
@@ -720,7 +912,7 @@ void MsckfManager::doPressure_test() {
   PressureMsg selected_pres;
   std::vector<ImuMsg> selected_imu;
 
-  buffer_mutex.lock();
+  mtx.lock();
 
   //// select first pressure data
   selected_pres = buffer_pressure.front();
@@ -754,7 +946,7 @@ void MsckfManager::doPressure_test() {
     buffer_imu.erase(buffer_imu.begin(), frame_imu-1);      
   }
 
-  buffer_mutex.unlock();
+  mtx.unlock();
 
 
   /******************** do pressure msckf update ********************/

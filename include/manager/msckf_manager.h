@@ -57,41 +57,41 @@ public:
   double getTime() {return state->getTimestamp(); }
 
   bool checkTrackedImg() {
-    buffer_mutex.unlock();
+    std::unique_lock<std::mutex> lck(mtx);
+
     int size = tracked_img.size();
-    buffer_mutex.unlock();
 
     return size > 0 ? true : false;
   }
 
   ImageMsg getTrackedImg() {
-    buffer_mutex.unlock();
+    std::unique_lock<std::mutex> lck(mtx);
+
     ImageMsg img = tracked_img.front();
     tracked_img.pop();
-    buffer_mutex.unlock();
 
     return img;
   }
 
 private:
 
+  void doDVL();
 
-  void doDVL_test();
-
-  void doPressure_test();
-
-  
-  void doVelocity();
+  void doDvlBT();
 
   void doPressure();
 
   void doCamera();
+
+  void doPressure_test();
 
   SensorName selectUpdateSensor();
 
   std::vector<ImuMsg> selectImu(double t_begin, double t_end);
 
   std::vector<std::shared_ptr<Feature>> selectFeatures(const double time_curr);
+
+  void getDataForPressure(PressureMsg &pressure, DvlMsg &dvl, std::vector<ImuMsg> &imus);
 
   std::vector<ImuMsg> buffer_imu;
   
@@ -102,7 +102,7 @@ private:
 
   DvlMsg last_dvl; 
   
-  std::mutex buffer_mutex;
+  std::mutex mtx;
 
   std::shared_ptr<State> state;
 

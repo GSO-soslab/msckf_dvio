@@ -130,10 +130,8 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I
 
   Eigen::MatrixXd K_transpose = S.ldlt().solve(H * state->cov_);
   Eigen::MatrixXd K = K_transpose.transpose();
-
   // std::cout<<"H: "<< H<<std::endl;
   // std::cout<<"K: "<< K<<std::endl;
-  // std::cout<<"delta X: "<< delta_X.transpose()<<std::endl;
 
   /********************************************************************************/
   /*************************** Update state and covariance ************************/
@@ -142,6 +140,9 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I
   Eigen::Vector3d v_D_hat = temp_1 * temp_3;
   Eigen::Vector3d r = v_D - v_D_hat;
   Eigen::VectorXd delta_X = K * r;
+  // std::cout<<"v_D: "<<v_D.transpose()<<std::endl;
+  // std::cout<<"v_D_hat: "<<v_D_hat.transpose()<<std::endl;
+  // std::cout<<"delta X: "<< delta_X.transpose()<<std::endl;
 
   state->updateState(delta_X);
 
