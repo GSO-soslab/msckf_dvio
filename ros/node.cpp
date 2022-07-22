@@ -317,6 +317,7 @@ void RosNode::process() {
       // Hamilton x: -0.170721 y: 0.982622 z: -0.051178 w: 0.0518503
 
       //// publish odometry
+
       // NOTE: since we use JPL we have an implicit conversion to Hamilton when we publish
       // NOTE: a rotation from GtoI in JPL has the same xyzw as a ItoG Hamilton rotation
       nav_msgs::Odometry msg_odom;
@@ -337,21 +338,46 @@ void RosNode::process() {
 
       pub_odom.publish(msg_odom);
 
-      // Publish odometry TF
+      //// Publish odometry TF
 
-      // R_O_B = R_B_A^T * R_O_A
-      // p_O_B = R_B_A^T * (p_O_A - p_B_A)
+      // transformation between Base frame and AHRS frame
+      tf::Quaternion q_B_A;
+      q_B_A.setRPY( 3.132, 0.003, 3.130);
+      tf::Vector3 p_B_A(0.295, 0.083, 0.090);
 
-      tf::StampedTransform trans;
-      trans.stamp_ = ros::Time::now();
-      trans.frame_id_ = "odom";
-      trans.child_frame_id_ = "ahrs";
+      tf::Transform T_B_A;
+      T_B_A.setRotation(q_B_A);
+      T_B_A.setOrigin(p_B_A);
+
+
+      // transfomration between Odometry frame and AHRS frame
       tf::Quaternion quat(msg_odom.pose.pose.orientation.x, msg_odom.pose.pose.orientation.y, 
                           msg_odom.pose.pose.orientation.z, msg_odom.pose.pose.orientation.w);
-      trans.setRotation(quat);
-      tf::Vector3 orig(imu_value(4), imu_value(5), imu_value(6));
-      trans.setOrigin(orig);
-      odom_broadcaster->sendTransform(trans);
+      tf::Matrix3x3 m(quat);
+      tf::Vector3 orig(msg_odom.pose.pose.position.x, 
+                       msg_odom.pose.pose.position.y, 
+                       msg_odom.pose.pose.position.z);
+      // tf::Transform T_O_A(m.inverse(), orig);
+      tf::Transform T_O_A;
+      T_O_A.setRotation(quat);
+      T_O_A.setOrigin(orig);
+
+      // transformation between Odometry frame and Base frame
+      tf::Transform T_O_B;
+      T_O_B = T_B_A.inverse() * T_O_A;
+      odom_broadcaster->sendTransform(tf::StampedTransform(
+        T_O_B, ros::Time::now(), "odom", "base_link"));
+
+      // tf::StampedTransform trans;
+      // trans.stamp_ = ros::Time::now();
+      // trans.frame_id_ = "odom";
+      // trans.child_frame_id_ = "ahrs";
+      // tf::Quaternion quat(msg_odom.pose.pose.orientation.x, msg_odom.pose.pose.orientation.y, 
+      //                     msg_odom.pose.pose.orientation.z, msg_odom.pose.pose.orientation.w);
+      // trans.setRotation(quat);
+      // tf::Vector3 orig(imu_value(4), imu_value(5), imu_value(6));
+      // trans.setOrigin(orig);
+      // odom_broadcaster->sendTransform(trans);
 
       //// Publish path
       geometry_msgs::PoseStamped pose;
