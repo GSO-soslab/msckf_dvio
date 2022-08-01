@@ -7,12 +7,13 @@ namespace msckf_dvio
 
 RosNode::RosNode(const ros::NodeHandle &nh,
                  const ros::NodeHandle &nh_private) :
-  nh_(nh), nh_private_(nh_private), it_(nh)
+  nh_(nh), nh_private_(nh_private)
 {
   // get parameters and feed to manager system
   parameters = loadParameters();
 
   manager = std::make_shared<MsckfManager>(parameters);
+  visualizer = std::make_shared<RosVisualizer>(nh, manager);
 
   // ROS related
   sub_imu = nh_.subscribe("imu", 2000, &RosNode::imuCallback, this);
@@ -22,15 +23,9 @@ RosNode::RosNode(const ros::NodeHandle &nh,
   sub_pointcloud = nh_.subscribe("pointcloud", 100, &RosNode::pointcloudCallback, this);
 
   //! TEST:
-  pub_odom = nh_.advertise<nav_msgs::Odometry>("/odom", 10);
-  pub_path = nh_.advertise<nav_msgs::Path>("/path", 10);  
+  pub_features = nh_.advertise<sensor_msgs::PointCloud2>("/feature_clouds", 10);  
 
   service_ = nh_.advertiseService("cmd",&RosNode::srvCallback, this);
-
-  odom_broadcaster = new tf::TransformBroadcaster();
-
-  pub_img_1 = it_.advertise("/tracked_img1", 20);
-
 }    
 
 Params RosNode::loadParameters() {
@@ -289,120 +284,7 @@ void RosNode::process() {
     // do the ekf stuff
     manager->backend();
 
-    //! TODO: move this to visulization manager
-    // get imu state to publish 
-    if(manager->isOdom()) {
-
-      auto imu_value = manager->getNewImuState();
-      auto time = manager->getTime();
-      manager->resetOdom();
-
-      //! TEST:
-      //// JPL form
-      // Eigen::Vector4d q_JPL_I_G;
-      // q_JPL_I_G << imu_value(0), imu_value(1), imu_value(2), imu_value(3);
-      // Eigen::Matrix3d R_I_G = toRotationMatrix(q_JPL_I_G);
-      // std::cout<<"JPL x: "<<q_JPL_I_G(0)<<" y: "<< q_JPL_I_G(1)<< " z: "<<q_JPL_I_G(2)<< " w: "<< q_JPL_I_G(3)<<std::endl;
-      //// Hamilton form
-      // Eigen::Matrix3d R_G_I = R_I_G.transpose();
-      // Eigen::Quaterniond q_Ham_G_I(R_G_I);
-      // q_Ham_G_I.normalize();
-      // std::cout<<"Hamilton x: "<<q_Ham_G_I.x()<<" y: "<<q_Ham_G_I.y()<<" z: "<<q_Ham_G_I.z()<<" w: "<<q_Ham_G_I.w()<<std::endl;
-
-      //// start:
-      // JPL x: -0.992789 y: 0.0683307 z: 0.0790672 w: 0.0587278
-      // Hamilton x: 0.992789 y: -0.0683307 z: -0.0790672 w: -0.0587278
-      //// after turning round, it's wrong ???
-      // JPL x: -0.170721 y: 0.982622 z: -0.051178 w: 0.0518503
-      // Hamilton x: -0.170721 y: 0.982622 z: -0.051178 w: 0.0518503
-
-      //// publish odometry
-
-      // NOTE: since we use JPL we have an implicit conversion to Hamilton when we publish
-      // NOTE: a rotation from GtoI in JPL has the same xyzw as a ItoG Hamilton rotation
-      nav_msgs::Odometry msg_odom;
-      msg_odom.header.stamp = ros::Time(time);
-      msg_odom.header.frame_id = "odom";
-      msg_odom.child_frame_id = "ahrs";
-      msg_odom.pose.pose.orientation.x = imu_value(0);
-      msg_odom.pose.pose.orientation.y = imu_value(1);
-      msg_odom.pose.pose.orientation.z = imu_value(2);
-      msg_odom.pose.pose.orientation.w = imu_value(3);
-      msg_odom.pose.pose.position.x    = imu_value(4);
-      msg_odom.pose.pose.position.y    = imu_value(5);
-      msg_odom.pose.pose.position.z    = imu_value(6);
-      msg_odom.twist.twist.linear.x    = imu_value(7);
-      msg_odom.twist.twist.linear.y    = imu_value(8);
-      msg_odom.twist.twist.linear.z    = imu_value(9);
-
-
-      pub_odom.publish(msg_odom);
-
-      //// Publish odometry TF
-
-      // transformation between Base frame and AHRS frame
-      tf::Quaternion q_B_A;
-      q_B_A.setRPY( 3.132, 0.003, 3.130);
-      tf::Vector3 p_B_A(0.295, 0.083, 0.090);
-
-      tf::Transform T_B_A;
-      T_B_A.setRotation(q_B_A);
-      T_B_A.setOrigin(p_B_A);
-
-
-      // transfomration between Odometry frame and AHRS frame
-      tf::Quaternion quat(msg_odom.pose.pose.orientation.x, msg_odom.pose.pose.orientation.y, 
-                          msg_odom.pose.pose.orientation.z, msg_odom.pose.pose.orientation.w);
-      tf::Matrix3x3 m(quat);
-      tf::Vector3 orig(msg_odom.pose.pose.position.x, 
-                       msg_odom.pose.pose.position.y, 
-                       msg_odom.pose.pose.position.z);
-      // tf::Transform T_O_A(m.inverse(), orig);
-      tf::Transform T_O_A;
-      T_O_A.setRotation(quat);
-      T_O_A.setOrigin(orig);
-
-      // transformation between Odometry frame and Base frame
-      tf::Transform T_O_B;
-      T_O_B = T_B_A.inverse() * T_O_A;
-      odom_broadcaster->sendTransform(tf::StampedTransform(
-        T_O_B, ros::Time::now(), "odom", "base_link"));
-
-      // tf::StampedTransform trans;
-      // trans.stamp_ = ros::Time::now();
-      // trans.frame_id_ = "odom";
-      // trans.child_frame_id_ = "ahrs";
-      // tf::Quaternion quat(msg_odom.pose.pose.orientation.x, msg_odom.pose.pose.orientation.y, 
-      //                     msg_odom.pose.pose.orientation.z, msg_odom.pose.pose.orientation.w);
-      // trans.setRotation(quat);
-      // tf::Vector3 orig(imu_value(4), imu_value(5), imu_value(6));
-      // trans.setOrigin(orig);
-      // odom_broadcaster->sendTransform(trans);
-
-      //// Publish path
-      geometry_msgs::PoseStamped pose;
-
-      pose.header.frame_id = msg_odom.header.frame_id;
-      pose.header.stamp = msg_odom.header.stamp;
-      pose.pose = msg_odom.pose.pose;
-
-      path.header.frame_id = msg_odom.header.frame_id;
-      path.header.stamp = msg_odom.header.stamp;
-      path.poses.push_back(pose);
-
-      pub_path.publish(path);
-    }
-
-    // visualize tracked features
-    if(manager->checkTrackedImg()) {
-      ImageMsg img = manager->getTrackedImg();
-
-      std_msgs::Header header;
-      header.frame_id = "img";
-      header.stamp = ros::Time(img.time);
-      sensor_msgs::ImagePtr msg_img = cv_bridge::CvImage(header, "bgr8", img.image).toImageMsg();
-      pub_img_1.publish(msg_img);
-    }
+    visualizer->visualize();
 
     std::chrono::milliseconds dura(sleep_t);
     std::this_thread::sleep_for(dura);
@@ -428,7 +310,7 @@ int main(int argc, char **argv) {
 
   ros::spin();
 
-  // backendThread.join();
+  backendThread.join();
 
   return 0;
 }

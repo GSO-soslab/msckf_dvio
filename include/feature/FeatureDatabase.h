@@ -338,8 +338,37 @@ public:
   void cleanup_measurements(double timestamp) {
     std::unique_lock<std::mutex> lck(mtx);
     for (auto it = features_idlookup.begin(); it != features_idlookup.end();) {
+
       // Remove the older measurements
       (*it).second->clean_older_measurements(timestamp);
+
+      // for (auto const &pair : (*it).second->timestamps) {
+
+      //   // Assert that we have all the parts of a measurement
+      //   assert((*it).second->timestamps[pair.first].size() == 
+      //     (*it).second->uvs[pair.first].size());
+      //   assert((*it).second->timestamps[pair.first].size() == 
+      //     (*it).second->uvs_norm[pair.first].size());
+
+      //   // Our iterators
+      //   auto it1 = (*it).second->timestamps[pair.first].begin();
+      //   auto it2 = (*it).second->uvs[pair.first].begin();
+      //   auto it3 = (*it).second->uvs_norm[pair.first].begin();
+
+      //   // Loop through measurement times, remove ones that are older then the specified one
+      //   while (it1 != (*it).second->timestamps[pair.first].end()) {
+      //     if (*it1 <= timestamp) {
+      //       it1 = (*it).second->timestamps[pair.first].erase(it1);
+      //       it2 = (*it).second->uvs[pair.first].erase(it2);
+      //       it3 = (*it).second->uvs_norm[pair.first].erase(it3);
+      //     } else {
+      //       ++it1;
+      //       ++it2;
+      //       ++it3;
+      //     }
+      //   }
+      // }
+
       // Count how many measurements
       int ct_meas = 0;
       for (const auto &pair : (*it).second->timestamps) {
@@ -443,6 +472,18 @@ public:
       }
     }
     // std::cout << "feat db = " << sizebefore << " -> " << (int)features_idlookup.size() << std::endl;
+  }
+
+
+  bool checkFeatureTest(size_t id) {
+    std::unique_lock<std::mutex> lck(mtx);
+
+    bool found = false;
+    if(features_idlookup.find(id) != features_idlookup.end()){
+      found = true;
+    }
+
+    return found;
   }
 
 protected:

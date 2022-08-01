@@ -21,7 +21,7 @@ from nav_msgs.msg import Odometry
 
 # command:
 # python3 /home/lin/develop/ros/soslab_ws/src/slam/msckf_dvio/test/scripts/align_metashape_odom.py \
-# output.bag glrc_3_13_odom_compare_test1.bag -v 
+# output.bag glrc_3_13_truth_msckf_init_time.bag -v 
 
 
 def main():
@@ -95,52 +95,53 @@ def main():
                         [cam_msg[i].pose.pose.position.y],
                         [cam_msg[i].pose.pose.position.z]])
 
-    ### tranform to camera init frame
+    ### transformation between Camera Init frame and Camera frame
 
     # R_Ci_Cn = R_C0_Ci^T * R_C0_Cn
     R_Ci_Cn = np.matmul(inv(R_C0_Ci),R_C0_Cn)
     # p_Ci_Cn = R_C0_Ci^T * (p_C0_Cn - p_C0_Ci)
     p_Ci_Cn = np.matmul(inv(R_C0_Ci),p_C0_Cn-p_C0_Ci)
 
+    T_Ci_Cn = np.identity(4)
+    T_Ci_Cn[0:3,0:3] = R_Ci_Cn
+    T_Ci_Cn[0:3,3:4] = p_Ci_Cn
+    
+    ### transfromation between Odometry frame and IMU frame
+    # T_O_In = T_O_Ii * T_Ii_Ci * T_Ci_Cn * T_Cn_In
+    T_Ii_O =np.array([[0.999487,0.000000,-0.032023, 0.0],
+                      [-0.003259,-0.994808,-0.101722, 0.0],
+                      [-0.031856,0.101774,-0.994297, 0.0],
+                      [0,0,0,1]])
+    T_C_I = np.array([[0.00786236726823823, 0.9999532121420647,   0.0056353090162310805, -0.1232206727449017],
+                      [0.9999681294260654, -0.00785441912633285, -0.0014311646745676972, -0.310185995908388],
+                      [-0.0013868356345183388, 0.005646381757991208,-0.9999830973871349, -0.27812151547998104],
+                      [0,0,0,1]])
 
-    ### transform to IMU frame
-
-    R_Ci_Ii = np.array([[0.00786236726823823, 0.9999532121420647,   0.0056353090162310805],
-                        [0.9999681294260654, -0.00785441912633285, -0.0014311646745676972],
-                        [-0.0013868356345183388, 0.005646381757991208,-0.9999830973871349]])
-    p_Ci_Ii = np.array([[-0.1232206727449017],
-                        [-0.310185995908388],
-                        [-0.27812151547998104]])
-
-    # R_Ii_Cn = R_Ci_Ii^T * R_Ci_Cn
-    R_Ii_Cn = np.matmul(inv(R_Ci_Ii),R_Ci_Cn)
-
-    # p_Ii_Cn = R_Ci_Ii^T * (p_Ci_Cn - p_Ci_Ii)
-    p_Ii_Cn = np.matmul(inv(R_Ci_Ii),p_Ci_Cn-p_Ci_Ii)
+    temp1 = np.dot(inv(T_Ii_O), inv(T_C_I))
+    temp2 = np.dot(temp1, T_Ci_Cn)
+    T_O_In = np.dot(temp2, T_C_I)
 
     ### convert into ROS/Odometry msg
     
     msg = Odometry()
     msg.header.frame_id = "odom"
     msg.header.stamp = cam_msg[i].header.stamp
-    msg.child_frame_id = "cam"
-    msg.pose.pose.position.x = p_Ii_Cn[0][0]
-    msg.pose.pose.position.y = p_Ii_Cn[1][0]
-    msg.pose.pose.position.z = p_Ii_Cn[2][0]
+    msg.child_frame_id = "imu"
+    msg.pose.pose.position.x = T_O_In[0][3]
+    msg.pose.pose.position.y = T_O_In[1][3]
+    msg.pose.pose.position.z = T_O_In[2][3]
     # tf bug, it require T-SE(3), but only use R-SO(3)
-    T_Ci_Ii = np.identity(4)
-    T_Ci_Ii[0:3,0:3] = R_Ii_Cn
-    q = tf.transformations.quaternion_from_matrix(T_Ci_Ii)
+    q = tf.transformations.quaternion_from_matrix(T_O_In)
     msg.pose.pose.orientation.x = q[0]
     msg.pose.pose.orientation.y = q[1]
     msg.pose.pose.orientation.z = q[2]
     msg.pose.pose.orientation.w = q[3]
 
     # write into rosbag 
-    outbag.write("/test_odom", msg, msg.header.stamp)
+    outbag.write("/metashape_odom", msg, msg.header.stamp)
 
 
-    # if i==1:
+    # if i==0:
     #   break
   outbag.close()
   print("finsih save rosbag!")

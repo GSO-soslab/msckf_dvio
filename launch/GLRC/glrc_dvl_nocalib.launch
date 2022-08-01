@@ -3,9 +3,9 @@
   <param name="/use_sim_time" value="true"/>
 
   <!-- play the dataset -->
-  <arg name="bag_start" default="0" /> 
+  <!-- <arg name="bag_start" default="0" /> 
   <arg name="bag" default="/home/lin/develop/data/underIce/GLRC/day_3_13/40m_servo60_noLED_noAR_LowFeq10m_remapDVL.bag" />
-  <node pkg="rosbag" type="play" name="rosbag" args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)" required="true"/>
+  <node pkg="rosbag" type="play" name="rosbag" args="-1-pause -1-clock -d 1 -s $(arg bag_start) $(arg bag)" required="true"/> -->
 
   <!-- DVL Helper: convert DVL raw data to navigation data type -->
   <node name="dvl_helper_node" pkg="msckf_dvio" type="dvl_helper_node" output="screen" >
@@ -54,7 +54,7 @@
   <!-- build with flag: -DCMAKE=debug -->
   <!-- add to roslaunch: launch-prefix="gdb -ex run -1-args" -->
   <!-- type: bt -->
-  <node name="dvio_node" pkg="msckf_dvio" type="dvio_node" output="screen" >
+  <node name="dvio_node" pkg="msckf_dvio" type="dvio_node" output="screen">
       <rosparam command="load" file="$(arg prior_yaml)"/>
       <rosparam command="load" file="$(arg system_yaml)"/>
       <rosparam command="load" file="$(arg image_yaml)"/>

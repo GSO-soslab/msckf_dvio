@@ -28,6 +28,8 @@ public:
 
   void updateCam(std::shared_ptr<State> state, std::vector<std::shared_ptr<Feature>> &features);
 
+  void updateCamTest(std::shared_ptr<State> state, std::vector<Feature> &features);
+  
 private:
   priorDvl prior_dvl_;
 

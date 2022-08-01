@@ -12,6 +12,7 @@
 #include <fstream>
 #include <queue>
 #include <limits>
+#include <chrono>
 // customized
 #include "types/type_all.h"
 
@@ -46,32 +47,26 @@ public:
 
   bool isInitialized() { return initializer->isInit(); }
 
+  std::shared_ptr<State> getState() { return state; }
+
+  std::shared_ptr<TrackBase> getTracker() { return tracker; }
+
+  std::vector<Eigen::Vector3d> getFeatures() { return trig_feat; }
+
+  void cleanFeatures() { trig_feat.clear(); }
+
   //! TODO: just for test, better handling in visulization_manager
-  //! 
-  bool isOdom() { return is_odom; }
 
-  void resetOdom() { is_odom = false;}
+  void setFeaturesTest1(std::vector<std::shared_ptr<Feature>> &features);
+  void setFeaturesTest2(std::vector<Feature> &features);
 
-  Eigen::VectorXd getNewImuState() {return state->getImuValue(); }
+  void getFeaturesTest(std::vector<Eigen::Vector3d> &out_trig_feat);
 
-  double getTime() {return state->getTimestamp(); }
+  std::vector<Eigen::Vector3d> getFeaturesTest1();
 
-  bool checkTrackedImg() {
-    std::unique_lock<std::mutex> lck(mtx);
 
-    int size = tracked_img.size();
 
-    return size > 0 ? true : false;
-  }
-
-  ImageMsg getTrackedImg() {
-    std::unique_lock<std::mutex> lck(mtx);
-
-    ImageMsg img = tracked_img.front();
-    tracked_img.pop();
-
-    return img;
-  }
+  bool isFeature() {return is_feat; }
 
 private:
 
@@ -90,6 +85,8 @@ private:
   std::vector<ImuMsg> selectImu(double t_begin, double t_end);
 
   std::vector<std::shared_ptr<Feature>> selectFeatures(const double time_curr);
+
+  std::vector<Feature> selectFeaturesTest(const double time_curr);
 
   void getDataForPressure(PressureMsg &pressure, DvlMsg &dvl, std::vector<ImuMsg> &imus);
 
@@ -119,11 +116,13 @@ private:
   Params params;
 
   //! TEST: 
-  int exe_counts=0;
-  std::atomic<bool> is_odom;
+  
   const char *file_path="/home/lin/develop/ros/soslab_ws/src/slam/msckf_dvio/test_result/msckf_data.dat";
 
-  std::queue<ImageMsg> tracked_img;
+  // get triangulated feature position
+  std::atomic<bool> is_feat;
+  std::vector<Eigen::Vector3d> trig_feat;
+
 };
 
 } // namespace msckf_dvio

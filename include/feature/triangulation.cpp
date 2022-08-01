@@ -66,6 +66,10 @@ bool FeatureTriangulation::single_triangulation(
   for(size_t i=0; i<feature->timestamps.at(0).size(); i++) {
 
     // get camera transform based on feature timestamp
+    // printf("T_G_C s: %ld, feature s:%ld, i:%ld, t:%f\n",
+    //        T_G_C.size(), feature->timestamps.at(0).size(), i, feature->timestamps.at(0).at(i));
+    // std::cout<<"T: \n"<<T_G_C.at(feature->timestamps.at(0).at(i))<<std::endl;
+
     const Eigen::Matrix<double, 3, 3> &R_G_Ci = 
         T_G_C.at(feature->timestamps.at(0).at(i)).block(0,0,3,3);
     const Eigen::Matrix<double, 3, 1> &p_G_Ci = 
@@ -98,7 +102,7 @@ bool FeatureTriangulation::single_triangulation(
   Eigen::Vector3d singular = svd.singularValues();
   double condA = singular(0) / singular(singular.rows() - 1);
   // printf("singular: %f,%f,%f\n", singular(0),singular(1),singular(2));
-  printf("conA:%f\n", condA);
+  // printf("conA:%f\n", condA);
 
   // If we have a bad condition number, or it is too close
   // Then set the flag for bad (i.e. set z-axis to nan)
@@ -111,7 +115,7 @@ bool FeatureTriangulation::single_triangulation(
   feature->p_FinA = p_A_F;
   feature->p_FinG = R_A_G.transpose() * feature->p_FinA + p_G_A;
 
-  // printf("tri 1: x:%f,y:%f,z:%f\n", p_A_F(0), p_A_F(1), p_A_F(2) );
+  // printf("tri 1: x:%f,y:%f,z:%f\n", feature->p_FinG(0), feature->p_FinG(1), feature->p_FinG(2) );
 
   return true;
   
@@ -289,7 +293,8 @@ bool FeatureTriangulation::single_gaussnewton(
 
   feature->p_FinG = R_A_G.transpose() * feature->p_FinA + p_G_A;
 
-  printf("tri 2 : x:%f,y:%f,z:%f\n", feature->p_FinG(0), feature->p_FinG(1), feature->p_FinG(2) );
+  // printf("tri 2 : x:%f,y:%f,z:%f, base:%f\n", 
+  //   feature->p_FinG(0), feature->p_FinG(1), feature->p_FinG(2), feature->p_FinA.norm() / base_line_max);
 
   return true;
 }

@@ -10,6 +10,10 @@
 #include <std_srvs/Trigger.h>
 #include <tf/transform_broadcaster.h>
 
+#include <message_filters/subscriber.h>
+#include <message_filters/time_synchronizer.h>
+#include <message_filters/sync_policies/approximate_time.h>
+
 // opencv
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -26,6 +30,14 @@ public:
                  const ros::NodeHandle &nh_private) 
     : nh_(nh), nh_private_(nh_private)
     {
+
+        // sync stereo images
+        sync_left.subscribe(nh_, "/image_left", 20);
+        sync_right.subscribe(nh_, "/image_right", 20);
+        sync_.reset(new Sync(MySyncPolicy(10), sync_left, sync_right));
+        sync_->registerCallback(boost::bind(&TestDataNode::stereoCallback, this, _1, _2));
+
+        // sub individual sensors
         sub_img = nh_.subscribe("/image", 1, &TestDataNode::imgCallback, this);
         sub_cloud = nh_.subscribe("/cloud", 1, &TestDataNode::cloudCallback, this);
         sub_odom = nh_.subscribe("/odom", 1, &TestDataNode::odomCallback, this);
@@ -37,9 +49,13 @@ public:
 
         // parameters
         nh_private_.param<std::string>("img_path", img_path, "/home/lin/Desktop/");
+        nh_private_.param<double>("save_duration", save_duration, -1.0);
+        
     }
 
     ~TestDataNode() {}
+
+    void stereoCallback(const sensor_msgs::Image::ConstPtr& msg_left, const sensor_msgs::Image::ConstPtr& msg_right);
 
     void imgCallback(const sensor_msgs::Image::ConstPtr& msg);
 
@@ -57,6 +73,13 @@ private:
     ros::NodeHandle nh_;
     ros::NodeHandle nh_private_;
 
+    // publish error
+    message_filters::Subscriber<sensor_msgs::Image> sync_left;
+    message_filters::Subscriber<sensor_msgs::Image> sync_right;
+    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image> MySyncPolicy;
+    typedef message_filters::Synchronizer<MySyncPolicy> Sync;
+    boost::shared_ptr<Sync> sync_;
+
     ros::Subscriber sub_img;
     ros::Subscriber sub_cloud;
     ros::Subscriber sub_odom;
@@ -73,6 +96,7 @@ private:
 
     // parameters
     std::string img_path;
+    double save_duration;
 
     // save for multi-sensor purpose
     std::atomic<bool> save{false};
@@ -83,6 +107,7 @@ private:
     double last_img_t = 0;
     int count_img = 0;
 };
+
 
 bool TestDataNode::srvImgCallback(std_srvs::Trigger::Request  &req, std_srvs::Trigger::Response &res) {
   res.success = true;
@@ -109,22 +134,29 @@ bool TestDataNode::srvCallback(std_srvs::Trigger::Request  &req, std_srvs::Trigg
   return true;
 }
 
-void TestDataNode::imgCallback(const sensor_msgs::Image::ConstPtr& msg) {
 
-    buffer_mutex.lock();
-
-    buffer_image.emplace_back(msg);
-
-    // save individual 
-    if (msg->header.stamp.toSec() - last_img_t > 1.0 && save_img){
-      // set global values
-      last_img_t = msg->header.stamp.toSec();
+void TestDataNode::stereoCallback(const sensor_msgs::Image::ConstPtr& msg_left, 
+                                  const sensor_msgs::Image::ConstPtr& msg_right) {
+  // save data based on given time duration 
+  if(save_duration!=-1 && save_duration >0 && save_img){
+    if (msg_right->header.stamp.toSec() - last_img_t > save_duration ){
+      // get timestamp
+      last_img_t = msg_right->header.stamp.toSec();
       count_img++;
 
       // convert ros to opencv format
-      cv_bridge::CvImagePtr cv_ptr;
+      cv_bridge::CvImagePtr cv_ptr0;
       try{
-          cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
+          cv_ptr0 = cv_bridge::toCvCopy(msg_left, sensor_msgs::image_encodings::BGR8);
+      }
+      catch (cv_bridge::Exception& e){
+          ROS_ERROR("cv_bridge exception: %s", e.what());
+          return;
+      }
+
+      cv_bridge::CvImagePtr cv_ptr1;
+      try{
+          cv_ptr1 = cv_bridge::toCvCopy(msg_right, sensor_msgs::image_encodings::BGR8);
       }
       catch (cv_bridge::Exception& e){
           ROS_ERROR("cv_bridge exception: %s", e.what());
@@ -132,22 +164,129 @@ void TestDataNode::imgCallback(const sensor_msgs::Image::ConstPtr& msg) {
       }
 
       // save image
-      std::string saved_path = img_path + std::to_string(last_img_t)  + ".jpg";
-      bool check = cv::imwrite(saved_path, cv_ptr->image);
-      if(check){
-        printf("Saved: %s,t:%lf,count:%d\n", saved_path.c_str(), last_img_t, count_img);
+      std::string saved_path_left = img_path + "left/" + std::to_string(last_img_t)  + ".jpg";
+      std::string saved_path_right = img_path + "right/" + std::to_string(last_img_t)  + ".jpg";
+
+      bool check0 = cv::imwrite(saved_path_left, cv_ptr0->image);
+      bool check1 = cv::imwrite(saved_path_right, cv_ptr1->image);
+
+      if(check0 && check1){
+        printf("Saved: t:%lf,count:%d\n", last_img_t, count_img);
       }
       else{
         printf("save failed!\n");
       }
     }
+  }         
 
+  // save all data
+  if(save_duration ==-1 && save_img){
+    // get timestamp
+    last_img_t = msg_right->header.stamp.toSec();
+    count_img++;
 
-    // erase for buffer overflow
-    if(buffer_image.size()>100)
-        buffer_image.erase(buffer_image.begin());
+    // convert ros to opencv format
+    cv_bridge::CvImagePtr cv_ptr0;
+    try{
+        cv_ptr0 = cv_bridge::toCvCopy(msg_left, sensor_msgs::image_encodings::BGR8);
+    }
+    catch (cv_bridge::Exception& e){
+        ROS_ERROR("cv_bridge exception: %s", e.what());
+        return;
+    }
 
-    buffer_mutex.unlock();
+    cv_bridge::CvImagePtr cv_ptr1;
+    try{
+        cv_ptr1 = cv_bridge::toCvCopy(msg_right, sensor_msgs::image_encodings::BGR8);
+    }
+    catch (cv_bridge::Exception& e){
+        ROS_ERROR("cv_bridge exception: %s", e.what());
+        return;
+    }
+
+    // save image
+    std::string saved_path_left = img_path + "left/" + std::to_string(last_img_t)  + ".jpg";
+    std::string saved_path_right = img_path + "right/" + std::to_string(last_img_t)  + ".jpg";
+
+    bool check0 = cv::imwrite(saved_path_left, cv_ptr0->image);
+    bool check1 = cv::imwrite(saved_path_right, cv_ptr1->image);
+
+    if(check0 && check1){
+      printf("Saved stereo: t:%lf,count:%d\n", last_img_t, count_img);
+    }
+    else{
+      printf("save failed!\n");
+    }
+  }  
+
+}
+
+void TestDataNode::imgCallback(const sensor_msgs::Image::ConstPtr& msg) {
+//     buffer_mutex.lock();
+
+//     buffer_image.emplace_back(msg);
+
+//     // save data based on given time duration 
+//     if(save_duration!=-1 && save_duration >0 && save_img){
+//       if (msg->header.stamp.toSec() - last_img_t > save_duration ){
+//         // set global values
+//         last_img_t = msg->header.stamp.toSec();
+//         count_img++;
+
+//         // convert ros to opencv format
+//         cv_bridge::CvImagePtr cv_ptr;
+//         try{
+//             cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
+//         }
+//         catch (cv_bridge::Exception& e){
+//             ROS_ERROR("cv_bridge exception: %s", e.what());
+//             return;
+//         }
+
+//         // save image
+//         std::string saved_path = img_path + std::to_string(last_img_t)  + ".jpg";
+//         bool check = cv::imwrite(saved_path, cv_ptr->image);
+//         if(check){
+//           printf("Saved: %s,t:%lf,count:%d\n", saved_path.c_str(), last_img_t, count_img);
+//         }
+//         else{
+//           printf("save failed!\n");
+//         }
+//       }
+//     }
+
+//     // save all the data
+//     if(save_duration == -1.0 && save_img) {
+//       // convert ros to opencv format
+//       cv_bridge::CvImagePtr cv_ptr;
+//       try{
+//           cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
+//       }
+//       catch (cv_bridge::Exception& e){
+//           ROS_ERROR("cv_bridge exception: %s", e.what());
+//           return;
+//       }
+
+//       last_img_t = msg->header.stamp.toSec();
+//       count_img++;
+
+//       // save image
+//       std::string saved_path = img_path + std::to_string(last_img_t)  + ".jpg";
+//       bool check = cv::imwrite(saved_path, cv_ptr->image);
+//       if(check){
+//         printf("Saved: %s,t:%lf,count:%d\n", saved_path.c_str(), last_img_t, count_img);
+//       }
+//       else{
+//         printf("save failed!\n");
+//       }
+
+//     }
+
+//     // erase for buffer overflow
+//     if(buffer_image.size()>100)
+//         buffer_image.erase(buffer_image.begin());
+
+//     buffer_mutex.unlock();
 }
 
 void TestDataNode::cloudCallback(const sensor_msgs::PointCloud2::ConstPtr &msg){

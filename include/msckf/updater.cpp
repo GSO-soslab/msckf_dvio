@@ -485,10 +485,9 @@ void Updater::updateCam(std::shared_ptr<State> state, std::vector<std::shared_pt
   // [0] Get associated Camera Pose and Clone Time
 
   // get known information
+  double cam_time;
   Eigen::Matrix3d R_I_G, R_C_I;
   Eigen::Vector3d p_G_I, p_C_I;
-  R_I_G = toRotationMatrix(state->getEstimationValue(IMU,EST_QUATERNION));
-  p_G_I = state->getEstimationValue(IMU,EST_POSITION);
   R_C_I = param_msckf_.do_R_C_I ? 
           toRotationMatrix(state->getEstimationValue(CAM0,EST_QUATERNION)) :
           toRotationMatrix(prior_cam_.extrinsics.head(4));
@@ -502,16 +501,18 @@ void Updater::updateCam(std::shared_ptr<State> state, std::vector<std::shared_pt
   std::vector<double> clone_times;
 
   for (const auto &clone : state->state_[CLONE_CAM0]) {
+    // get clone time and IMU pose
+    cam_time = std::stod(clone.first);
+    R_I_G = toRotationMatrix(clone.second->getValue().block(0,0,4,1));
+    p_G_I = clone.second->getValue().block(4,0,3,1);
+
     // get camera pose in global frame
     T_G_C.block(0,0,3,3) = R_I_G.transpose() * R_C_I.transpose();
     T_G_C.block(0,3,3,1) = p_G_I - T_G_C.block(0,0,3,3) * p_C_I;
 
-    // get clone time, which is the sensor timestamp
-    double cam_time = std::stod(clone.first);
-
     // insert to container
     cam_poses.insert({cam_time, T_G_C});
-    clone_times.emplace_back(std::stod(clone.first));
+    clone_times.emplace_back(cam_time);
   }
 
   // [1] Clean all feature measurements: 1)make sure they have associated clone; 2)more then 2 for triangulation 
@@ -528,6 +529,7 @@ void Updater::updateCam(std::shared_ptr<State> state, std::vector<std::shared_pt
     }
 
     // Remove if we don't have enough
+    //! TODO: add min triangulation feature number to parameters
     if (num_measurements < 2) {
       (*it0)->to_delete = true;
       it0 = features.erase(it0);
@@ -543,7 +545,7 @@ void Updater::updateCam(std::shared_ptr<State> state, std::vector<std::shared_pt
     // Triangulate the feature and remove if it fails
     bool success_tri = true;
     bool success_refine = true;
-    
+
     success_tri = triangulater->single_triangulation(it1->get(), cam_poses);
     success_refine = triangulater->single_gaussnewton(it1->get(), cam_poses);
 
@@ -560,9 +562,111 @@ void Updater::updateCam(std::shared_ptr<State> state, std::vector<std::shared_pt
   // [3] Update .....
 
   // We have used all the left features, delete them
-  for (size_t f = 0; f < features.size(); f++) {
-    features[f]->to_delete = true;
+  //! TODO: no need to assign "to_delete", maybe just erase them from vector to freeup memory
+  auto it2 = features.begin();
+  while (it2 != features.end()) {
+    (*it2)->to_delete = true;
+    // it2 = features.erase(it2);
+    it2++;
   }
+
+}
+
+void Updater::updateCamTest(std::shared_ptr<State> state, std::vector<Feature> &features) {
+
+  // ------------------------------- Feature Triangulation -------------------------------------- //
+
+  // Return if no features
+  if (features.empty())
+    return;
+
+  // [0] Get associated Camera Pose and Clone Time
+
+  // get known information
+  double cam_time;
+  Eigen::Matrix3d R_I_G, R_C_I;
+  Eigen::Vector3d p_G_I, p_C_I;
+  R_C_I = param_msckf_.do_R_C_I ? 
+          toRotationMatrix(state->getEstimationValue(CAM0,EST_QUATERNION)) :
+          toRotationMatrix(prior_cam_.extrinsics.head(4));
+  p_C_I = param_msckf_.do_p_C_I ?
+          state->getEstimationValue(CAM0,EST_POSITION) :
+          prior_cam_.extrinsics.tail(3);
+
+  // get data
+  Eigen::Matrix4d T_G_C = Eigen::Matrix4d::Identity();
+  std::unordered_map<double, Eigen::Matrix4d> cam_poses;
+  std::vector<double> clone_times;
+
+  for (const auto &clone : state->state_[CLONE_CAM0]) {
+    // get clone time and IMU pose
+    cam_time = std::stod(clone.first);
+    R_I_G = toRotationMatrix(clone.second->getValue().block(0,0,4,1));
+    p_G_I = clone.second->getValue().block(4,0,3,1);
+
+    // get camera pose in global frame
+    T_G_C.block(0,0,3,3) = R_I_G.transpose() * R_C_I.transpose();
+    T_G_C.block(0,3,3,1) = p_G_I - T_G_C.block(0,0,3,3) * p_C_I;
+
+    // insert to container
+    cam_poses.insert({cam_time, T_G_C});
+    clone_times.emplace_back(cam_time);
+  }
+
+  // [1] Clean all feature measurements: 1)make sure they have associated clone; 2)more then 2 for triangulation 
+  auto it0 = features.begin();
+  while (it0 != features.end()) {
+
+    // Clean the feature that don't have the clonetime
+    it0->clean_old_measurements(clone_times);
+
+    // Count how many measurements
+    int num_measurements = 0;
+    for (const auto &pair : it0->timestamps) {
+      num_measurements += it0->timestamps[pair.first].size();
+    }
+
+    // Remove if we don't have enough
+    //! TODO: add min triangulation feature number to parameters
+    if (num_measurements < 2) {
+      it0->to_delete = true;
+      it0 = features.erase(it0);
+    } else {
+      it0++;
+    }
+  }
+
+  // [2] Try to triangulate all MSCKF or new SLAM features that have measurements
+  auto it1 = features.begin();
+  while (it1 != features.end()) {
+
+    // Triangulate the feature and remove if it fails
+    bool success_tri = true;
+    bool success_refine = true;
+
+    success_tri = triangulater->single_triangulation(&*it1, cam_poses);
+    success_refine = triangulater->single_gaussnewton(&*it1, cam_poses);
+
+    // Remove the feature if not a success
+    if (!success_tri || !success_refine) {
+      it1->to_delete = true;
+      it1 = features.erase(it1);
+      // it1++;
+      continue;
+    }
+
+    it1++;
+  }
+
+  // [3] Update .....
+
+  // We have used all the left features, delete them
+  //! TODO: no need to assign "to_delete", maybe just erase them from vector to freeup memory
+  // auto it2 = features.begin();
+  // while (it2 != features.end()) {
+  //   it2->to_delete = true;
+  //   it2++;
+  // }
 
 }
 

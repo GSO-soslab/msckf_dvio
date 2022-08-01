@@ -1,7 +1,7 @@
 ##### System Parameters #####
 SYS:
-  # Default: 20; 
-  # Note: frequency for backend processing(MSCKF update), increase if more data need for processing ( keep it as camera fequency)
+  # Default: ; 
+  # Note: frequency for backend processing(MSCKF update), increase if more data need for processing 
   backend_hz: 30
   # Default: 2.0
   # Note: use this simply filter bad DVL velocity measurement
@@ -77,4 +77,4 @@ MSCKF:
 
   ################################    Update    ##################################
 
-  max_msckf_update: 40
+  max_msckf_update: 20

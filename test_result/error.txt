@@ -1,0 +1,89 @@
+### error in clean_older_measurements():
+
+__GI_raise (sig=sig@entry=6) at ../sysdeps/unix/sysv/linux/raise.c:50
+50	../sysdeps/unix/sysv/linux/raise.c: No such file or directory.
+(gdb) bt
+#0  __GI_raise (sig=sig@entry=6) at ../sysdeps/unix/sysv/linux/raise.c:50
+#1  0x00007ffff4305859 in __GI_abort () at abort.c:79
+#2  0x00007ffff437026e in __libc_message (action=action@entry=do_abort, 
+    fmt=fmt@entry=0x7ffff449a298 "%s\n") at ../sysdeps/posix/libc_fatal.c:155
+#3  0x00007ffff43782fc in malloc_printerr (
+    str=str@entry=0x7ffff449c1e0 "munmap_chunk(): invalid pointer") at malloc.c:5347
+#4  0x00007ffff437854c in munmap_chunk (p=<optimized out>) at malloc.c:2830
+#5  0x000055555561ded8 in Eigen::internal::aligned_free(void*) ()
+#6  0x0000555555621cd0 in void Eigen::internal::conditional_aligned_free<true>(void*) ()
+#7  0x00007ffff7c44e40 in void Eigen::internal::conditional_aligned_delete_auto<float, true>(float*, unsigned long) ()
+   from /home/lin/develop/ros/soslab_ws/devel/lib/libdvio_lib.so
+#8  0x00007ffff7c3f775 in Eigen::DenseStorage<float, -1, -1, 1, 0>::~DenseStorage() ()
+   from /home/lin/develop/ros/soslab_ws/devel/lib/libdvio_lib.so
+#9  0x00007ffff7c39e7e in Eigen::PlainObjectBase<Eigen::Matrix<float, -1, 1, 0, -1, 1> >::~PlainObjectBase() () from /home/lin/develop/ros/soslab_ws/devel/lib/libdvio_lib.so
+#10 0x00007ffff7c39e9e in Eigen::Matrix<float, -1, 1, 0, -1, 1>::~Matrix() ()
+   from /home/lin/develop/ros/soslab_ws/devel/lib/libdvio_lib.so
+#11 0x00007ffff7d2cdac in void __gnu_cxx::new_allocator<Eigen::Matrix<float, -1, 1, 0, -1, 1> >::destroy<Eigen::Matrix<float, -1, 1, 0, -1, 1> >(Eigen::Matrix<float, -1, 1, 0, -1, 1>*) () from /home/lin/develop/ros/soslab_ws/devel/lib/libdvio_lib.so
+#12 0x00007ffff7d2ca05 in void std::allocator_traits<std::allocator<Eigen::Matrix<float, -1, 1, 0, -1, 1> > >::destroy<Eigen::Matrix<float, -1, 1, 0, -1, 1> >(std::allocator<Eigen::Matrix<float, -1, 1, 0, -1, 1> >&, Eigen::Matrix<float, -1, 1, 0, -1, 1>*) ()
+   from /home/lin/develop/ros/soslab_ws/devel/lib/libdvio_lib.so
+#13 0x00007ffff7d2c4d6 in std::vector<Eigen::Matrix<float, -1, 1, 0, -1, 1>, std::allocator<Eigen::Matrix<float, -1, 1, 0, -1, 1> > >::_M_erase(__gnu_cxx::__normal_iterator<Eigen::Matrix<float, -1, 1, 0, -1, 1>*, std::vector<Eigen::Matrix<float, -1, 1, 0, -1, 1>, std::allocator<Eigen::Matrix<float, -1, 1, 0, -1, 1> > > >) ()
+   from /home/lin/develop/ros/soslab_ws/devel/lib/libdvio_lib.so
+#14 0x00007ffff7d2c13f in std::vector<Eigen::Matrix<float, -1, 1, 0, -1, 1>, std::allocator<Eigen::Matrix<float, -1, 1, 0, -1, 1> > >::erase(__gnu_cxx::__normal_iterator<Eigen::Matrix<float, -1, 1, 0, -1, 1> const*, std::vector<Eigen::Matrix<float, -1, 1, 0, -1, 1>, std::allocator<Eigen::Matrix<float, -1, 1, 0, -1, 1> > > >) ()
+   from /home/lin/develop/ros/soslab_ws/devel/lib/libdvio_lib.so
+#15 0x00007ffff7d2bef7 in msckf_dvio::Feature::clean_older_measurements(double) ()
+   from /home/lin/develop/ros/soslab_ws/devel/lib/libdvio_lib.so
+--Type <RET> for more, q to quit, c to continue without paging--RET
+#16 0x00007ffff7c3ac3b in msckf_dvio::FeatureDatabase::cleanup_measurements(double) ()
+   from /home/lin/develop/ros/soslab_ws/devel/lib/libdvio_lib.so
+#17 0x00007ffff7c2fb09 in msckf_dvio::MsckfManager::doCamera() ()
+   from /home/lin/develop/ros/soslab_ws/devel/lib/libdvio_lib.so
+#18 0x00007ffff7c2ee07 in msckf_dvio::MsckfManager::backend() ()
+   from /home/lin/develop/ros/soslab_ws/devel/lib/libdvio_lib.so
+#19 0x0000555555616c5a in msckf_dvio::RosNode::process() ()
+#20 0x000055555565d4b9 in void std::__invoke_impl<void, void (msckf_dvio::RosNode::*)(), msckf_dvio::RosNode*>(std::__invoke_memfun_deref, void (msckf_dvio::RosNode::*&&)(), msckf_dvio::RosNode*&&) ()
+#21 0x000055555565b93c in std::__invoke_result<void (msckf_dvio::RosNode::*)(), msckf_dvio::RosNode*>::type std::__invoke<void (msckf_dvio::RosNode::*)(), msckf_dvio::RosNode*>(void (msckf_dvio::RosNode::*&&)(), msckf_dvio::RosNode*&&) ()
+#22 0x000055555565a433 in void std::thread::_Invoker<std::tuple<void (msckf_dvio::RosNode::*)(), msckf_dvio::RosNode*> >::_M_invoke<0ul, 1ul>(std::_Index_tuple<0ul, 1ul>) ()
+#23 0x0000555555657b4d in std::thread::_Invoker<std::tuple<void (msckf_dvio::RosNode::*)(), msckf_dvio::RosNode*> >::operator()() ()
+#24 0x0000555555654cc4 in std::thread::_State_impl<std::thread::_Invoker<std::tuple<void (msckf_dvio::RosNode::*)(), msckf_dvio::RosNode*> > >::_M_run() ()
+#25 0x00007ffff4715de4 in ?? () from /lib/x86_64-linux-gnu/libstdc++.so.6
+#26 0x00007ffff48e3609 in start_thread (arg=<optimized out>) at pthread_create.c:477
+#27 0x00007ffff4402133 in clone () at ../sysdeps/unix/sysv/linux/x86_64/clone.S:95
+
+================================================================================================================================
+================================================================================================================================
+================================================================================================================================
+================================================================================================================================
+================================================================================================================================
+### error in update_feature of KLT tracker
+
+
+Thread 1 "dvio_node" received signal SIGSEGV, Segmentation fault.
+0x00007ffff7c51a0e in std::_Hashtable<unsigned long, std::pair<unsigned long const, std::vector<double, std::allocator<double> > >, std::allocator<std::pair<unsigned long const, std::vector<double, std::allocator<double> > > >, std::__detail::_Select1st, std::equal_to<unsigned long>, std::hash<unsigned long>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true> >::_M_find_before_node(unsigned long, unsigned long const&, unsigned long) const () from /home/lin/develop/ros/soslab_ws/devel/lib/libdvio_lib.so
+(gdb) bt
+#0  0x00007ffff7c51a0e in std::_Hashtable<unsigned long, std::pair<unsigned long const, std::vector<double, std::allocator<double> > >, std::allocator<std::pair<unsigned long const, std::vector<double, std::allocator<double> > > >, std::__detail::_Select1st, std::equal_to<unsigned long>, std::hash<unsigned long>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true> >::_M_find_before_node(unsigned long, unsigned long const&, unsigned long) const () from /home/lin/develop/ros/soslab_ws/devel/lib/libdvio_lib.so
+#1  0x00007ffff7c4bf5a in std::_Hashtable<unsigned long, std::pair<unsigned long const, std::vector<double, std::allocator<double> > >, std::allocator<std::pair<unsigned long const, std::vector<double, std::allocator<double> > > >, std::__detail::_Select1st, std::equal_to<unsigned long>, std::hash<unsigned long>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true> >::_M_find_node(unsigned long, unsigned long const&, unsigned long) const () from /home/lin/develop/ros/soslab_ws/devel/lib/libdvio_lib.so
+#2  0x00007ffff7cee53d in std::__detail::_Map_base<unsigned long, std::pair<unsigned long const, std::vector<double, std::allocator<double> > >, std::allocator<std::pair<unsigned long const, std::vector<double, std::allocator<double> > > >, std::__detail::_Select1st, std::equal_to<unsigned long>, std::hash<unsigned long>, std::__detail::_Mod_range_hashing, std::__detail::_Default_ranged_hash, std::__detail::_Prime_rehash_policy, std::__detail::_Hashtable_traits<false, false, true>, true>::operator[](unsigned long const&) ()
+   from /home/lin/develop/ros/soslab_ws/devel/lib/libdvio_lib.so
+#3  0x00007ffff7ceb4b7 in std::unordered_map<unsigned long, std::vector<double, std::allocator<double> >, std::hash<unsigned long>, std::equal_to<unsigned long>, std::allocator<std::pair<unsigned long const, std::vector<double, std::allocator<double> > > > >::operator[](unsigned long const&) () from /home/lin/develop/ros/soslab_ws/devel/lib/libdvio_lib.so
+#4  0x00007ffff7dd62cc in msckf_dvio::FeatureDatabase::update_feature(unsigned long, double, unsigned long, float, float, float, float) ()
+   from /home/lin/develop/ros/soslab_ws/devel/lib/libdvio_lib.so
+#5  0x00007ffff7dd02da in msckf_dvio::TrackKLT::feed_monocular(double, cv::Mat&, unsigned long) () from /home/lin/develop/ros/soslab_ws/devel/lib/libdvio_lib.so
+#6  0x00007ffff7c2e765 in msckf_dvio::MsckfManager::feedCamera(msckf_dvio::ImageMsg&) ()
+   from /home/lin/develop/ros/soslab_ws/devel/lib/libdvio_lib.so
+#7  0x0000555555616608 in msckf_dvio::RosNode::imageCallback(boost::shared_ptr<sensor_msgs::Image_<std::allocator<void> > const> const&) ()
+#8  0x000055555564b57b in boost::_mfi::mf1<void, msckf_dvio::RosNode, boost::shared_ptr<sensor_msgs::Image_<std::allocator<void> > const> const&>::operator()(msckf_dvio::RosNode*, boost::shared_ptr<sensor_msgs::Image_<std::allocator<void> > const> const&) const ()
+--Type <RET> for more, q to quit, c to continue without paging--RET
+#9  0x0000555555646ac0 in void boost::_bi::list2<boost::_bi::value<msckf_dvio::RosNode*>, boost::arg<1> >::operator()<boost::_mfi::mf1<void, msckf_dvio::RosNode, boost::shared_ptr<sensor_msgs::Image_<std::allocator<void> > const> const&>, boost::_bi::rrlist1<boost::shared_ptr<sensor_msgs::Image_<std::allocator<void> > const> const&> >(boost::_bi::type<void>, boost::_mfi::mf1<void, msckf_dvio::RosNode, boost::shared_ptr<sensor_msgs::Image_<std::allocator<void> > const> const&>&, boost::_bi::rrlist1<boost::shared_ptr<sensor_msgs::Image_<std::allocator<void> > const> const&>&, int) ()
+#10 0x00005555556429ef in void boost::_bi::bind_t<void, boost::_mfi::mf1<void, msckf_dvio::RosNode, boost::shared_ptr<sensor_msgs::Image_<std::allocator<void> > const> const&>, boost::_bi::list2<boost::_bi::value<msckf_dvio::RosNode*>, boost::arg<1> > >::operator()<boost::shared_ptr<sensor_msgs::Image_<std::allocator<void> > const> const&>(boost::shared_ptr<sensor_msgs::Image_<std::allocator<void> > const> const&) ()
+#11 0x000055555563e0d5 in boost::detail::function::void_function_obj_invoker1<boost::_bi::bind_t<void, boost::_mfi::mf1<void, msckf_dvio::RosNode, boost::shared_ptr<sensor_msgs::Image_<std::allocator<void> > const> const&>, boost::_bi::list2<boost::_bi::value<msckf_dvio::RosNode*>, boost::arg<1> > >, void, boost::shared_ptr<sensor_msgs::Image_<std::allocator<void> > const> const&>::invoke(boost::detail::function::function_buffer&, boost::shared_ptr<sensor_msgs::Image_<std::allocator<void> > const> const&) ()
+#12 0x000055555564b976 in boost::function1<void, boost::shared_ptr<sensor_msgs::Image_<std::allocator<void> > const> const&>::operator()(boost::shared_ptr<sensor_msgs::Image_<std::allocator<void> > const> const&) const ()
+#13 0x0000555555646dd4 in boost::detail::function::void_function_obj_invoker1<boost::function<void (boost::shared_ptr<sensor_msgs::Image_<std::allocator<void> > const> const&)>, void, boost::shared_ptr<sensor_msgs::Image_<std::allocator<void> > const> >::invoke(boost::detail::function::function_buffer&, boost::shared_ptr<sensor_msgs::Image_<std::allocator<void> > const>) ()
+#14 0x00005555556592e9 in boost::function1<void, boost::shared_ptr<sensor_msgs::Image_<std::allocator<void> > const> >::operator()(boost::shared_ptr<sensor_msgs::Image_<std::allocator<void> > const>) const ()
+#15 0x0000555555655df9 in ros::SubscriptionCallbackHelperT<boost::shared_ptr<sensor_msgs::Image_<std::allocator<void> > const> const&, void>::call(ros::SubscriptionCallbackHelperCallParams&) ()
+#16 0x00007ffff4a9d139 in ros::SubscriptionQueue::call() ()
+   from /opt/ros/noetic/lib/libroscpp.so
+#17 0x00007ffff4a4b172 in ros::CallbackQueue::callOneCB(ros::CallbackQueue::TLS*) ()
+   from /opt/ros/noetic/lib/libroscpp.so
+#18 0x00007ffff4a4c883 in ros::CallbackQueue::callAvailable(ros::WallDuration) ()
+--Type <RET> for more, q to quit, c to continue without paging--RET
+   from /opt/ros/noetic/lib/libroscpp.so
+#19 0x00007ffff4a9ffcf in ros::SingleThreadedSpinner::spin(ros::CallbackQueue*) ()
+   from /opt/ros/noetic/lib/libroscpp.so
+#20 0x00007ffff4a8821f in ros::spin() () from /opt/ros/noetic/lib/libroscpp.so
+#21 0x0000555555617c04 in main ()
