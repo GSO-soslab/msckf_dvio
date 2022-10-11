@@ -17,6 +17,7 @@
 #include "types/type_all.h"
 
 #include "utils/utils.h"
+#include "utils/recorder.h"
 
 #include "msckf/state.h"
 #include "msckf/predictor.h"
@@ -57,14 +58,9 @@ public:
 
   //! TODO: just for test, better handling in visulization_manager
 
-  void setFeaturesTest1(std::vector<std::shared_ptr<Feature>> &features);
   void setFeaturesTest2(std::vector<Feature> &features);
 
-  void getFeaturesTest(std::vector<Eigen::Vector3d> &out_trig_feat);
-
   std::vector<Eigen::Vector3d> getFeaturesTest1();
-
-
 
   bool isFeature() {return is_feat; }
 
@@ -86,7 +82,7 @@ private:
 
   std::vector<std::shared_ptr<Feature>> selectFeatures(const double time_curr);
 
-  std::vector<Feature> selectFeaturesTest(const double time_curr);
+  void selectFeaturesTest(const double time_update, std::vector<Feature> &feat_selected);
 
   void getDataForPressure(PressureMsg &pressure, DvlMsg &dvl, std::vector<ImuMsg> &imus);
 
@@ -100,6 +96,8 @@ private:
   DvlMsg last_dvl; 
   
   std::mutex mtx;
+
+  std::shared_ptr<Recorder> recorder;
 
   std::shared_ptr<State> state;
 

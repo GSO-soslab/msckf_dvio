@@ -5,6 +5,7 @@
 #include <fstream>
 #include <atomic>
 #include <mutex>
+#include <chrono>
 
 // ros
 #include <ros/ros.h>
@@ -79,12 +80,6 @@ private:
   std::shared_ptr<RosVisualizer> visualizer;
 
   Params parameters;
-
-  //! TEST: visualization
-
-  ros::Publisher pub_features;
-
-
 
 }; // end of class   
 

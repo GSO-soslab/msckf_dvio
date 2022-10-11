@@ -139,6 +139,12 @@ public:
     }
   }
 
+  void testClone(const SubStateName sub_state_name) {
+    for(const auto & clone : state_[sub_state_name]) {
+      printf("  t: %s\n", clone.first.c_str());
+    }
+  }
+
   //==================================== IMU =====================================//
 
 

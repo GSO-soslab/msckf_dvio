@@ -4,7 +4,7 @@
 
 KLT:
   num_aruco: 1024
-  num_pts: 250
+  num_pts: 10
   fast_threshold: 15
   grid_x: 5
   grid_y: 3

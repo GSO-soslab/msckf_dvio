@@ -127,8 +127,16 @@ target_link_libraries(dvl_helper_node ${thirdparty_libraries})
 # add_executable(test_ros_rpy test/cpp/ros_rpy.cpp)
 # target_link_libraries(test_ros_rpy ${thirdparty_libraries})
 
-# add_executable(test_eigen test/cpp/eigen.cpp)
-# target_link_libraries(test_eigen ${thirdparty_libraries})
+
+add_executable(test_time_cost test/cpp/test_time_cost.cpp)
+target_link_libraries(test_time_cost ${thirdparty_libraries})
+
+# add_executable(test_shared_ptr test/cpp/test_shared_ptr.cpp)
+# target_link_libraries(test_shared_ptr ${thirdparty_libraries})
+
+# add_executable(test_set_map test/cpp/test_set_map.cpp)
+# target_link_libraries(test_set_map ${thirdparty_libraries})
+
 
 # add_executable(test_remapDVL test/cpp/remap_dvl.cpp)
 # target_link_libraries(test_remapDVL ${thirdparty_libraries})
@@ -145,6 +153,9 @@ target_link_libraries(test_save ${thirdparty_libraries})
 
 add_executable(test_feature test/cpp/feature_database.cpp)
 target_link_libraries(test_feature ${thirdparty_libraries})
+
+add_executable(test_cpp test/cpp/c_plus_plus.cpp)
+target_link_libraries(test_cpp ${thirdparty_libraries})
 
 # add_executable(test_video_stream test/cpp/view_video_stream.cpp)
 # target_link_libraries(test_video_stream ${thirdparty_libraries})

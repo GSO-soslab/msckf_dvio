@@ -3,14 +3,14 @@
   <param name="/use_sim_time" value="true"/>
 
   <!-- play the dataset -->
-  <!-- <arg name="bag_start" default="0" /> 
-  <arg name="bag" default="/home/lin/develop/data/underIce/GLRC/day_3_13/40m_servo60_noLED_noAR_LowFeq10m_remapDVL.bag" />
-  <node pkg="rosbag" type="play" name="rosbag" args="-1-pause -1-clock -d 1 -s $(arg bag_start) $(arg bag)" required="true"/> -->
+  <arg name="bag_start" default="0" /> 
+  <arg name="bag" default="/home/lin/develop/data/underIce/GLRC/day_3_13/40m_servo60_noLED_noAR_LowFeq10m/data_dvlCorrect.bag" />
+  <node pkg="rosbag" type="play" name="rosbag" args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)" required="true"/>
 
   <!-- DVL Helper: convert DVL raw data to navigation data type -->
   <node name="dvl_helper_node" pkg="msckf_dvio" type="dvl_helper_node" output="screen" >
-      <remap from="/glrc/bt" to="/rov/sensors/dvl/buttom_track_remap"/>
-      <remap from="/glrc/cp" to="/rov/sensors/dvl/current_profile_remap"/>
+      <remap from="/glrc/bt" to="/rov/sensors/dvl/bottom_track"/>
+      <remap from="/glrc/cp" to="/rov/sensors/dvl/current_profile"/>
 
       <remap from="/velocity" to="/rov/sensors/dvl/buttom_track_velocity"/>
       <remap from="/pressure" to="/rov/sensors/dvl/pressure"/>

@@ -22,9 +22,6 @@ RosNode::RosNode(const ros::NodeHandle &nh,
   sub_pressure = nh_.subscribe("pressure", 100, &RosNode::pressureCallback, this);
   sub_pointcloud = nh_.subscribe("pointcloud", 100, &RosNode::pointcloudCallback, this);
 
-  //! TEST:
-  pub_features = nh_.advertise<sensor_msgs::PointCloud2>("/feature_clouds", 10);  
-
   service_ = nh_.advertiseService("cmd",&RosNode::srvCallback, this);
 }    
 
@@ -282,9 +279,19 @@ void RosNode::process() {
 
   while(1) {
     // do the ekf stuff
+    auto t1 = std::chrono::high_resolution_clock::now();  
+
     manager->backend();
 
+    auto t2 = std::chrono::high_resolution_clock::now();  
+
     visualizer->visualize();
+
+    auto t3 = std::chrono::high_resolution_clock::now();  
+
+    // printf("[Time Cost]: msckf=%.6fs, vis=%.6fs\n", 
+    //     std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() * 1e-6,
+    //     std::chrono::duration_cast<std::chrono::microseconds>(t3 - t2).count() * 1e-6);
 
     std::chrono::milliseconds dura(sleep_t);
     std::this_thread::sleep_for(dura);

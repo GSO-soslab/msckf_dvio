@@ -43,7 +43,7 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I
                  prior_dvl_.scale;
 
   // measurement function:
-  // DVL BT velocity estimation: v_D = 1/S * R_I_D^T * (R_I_G * v_G_I + [w_I]x * p_I_D) + n
+  // DVL BT velocity estimation: z_D = v_D = 1/S * R_I_D^T * (R_I_G * v_G_I + [w_I]x * p_I_D) + n
 
   // temp 1: 1/S * R_I_D^T
   Eigen::Matrix3d temp_1 = 1 / scale * R_I_D.transpose();
@@ -246,6 +246,114 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I
   state->cov_ = state_cov_fixed;
 }
 
+void Updater::updatePressureTest(std::shared_ptr<State> state, const double pres_begin, const double pres_curr) {
+  /********************************************************************************/
+  /************************* construct Jacobian H matrix **************************/
+  /********************************************************************************/
+
+  int size_measurement = 1;
+  int size_state = state->getCovCols();
+  Eigen::MatrixXd H = Eigen::MatrixXd::Zero(size_measurement, size_state);
+
+  /*-------------------- elements need for estimation --------------------*/
+
+  Eigen::Matrix3d R_I_G = toRotationMatrix(state->getEstimationValue(IMU,EST_QUATERNION));
+
+  Eigen::Vector3d p_G_I = state->getEstimationValue(IMU,EST_POSITION);
+
+  // check if do the DVL extrinsics-rotation online calibration
+  Eigen::Matrix3d R_I_D = param_msckf_.do_R_I_D ? 
+                          toRotationMatrix(state->getEstimationValue(DVL,EST_QUATERNION)) :
+                          toRotationMatrix(prior_dvl_.extrinsics.head(4)); 
+
+  // rotation matrix between DVL and pressure
+  Eigen::Matrix3d R_D_P;
+  R_D_P = Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()) * 
+          Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY()) * 
+          Eigen::AngleAxisd(prior_dvl_.mount_angle, Eigen::Vector3d::UnitX());
+
+  // third value selection
+  Eigen::Matrix<double, 1, 3> s = {0,0,1};
+
+  // measurement function:
+  // pressure estimation: z_p = p_P = p_P_in - s * R_D_P^T * R_I_D^T * R_I_G * p_G_I + n
+
+  /*-------------------- Jacobian related to state --------------------*/
+
+  //! TODO: if R_I_D is not calibrated, this update will cased bad state estimation
+  //! TODO: try this if well calibrated
+  if(param_msckf_.do_R_I_D){
+    // State R_I_G(1x3): dh()/d(imu_R_I_G): - s * R_D_P^T * R_I_D^T * [R_I_G * p_G_I]x
+    Eigen::Matrix<double, 1, 3> d_imu_r = 
+      -s * R_D_P.transpose() * R_I_D.transpose() * toSkewSymmetric(R_I_G*p_G_I);
+    // id 
+    auto id_imu_r = state->getEstimationId(IMU,EST_QUATERNION);
+    // stack jacobian matrix
+    H.block(0,id_imu_r,1,3) = d_imu_r;
+  }
+
+  // State p_G_I(1x3): dh()/d(imu_p_G_I): -s * R_D_P^T * R_I_D^T * R_I_G
+  Eigen::Matrix<double, 1, 3> d_imu_p = 
+    -s * R_D_P.transpose() * R_I_D.transpose() * R_I_G;
+  // id
+  auto id_imu_p = state->getEstimationId(IMU,EST_POSITION);
+  // stack jacobian matrix
+  H.block(0,id_imu_p,1,3) = d_imu_p;
+
+  // State v_G_I(1x3): dh()/d(imu_v_G_I): 0
+
+  // State bias_w(1x3): dh()/d(imu_bw): 0
+
+  // State bias_a(1x3): dh()/d(imu_ba): 0
+
+  /********************************************************************************/
+  /****************************** Compute Kalman Gain *****************************/
+  /********************************************************************************/
+  // K = P * H^T * (H * P * H^T + Rn) ^-1
+
+  // DVL BT measurement noise matrix
+  Eigen::Matrix<double,1,1> Rn(0.1);
+
+  Eigen::MatrixXd S(Rn.rows(), Rn.rows());
+  // S.triangularView<Eigen::Upper>() = H * state->cov_ * H.transpose();
+  // S.triangularView<Eigen::Upper>() += Rn;
+  S = H * state->cov_ * H.transpose() + Rn;
+
+  Eigen::MatrixXd K_transpose = S.ldlt().solve(H * state->cov_);
+  Eigen::MatrixXd K = K_transpose.transpose();
+  // std::cout<<"H: "<< H<<std::endl;
+  // std::cout<<"K: "<< K<<std::endl;
+
+  /********************************************************************************/
+  /*************************** Update state and covariance ************************/
+  /********************************************************************************/
+  Eigen::Vector3d vec_test = R_D_P.transpose() * R_I_D.transpose() * R_I_G * p_G_I;
+  double p_P_hat = pres_begin - s * vec_test;
+  printf("Pressure est: %f, meas: %f, vec_test:%f,%f,%f\n", p_P_hat, pres_curr, 
+        vec_test(0),vec_test(1),vec_test(2));
+
+  Eigen::Matrix<double,1,1> r;
+  r << p_P_hat - pres_curr;
+  Eigen::VectorXd delta_X = K * r;
+  // std::cout<<"v_D: "<<v_D.transpose()<<std::endl;
+  // std::cout<<"v_D_hat: "<<v_D_hat.transpose()<<std::endl;
+  // std::cout<<"delta X: "<< delta_X.transpose()<<std::endl;
+
+  state->updateState(delta_X);
+
+  // P_k = P_k-1 - K * H * P_k-1
+
+  // state->cov_.triangularView<Eigen::Upper>() -= K * H * state->cov_;
+  // state->cov_ = state->cov_.selfadjointView<Eigen::Upper>();
+
+  Eigen::MatrixXd I_KH = Eigen::MatrixXd::Identity(K.rows(), H.cols()) - K*H;
+  state->cov_ = I_KH*state->cov_;
+
+  // Fix the covariance to be symmetric
+  Eigen::MatrixXd state_cov_fixed = (state->cov_ + state->cov_.transpose()) / 2.0;
+  state->cov_ = state_cov_fixed;
+}
+
 //! interpolate DVL CP pressure into DVL BT  Velocity, and update together  
 void Updater::updatePressure(std::shared_ptr<State> state, const double pres_begin, const double pres_curr, bool is_simple) {
   /********************************************************************************/
@@ -264,11 +372,12 @@ void Updater::updatePressure(std::shared_ptr<State> state, const double pres_beg
           Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY()) * 
           Eigen::AngleAxisd(prior_dvl_.mount_angle, Eigen::Vector3d::UnitX());
 
-  Eigen::Matrix3d R_I_G_init;
-  R_I_G_init <<
-          0.999487,0.000000,-0.032023,
-          -0.003259,-0.994808,-0.101722,
-          -0.031856,0.101774,-0.994297;
+  Eigen::Matrix3d R_I_G;
+  R_I_G <<toRotationMatrix(state->getEstimationValue(IMU,EST_QUATERNION));
+  // R_I_G <<
+  //         0.999487,0.000000,-0.032023,
+  //         -0.003259,-0.994808,-0.101722,
+  //         -0.031856,0.101774,-0.994297;
 
   Eigen::Matrix3d R_I_D = toRotationMatrix(prior_dvl_.extrinsics.head(4));
 
@@ -307,15 +416,15 @@ void Updater::updatePressure(std::shared_ptr<State> state, const double pres_beg
   // p_G_I = R_G_I * R_I_D * R_D_P * p_P
   // p_P = R_D_P^T * R_I_D^T * R_G_I^T * p_G_I
 
-  Eigen::Vector3d p_G_I_hat = R_I_G_init.transpose() * R_I_D * R_D_P * p_P;
+  Eigen::Vector3d p_G_I_hat = R_I_G.transpose() * R_I_D * R_D_P * p_P;
 
   Eigen::Matrix<double,1,1> r;
   r << p_G_I_hat(2) - p_G_I(2);
 
-  // Eigen::Vector3d p_G_I_hat = R_I_G_init.transpose() * R_I_D * R_D_P * p_P;
+  // Eigen::Vector3d p_G_I_hat = R_I_G.transpose() * R_I_D * R_D_P * p_P;
   // std::cout<<"p_P meas in Pressure: "<<p_P.transpose()<<std::endl;
   // std::cout<<"p_G_I_hat esti in global: "<<p_G_I_hat.transpose()<<std::endl;
-  // Eigen::Vector3d p_P_hat = R_D_P.transpose() * R_I_D.transpose() * R_I_G_init * p_G_I;
+  // Eigen::Vector3d p_P_hat = R_D_P.transpose() * R_I_D.transpose() * R_I_G * p_G_I;
   // std::cout<<"p_G_I in global from IMU: "<<p_G_I.transpose()<<std::endl;
   // std::cout<<"p_P esti in pressure from IMU: "<<p_P_hat.transpose()<<"\n=============\n";
 
@@ -474,15 +583,17 @@ void Updater::marginalize(std::shared_ptr<State> state, SubStateName clone_name)
   
 }
 
-void Updater::updateCam(std::shared_ptr<State> state, std::vector<std::shared_ptr<Feature>> &features) {
+void Updater::updateCam(
+    std::shared_ptr<State> state, 
+    std::vector<std::shared_ptr<Feature>> &features) {
 
-  // ------------------------------- Feature Triangulation -------------------------------------- //
+  // -----  [0] Feature Triangulation ----- //
 
   // Return if no features
   if (features.empty())
     return;
 
-  // [0] Get associated Camera Pose and Clone Time
+  // [0-0] Get associated Camera Pose and Clone Time
 
   // get known information
   double cam_time;
@@ -515,7 +626,7 @@ void Updater::updateCam(std::shared_ptr<State> state, std::vector<std::shared_pt
     clone_times.emplace_back(cam_time);
   }
 
-  // [1] Clean all feature measurements: 1)make sure they have associated clone; 2)more then 2 for triangulation 
+  // [1] 
   auto it0 = features.begin();
   while (it0 != features.end()) {
 
@@ -572,15 +683,17 @@ void Updater::updateCam(std::shared_ptr<State> state, std::vector<std::shared_pt
 
 }
 
-void Updater::updateCamTest(std::shared_ptr<State> state, std::vector<Feature> &features) {
+void Updater::updateCamTest(
+    std::shared_ptr<State> state, 
+    std::vector<Feature> &features) {
 
-  // ------------------------------- Feature Triangulation -------------------------------------- //
+  // -------------------- Triangulation -------------------- //
 
-  // Return if no features
+  // [0] Return if no features
   if (features.empty())
     return;
 
-  // [0] Get associated Camera Pose and Clone Time
+  // [1] Get Camera Pose and Clone Time
 
   // get known information
   double cam_time;
@@ -593,7 +706,7 @@ void Updater::updateCamTest(std::shared_ptr<State> state, std::vector<Feature> &
           state->getEstimationValue(CAM0,EST_POSITION) :
           prior_cam_.extrinsics.tail(3);
 
-  // get data
+  // get clone pose 
   Eigen::Matrix4d T_G_C = Eigen::Matrix4d::Identity();
   std::unordered_map<double, Eigen::Matrix4d> cam_poses;
   std::vector<double> clone_times;
@@ -613,52 +726,52 @@ void Updater::updateCamTest(std::shared_ptr<State> state, std::vector<Feature> &
     clone_times.emplace_back(cam_time);
   }
 
-  // [1] Clean all feature measurements: 1)make sure they have associated clone; 2)more then 2 for triangulation 
+  // [2] Clean all feature: 
+  //      1)make sure they have associated clone; 2)more then 2 for triangulation 
   auto it0 = features.begin();
   while (it0 != features.end()) {
 
-    // Clean the feature that don't have the clonetime
+    // clean the feature that don't have the clonetime
     it0->clean_old_measurements(clone_times);
 
-    // Count how many measurements
+    // count how many measurements
     int num_measurements = 0;
     for (const auto &pair : it0->timestamps) {
       num_measurements += it0->timestamps[pair.first].size();
     }
 
-    // Remove if we don't have enough
+    // remove if we don't have enough
     //! TODO: add min triangulation feature number to parameters
     if (num_measurements < 2) {
-      it0->to_delete = true;
       it0 = features.erase(it0);
-    } else {
+    } 
+    else {
       it0++;
     }
   }
 
-  // [2] Try to triangulate all MSCKF or new SLAM features that have measurements
+  // [3] Try to triangulate all MSCKF features
   auto it1 = features.begin();
   while (it1 != features.end()) {
 
-    // Triangulate the feature and remove if it fails
+    // triangulate the feature and remove if it fails
     bool success_tri = true;
     bool success_refine = true;
-
     success_tri = triangulater->single_triangulation(&*it1, cam_poses);
     success_refine = triangulater->single_gaussnewton(&*it1, cam_poses);
 
-    // Remove the feature if not a success
+    // remove the feature if not a success
     if (!success_tri || !success_refine) {
-      it1->to_delete = true;
       it1 = features.erase(it1);
-      // it1++;
-      continue;
     }
-
-    it1++;
+    else {
+      it1++;
+    }
   }
 
-  // [3] Update .....
+  // -------------------- Update -------------------- //
+
+  // [0] Update .....
 
   // We have used all the left features, delete them
   //! TODO: no need to assign "to_delete", maybe just erase them from vector to freeup memory

@@ -303,7 +303,8 @@ void Predictor::augment(SubStateName sensor_name,
                         double sensor_time, 
                         const Eigen::Vector3d &w) {
   // make sure this clone is new
-  auto clone_time = std::to_string(sensor_time);
+  // auto clone_time = std::to_string(sensor_time);
+  auto clone_time = toString(sensor_time);
 
   if(state->foundClone(clone_name, clone_time)) {
     printf("Predictor error: a clone of substate %d already exist!\n", clone_name);

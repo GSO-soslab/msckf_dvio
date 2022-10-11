@@ -124,14 +124,17 @@ void RosVisualizer::publishFeatures() {
 // visualize tracked feature in 3D
 
   // get features
-  std::vector<Eigen::Vector3d> feats = msckf_manager->getFeatures();
-  msckf_manager->cleanFeatures();
+  std::vector<Eigen::Vector3d> feats = msckf_manager->getFeaturesTest1();
+
+  if(feats.size() == 0 ) {
+    return;
+  }
   
   // setup the points XYZ
   sensor_msgs::PointCloud2 cloud_msg;
   sensor_msgs::PointCloud2Modifier modifier(cloud_msg);
   modifier.setPointCloud2FieldsByString(1, "xyz");    
-  modifier.resize(4); 
+  modifier.resize(feats.size()); 
   sensor_msgs::PointCloud2Iterator<float> ros_pc2_x(cloud_msg, "x");
   sensor_msgs::PointCloud2Iterator<float> ros_pc2_y(cloud_msg, "y");
   sensor_msgs::PointCloud2Iterator<float> ros_pc2_z(cloud_msg, "z");

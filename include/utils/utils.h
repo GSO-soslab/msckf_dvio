@@ -217,6 +217,8 @@ inline Eigen::Matrix<double, 3, 3> leftJacobSO3(Eigen::Matrix<double, 3, 1> w) {
  * @return The right Jacobian of SO(3)
  */
 inline Eigen::Matrix<double, 3, 3> rightJacobSO3(Eigen::Matrix<double, 3, 1> w) { return leftJacobSO3(-w); }
+
+
 /*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 /*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 /*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
@@ -263,6 +265,20 @@ inline Eigen::Matrix<double, 3, 3> rightJacobSO3(Eigen::Matrix<double, 3, 1> w) 
   data.time = time;
   data.v = (1 - lambda) * msg_beg.v + lambda * msg_end.v;
   return data;
+}
+
+
+/*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+/*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+/*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
+
+template <typename T>
+std::string toString(const T value, const int n = 9)
+{
+    std::ostringstream out;
+    out.precision(n);
+    out << std::fixed << value;
+    return out.str();
 }
 
 } // namespace msckf_dvio
