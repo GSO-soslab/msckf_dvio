@@ -16,6 +16,8 @@
 #include "types/type_all.h"
 
 #include "utils/utils.h"
+#include "utils/recorder.h"
+#include "utils/time_cost.h"
 
 #include "msckf/state.h"
 #include "msckf/predictor.h"
@@ -46,53 +48,52 @@ public:
 
   bool isInitialized() { return initializer->isInit(); }
 
+  std::shared_ptr<State> getState() { return state; }
+
+  std::shared_ptr<TrackBase> getTracker() { return tracker; }
+
+  void cleanFeatures() { trig_feat.clear(); }
+
   //! TODO: just for test, better handling in visulization_manager
-  //! 
-  bool isOdom() { return is_odom; }
 
-  void resetOdom() { is_odom = false;}
+  void setFeatures(std::vector<Feature> &features);
 
-  Eigen::VectorXd getNewImuState() {return state->getImuValue(); }
+  std::vector<Eigen::Vector3d> getFeatures();
 
-  double getTime() {return state->getTimestamp(); }
-
-  bool checkTrackedImg() {
-    buffer_mutex.unlock();
-    int size = tracked_img.size();
-    buffer_mutex.unlock();
-
-    return size > 0 ? true : false;
-  }
-
-  ImageMsg getTrackedImg() {
-    buffer_mutex.unlock();
-    ImageMsg img = tracked_img.front();
-    tracked_img.pop();
-    buffer_mutex.unlock();
-
-    return img;
-  }
+  bool isFeature() {return is_feat; }
 
 private:
 
-  std::vector<ImuMsg> selectImu(double t_begin, double t_end);
-
   void doDVL();
+
+  void doDvlBT();
 
   void doPressure();
 
   void doCamera();
 
-  UpdateSouce selectUpdateSource();
+  void doPressure_test();
+
+  SensorName selectUpdateSensor();
+
+  std::vector<ImuMsg> selectImu(double t_begin, double t_end);
+
+  void selectFeatures(const double time_update, std::vector<Feature> &feat_selected);
+
+  void getDataForPressure(PressureMsg &pressure, DvlMsg &dvl, std::vector<ImuMsg> &imus);
 
   std::vector<ImuMsg> buffer_imu;
+  
+  //! TODO: change dvl and pressure to queue
   std::vector<DvlMsg> buffer_dvl;
   std::vector<PressureMsg> buffer_pressure;
-  std::vector<double> buffer_img_time;
+  std::queue<double> buffer_time_img;
 
   DvlMsg last_dvl; 
   
-  std::mutex buffer_mutex;
+  std::mutex mtx;
+
+  std::shared_ptr<Recorder> recorder;
 
   std::shared_ptr<State> state;
 
@@ -109,11 +110,13 @@ private:
   Params params;
 
   //! TEST: 
-  int exe_counts=0;
-  std::atomic<bool> is_odom;
+  
   const char *file_path="/home/lin/develop/ros/soslab_ws/src/slam/msckf_dvio/test_result/msckf_data.dat";
 
-  std::queue<ImageMsg> tracked_img;
+  // get triangulated feature position
+  std::atomic<bool> is_feat;
+  std::vector<Eigen::Vector3d> trig_feat;
+
 };
 
 } // namespace msckf_dvio

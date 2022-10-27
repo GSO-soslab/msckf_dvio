@@ -7,12 +7,13 @@ namespace msckf_dvio
 
 RosNode::RosNode(const ros::NodeHandle &nh,
                  const ros::NodeHandle &nh_private) :
-  nh_(nh), nh_private_(nh_private), it_(nh)
+  nh_(nh), nh_private_(nh_private)
 {
   // get parameters and feed to manager system
   parameters = loadParameters();
 
   manager = std::make_shared<MsckfManager>(parameters);
+  visualizer = std::make_shared<RosVisualizer>(nh, manager);
 
   // ROS related
   sub_imu = nh_.subscribe("imu", 2000, &RosNode::imuCallback, this);
@@ -21,16 +22,7 @@ RosNode::RosNode(const ros::NodeHandle &nh,
   sub_pressure = nh_.subscribe("pressure", 100, &RosNode::pressureCallback, this);
   sub_pointcloud = nh_.subscribe("pointcloud", 100, &RosNode::pointcloudCallback, this);
 
-  //! TEST:
-  pub_odom = nh_.advertise<nav_msgs::Odometry>("/odom", 10);
-  pub_path = nh_.advertise<nav_msgs::Path>("/path", 10);  
-
   service_ = nh_.advertiseService("cmd",&RosNode::srvCallback, this);
-
-  odom_broadcaster = new tf::TransformBroadcaster();
-
-  pub_img_1 = it_.advertise("/tracked_img1", 20);
-
 }    
 
 Params RosNode::loadParameters() {
@@ -81,22 +73,22 @@ Params RosNode::loadParameters() {
   std::vector<double> distortion_coeffs(4);
   std::vector<double> intrinsics(4);
 
-  nh_private_.getParam     ("CAM0/T_I_C",             rosparam_cam);
+  nh_private_.getParam     ("CAM0/T_C_I",             rosparam_cam);
   nh_private_.getParam     ("CAM0/distortion_coeffs", distortion_coeffs);
   nh_private_.getParam     ("CAM0/intrinsics",        intrinsics);
-  nh_private_.param<double>("CAM0/timeoffset_I_C",    params.prior_cam.timeoffset, 0.0);
+  nh_private_.param<double>("CAM0/timeoffset_C_I",    params.prior_cam.timeoffset, 0.0);
 
 
   //// convert matrix into pose 
-  Eigen::Matrix4d T_I_C;
+  Eigen::Matrix4d T_C_I;
   ROS_ASSERT(rosparam_cam.getType() == XmlRpc::XmlRpcValue::TypeArray);
   for (int32_t i = 0; i < rosparam_cam.size(); ++i) {
     for(int32_t j=0; j<rosparam_cam[i].size(); ++j) 
-      T_I_C(i,j) = static_cast<double>(rosparam_cam[i][j]);
+      T_C_I(i,j) = static_cast<double>(rosparam_cam[i][j]);
   }
 
-  params.prior_cam.extrinsics.block(0, 0, 4, 1) = toQuaternion(T_I_C.block(0, 0, 3, 3));
-  params.prior_cam.extrinsics.block(4, 0, 3, 1) = T_I_C.block(0, 3, 3, 1);
+  params.prior_cam.extrinsics.block(0, 0, 4, 1) = toQuaternion(T_C_I.block(0, 0, 3, 3));
+  params.prior_cam.extrinsics.block(4, 0, 3, 1) = T_C_I.block(0, 3, 3, 1);
   params.prior_cam.distortion_coeffs << distortion_coeffs.at(0), distortion_coeffs.at(1), 
                                         distortion_coeffs.at(2), distortion_coeffs.at(3);
   params.prior_cam.intrinsics << intrinsics.at(0), intrinsics.at(1), 
@@ -134,14 +126,6 @@ Params RosNode::loadParameters() {
                               init_state.at(14),init_state.at(15),init_state.at(16); //ba
   }
 
-  // ==================== MSCKF ==================== //
-  nh_private_.param<bool>("MSCKF/dvl_exterisic_R", params.msckf.do_R_I_D,    true);
-  nh_private_.param<bool>("MSCKF/dvl_exterisic_p", params.msckf.do_p_I_D,    true);
-  nh_private_.param<bool>("MSCKF/dvl_timeoffset",  params.msckf.do_time_I_D, true);
-  nh_private_.param<bool>("MSCKF/dvl_scale",       params.msckf.do_scale_D,  true);
-  nh_private_.param<int> ("MSCKF/dvl_clone",       params.msckf.max_clone_D, 2);
-
-
   // ==================== Tracking ==================== //
   nh_private_.param<int>   ("KLT/num_aruco",        params.tracking.num_aruco,        1024);
   nh_private_.param<int>   ("KLT/num_pts",          params.tracking.num_pts,          250);
@@ -155,6 +139,32 @@ Params RosNode::loadParameters() {
   nh_private_.param<int>   ("KLT/pyram",            params.tracking.pyram,            3);
   nh_private_.param<int>   ("KLT/cam_id",           params.tracking.cam_id,           0);
   nh_private_.param<double>("KLT/downsample_ratio", params.tracking.downsample_ratio, 1.0);
+  
+  nh_private_.param<double>("Feature/max_cond_number",  params.triangualtion.max_cond_number, 10000);
+  nh_private_.param<double>("Feature/min_dist",         params.triangualtion.min_dist,        0.10);
+  nh_private_.param<double>("Feature/max_dist",         params.triangualtion.max_dist,        60);
+  nh_private_.param<double>("Feature/lam_mult",         params.triangualtion.lam_mult,        10);
+  nh_private_.param<int>   ("Feature/max_runs",         params.triangualtion.max_runs,        5);
+  nh_private_.param<double>("Feature/max_lamda",        params.triangualtion.max_lamda,       1e10);
+  nh_private_.param<double>("Feature/min_dx",           params.triangualtion.min_dx,          1e-6);
+  nh_private_.param<double>("Feature/min_dcost",        params.triangualtion.min_dcost,       1e-6);
+  nh_private_.param<double>("Feature/max_baseline",     params.triangualtion.max_baseline,    40);
+
+  // ==================== MSCKF ==================== //
+  nh_private_.param<bool>("MSCKF/dvl_exterisic_R", params.msckf.do_R_I_D,    true);
+  nh_private_.param<bool>("MSCKF/dvl_exterisic_p", params.msckf.do_p_I_D,    true);
+  nh_private_.param<bool>("MSCKF/dvl_timeoffset",  params.msckf.do_time_I_D, true);
+  nh_private_.param<bool>("MSCKF/dvl_scale",       params.msckf.do_scale_D,  true);
+  nh_private_.param<int> ("MSCKF/dvl_clone",       params.msckf.max_clone_D, 2);
+
+  nh_private_.param<bool>("MSCKF/cam_exterisic_R", params.msckf.do_R_C_I,    true);
+  nh_private_.param<bool>("MSCKF/cam_exterisic_p", params.msckf.do_p_C_I,    true);
+  nh_private_.param<bool>("MSCKF/cam_timeoffset",  params.msckf.do_time_C_I, true);
+  nh_private_.param<int> ("MSCKF/cam_clone",       params.msckf.max_clone_C, 9);
+
+  nh_private_.param<int> ("MSCKF/max_msckf_update", params.msckf.max_msckf_update, params.tracking.num_pts);
+
+
 
   return params;
 }
@@ -180,21 +190,32 @@ void RosNode::imuCallback(const sensor_msgs::Imu::ConstPtr &msg) {
 void RosNode::dvlCallback(const geometry_msgs::TwistWithCovarianceStamped::ConstPtr &msg) {
   //! TODO: simple fliter here, remove bad velocity measurement 
   //! TODO: we should think a better way to this diagnosis, like using goodbeams, FOM??
+
+  // filter bad measurement when DVL is not using right
+  if(msg->twist.twist.linear.x == -32.768f ||
+     msg->twist.twist.linear.y == -32.768f ||
+     msg->twist.twist.linear.z == -32.768f ) {
+
+    ROS_WARN("ROS node warning: DVL velocity:x=%f,y=%f,z=%f, drop it!\n", 
+              msg->twist.twist.linear.x,msg->twist.twist.linear.y,msg->twist.twist.linear.z);
+    return;
+  }
+
   DvlMsg message;
   message.time = msg->header.stamp.toSec();
   message.v << msg->twist.twist.linear.x, 
-              msg->twist.twist.linear.y, 
-              msg->twist.twist.linear.z;
+               msg->twist.twist.linear.y, 
+               msg->twist.twist.linear.z;
 
-  manager->feedDvl(message); 
-
-  if(abs(msg->twist.twist.linear.x) < parameters.dvl_v_threshold &&
-     abs(msg->twist.twist.linear.y) < parameters.dvl_v_threshold &&
-     abs(msg->twist.twist.linear.z) < parameters.dvl_v_threshold ){
+  // simple fliter to remove bad time data
+  if(message.time > last_t_dvl){
+    manager->feedDvl(message);
+    last_t_dvl = message.time;
   }
-  else
-    ROS_WARN("ROS node warning: DVL velocity:x=%f,y=%f,z=%f\n", 
-              msg->twist.twist.linear.x,msg->twist.twist.linear.y,msg->twist.twist.linear.z);
+  else{
+    ROS_WARN("Node: bad DVL time, drop it!");
+  }
+
 }
 
 // TODO: check if feature tracking in image callback will effect IMU callback(overflow, bad imu-image align)
@@ -214,13 +235,21 @@ void RosNode::imageCallback(const sensor_msgs::Image::ConstPtr &msg) {
   int width = cv_ptr->image.cols * parameters.tracking.downsample_ratio;
   int height = cv_ptr->image.rows * parameters.tracking.downsample_ratio;
   cv::resize(cv_ptr->image, img, cv::Size(width, height));
+  //! TODO: cv::resize vs. cv::pyrDown
 
   // feed img
   ImageMsg message;
   message.image = img;
   message.time = msg->header.stamp.toSec();;
 
-  manager->feedCamera(message);
+  // simple fliter to remove bad time image
+  if(message.time > last_t_img){
+    manager->feedCamera(message);
+    last_t_img = message.time;
+  }
+  else{
+    ROS_WARN("Node: bad image time, drop it!");
+  }
 }
 
 void RosNode::pressureCallback(const sensor_msgs::FluidPressure::ConstPtr &msg) {
@@ -228,7 +257,15 @@ void RosNode::pressureCallback(const sensor_msgs::FluidPressure::ConstPtr &msg) 
   message.time = msg->header.stamp.toSec();
   message.p = msg->fluid_pressure;
 
-  manager->feedPressure(message); 
+  // simple fliter to remove bad time data
+  if(message.time > last_t_pressure){
+    manager->feedPressure(message);
+    last_t_pressure = message.time;
+  }
+  else{
+    ROS_WARN("Node: bad Pressure time, drop it!");
+  }
+
 }
 
 void RosNode::pointcloudCallback(const sensor_msgs::PointCloud2::ConstPtr &msg){
@@ -242,73 +279,21 @@ void RosNode::process() {
 
   while(1) {
     // do the ekf stuff
+    auto t1 = std::chrono::high_resolution_clock::now();  
+
     manager->backend();
 
-    //! TODO: move this to visulization manager
-    // get imu state to publish 
-    if(manager->isOdom()) {
+    auto t2 = std::chrono::high_resolution_clock::now();  
 
-      auto imu_value = manager->getNewImuState();
-      auto time = manager->getTime();
-      manager->resetOdom();
+    visualizer->visualize();
 
-      //// publish odometry
-      nav_msgs::Odometry msg_odom;
-      msg_odom.header.stamp = ros::Time(time);
-      msg_odom.header.frame_id = "odom";
-      msg_odom.child_frame_id = "imu";
-      msg_odom.pose.pose.orientation.x = imu_value(0);
-      msg_odom.pose.pose.orientation.y = imu_value(1);
-      msg_odom.pose.pose.orientation.z = imu_value(2);
-      msg_odom.pose.pose.orientation.w = imu_value(3);
-      msg_odom.pose.pose.position.x    = imu_value(4);
-      msg_odom.pose.pose.position.y    = imu_value(5);
-      msg_odom.pose.pose.position.z    = imu_value(6);
-      msg_odom.twist.twist.linear.x    = imu_value(7);
-      msg_odom.twist.twist.linear.y    = imu_value(8);
-      msg_odom.twist.twist.linear.z    = imu_value(9);
+    auto t3 = std::chrono::high_resolution_clock::now();  
 
-      pub_odom.publish(msg_odom);
+    // printf("[Time Cost]: msckf=%.6fs, vis=%.6fs\n", 
+    //     std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() * 1e-6,
+    //     std::chrono::duration_cast<std::chrono::microseconds>(t3 - t2).count() * 1e-6);
 
-      // Publish odometry TF
-      // NOTE: since we use JPL we have an implicit conversion to Hamilton when we publish
-      // NOTE: a rotation from GtoI in JPL has the same xyzw as a ItoG Hamilton rotation
-      tf::StampedTransform trans;
-      trans.stamp_ = ros::Time::now();
-      trans.frame_id_ = "odom";
-      trans.child_frame_id_ = "imu";
-      tf::Quaternion quat(imu_value(0), imu_value(1), imu_value(2), imu_value(3));
-      trans.setRotation(quat);
-      tf::Vector3 orig(imu_value(4), imu_value(5), imu_value(6));
-      trans.setOrigin(orig);
-      odom_broadcaster->sendTransform(trans);
-
-      //// Publish path
-      geometry_msgs::PoseStamped pose;
-
-      pose.header.frame_id = msg_odom.header.frame_id;
-      pose.header.stamp = msg_odom.header.stamp;
-      pose.pose = msg_odom.pose.pose;
-
-      path.header.frame_id = msg_odom.header.frame_id;
-      path.header.stamp = msg_odom.header.stamp;
-      path.poses.push_back(pose);
-
-      pub_path.publish(path);
-    }
-
-    // visualize tracked features
-    if(manager->checkTrackedImg()) {
-      ImageMsg img = manager->getTrackedImg();
-
-      std_msgs::Header header;
-      header.frame_id = "img";
-      header.stamp = ros::Time(img.time);
-      sensor_msgs::ImagePtr msg_img = cv_bridge::CvImage(header, "bgr8", img.image).toImageMsg();
-      pub_img_1.publish(msg_img);
-    }
-
-    std::chrono::milliseconds dura(sleep_t);
+    std::chrono::milliseconds dura(5);
     std::this_thread::sleep_for(dura);
   }
 }
@@ -332,7 +317,7 @@ int main(int argc, char **argv) {
 
   ros::spin();
 
-  // backendThread.join();
+  backendThread.join();
 
   return 0;
 }

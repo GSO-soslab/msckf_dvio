@@ -53,7 +53,7 @@ void InitDvlAided::checkInit() {
 
 }
 
-void InitDvlAided::updateInit(std::shared_ptr<State> state, const Params &params, std::vector<double> &data_time) {
+void InitDvlAided::updateInit(std::shared_ptr<State> state, Params &params, std::vector<double> &data_time) {
 
   // ====================== get init result ====================== //
 
@@ -77,10 +77,14 @@ void InitDvlAided::updateInit(std::shared_ptr<State> state, const Params &params
 
   // ====================== update DVL related ====================== //
 
+  // if do online calibration, update to state, otherwise direct update to parameters
   if(params.msckf.do_time_I_D)
     state->setEstimationValue(DVL, EST_TIMEOFFSET, Eigen::MatrixXd::Constant(1,1,state_dvl(1)));
+  else
+    params.prior_dvl.timeoffset = state_dvl(1);
 
   // ====================== update Pressure related ====================== //
+  
   state->setPressureInit(pres_init.p);
 
   // ====================== return data time to clean buffer ====================== //
@@ -463,10 +467,12 @@ void InitDvlAided::doInitialization(const std::vector<DvlMsg> &dvl_a,
   ba_avg = ba_avg / (dvl_a.size()-1);
 
 /*** Gyro bias estimation ***/
-  bg_avg = Eigen::Vector3d::Zero();
-  for(const auto &imu : imu_g) 
-    bg_avg += imu.w;
-  bg_avg /= imu_g.size();
+  // bg_avg = Eigen::Vector3d::Zero();
+  // for(const auto &imu : imu_g) 
+  //   bg_avg += imu.w;
+  // bg_avg /= imu_g.size();
+  //! TEST: manual set gyro bias
+  bg_avg = Eigen::Vector3d(0.01,0.01,-0.01);
 
 /*** pressure sensor initialization ***/
   //// get starting pressure before alignment 

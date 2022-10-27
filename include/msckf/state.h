@@ -23,8 +23,9 @@
 #define EST_TIMEOFFSET "Timeoffset"
 #define EST_SCALE "Scale"
 
-//! Sub State name for each sensor and clone
-// 
+//! TODO: merge SubStateName and UpdateSource into one SensorName ???
+
+//! Use the actual sensor state name
 enum SubStateName{
   IMU = 0,
   DVL,
@@ -33,11 +34,13 @@ enum SubStateName{
   CLONE_CAM0
 };
 
-enum UpdateSouce{
+//! Use the actual data type name
+
+enum SensorName{
   NONE = 0,
-  VELOCITY_BT,
-  PRESSURE_CP,
-  PRESSURE_BT
+  VELOCITY,
+  PRESSURE,
+  IMAGE
 };
 
 namespace msckf_dvio
@@ -80,28 +83,38 @@ public:
 
   //! @brief get each estimated state location in the state vector or covariance
   //! @param sub_state_name: each sub state, e.g. SENSOR and CLONE
-  //! @param est_name: each actual estimation in the sub state, e.g. rostion, position, calibration...
+  //! @param est_name: each actual estimation in the sub state, e.g. rotation, position, calibration...
   inline int getEstimationId(const SubStateName sub_state_name,  const std::string &est_name) {
     return state_[sub_state_name].at(est_name)->getId();
   }
 
   //! @brief get each estimated state size
+  //!
   //! @param sub_state_name: each sub state, e.g. SENSOR and CLONE
-  //! @param est_name: each actual estimation in the sub state, e.g. rostion, position, calibration...
+  //! @param est_name: each actual estimation in the sub state, e.g. rotation, position, calibration...
+  //!
   inline int getEstimationSize(const SubStateName sub_state_name,  const std::string &est_name) {
     return state_[sub_state_name].at(est_name)->getSize();
   }
 
-  //! @brief how many estimations in SENSOR STATE or CLONE STATE
+  //! @brief how many clones in CLONE STATE
+  //!
   //! @param sub_state_name: each sub state, e.g. SENSOR and CLONE
   //!
   inline int getEstimationNum(const SubStateName sub_state_name) {
     return state_[sub_state_name].size();
   }
 
+  //! @brief the timestamp of pose that will marginalize next, the earliest time  
+  //!
+  //! @param sub_state_name: each sub state, e.g. SENSOR and CLONE
+  //!
+  double getMarginalizedTime(const SubStateName sub_state_name);
+
   //! @brief set value of angle estimation of any sub state, will override the original value
+  //!
   //! @param sub_state_name: sub state name, e.g. IMU, DVL, CAM, CLONE
-  //! @param est_name: each actual estimation in the sub state, e.g. rostion, position, calibration...
+  //! @param est_name: each actual estimation in the sub state, e.g. rotation, position, calibration...
   //! @param new_value: estimated value
   //!
   inline void setEstimationValue(const SubStateName &sub_state_name, const std::string &est_name, const Eigen::MatrixXd &new_value){
@@ -109,6 +122,7 @@ public:
   }
 
   //! @brief update state using estimated state error
+  //!
   //! @param new_value: estimated state error
   //!
   inline void updateState(const Eigen::VectorXd &new_value) {
@@ -122,6 +136,12 @@ public:
         estimation.second->update(new_value.block(estimation.second->getId(),   0, 
                                                   estimation.second->getSize(), 1));
       }
+    }
+  }
+
+  void testClone(const SubStateName sub_state_name) {
+    for(const auto & clone : state_[sub_state_name]) {
+      printf("  t: %s\n", clone.first.c_str());
     }
   }
 
@@ -186,6 +206,8 @@ public:
 
   inline int getCovCols()  const { return cov_.cols(); }
 
+  //! @brief: We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d) 
+  //!
   inline bool foundSPD() {
     Eigen::VectorXd diags = cov_.diagonal();
 

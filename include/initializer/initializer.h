@@ -23,7 +23,7 @@ public:
 
   virtual void checkInit() = 0;
 
-  virtual void updateInit(std::shared_ptr<State> state, const Params &params, std::vector<double> &data_time) = 0;
+  virtual void updateInit(std::shared_ptr<State> state, Params &params, std::vector<double> &data_time) = 0;
 
   virtual void cleanBuffer() = 0;
 

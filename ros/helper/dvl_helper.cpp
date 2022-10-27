@@ -127,7 +127,7 @@ void DvlHelper::glrcCpCallback(const nortek_dvl::CurrentProfile::ConstPtr& msg) 
 
 void DvlHelper::alaskaBtCallback(const ds_sensor_msgs::NortekDF21::ConstPtr& msg) {
 
-    // 3-axis velocity
+    //// publish 3-axis velocity
     //! TODO: convert figure_of_merit into covariance ??
     geometry_msgs::TwistWithCovarianceStamped msg_out;
 
@@ -143,6 +143,7 @@ void DvlHelper::alaskaBtCallback(const ds_sensor_msgs::NortekDF21::ConstPtr& msg
 
     pub_velocity.publish(msg_out);
     
+    //// publish pointcloud message
     // 4 beams generated pointcloud with only XYZ property
     sensor_msgs::PointCloud2 cloud_msg;
     sensor_msgs::PointCloud2Modifier modifier(cloud_msg);
@@ -177,6 +178,14 @@ void DvlHelper::alaskaBtCallback(const ds_sensor_msgs::NortekDF21::ConstPtr& msg
     // publish
     cloud_msg.header = msg->header;
     pub_pointcloud.publish(cloud_msg);
+
+    //// publish pressure message
+    sensor_msgs::FluidPressure msg_pressure;
+    msg_pressure.header = msg->header;
+    //Bar-> meter
+    msg_pressure.fluid_pressure = msg->pressure * 10; 
+    msg_pressure.variance = 0;
+    pub_pressure.publish(msg_pressure);
 }
 
 void DvlHelper::alaskaCpCallback(const ds_sensor_msgs::NortekDF3::ConstPtr& msg) {

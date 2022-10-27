@@ -65,6 +65,8 @@
   <build_depend>nav_msgs</build_depend>
   <build_depend>std_srvs</build_depend>
   <build_depend>ds_sensor_msgs</build_depend>
+  <build_depend>tf2_ros</build_depend>
+  <build_depend>tf2_geometry_msgs</build_depend>
   
   <build_export_depend>message_generation</build_export_depend>
   <build_export_depend>rospy</build_export_depend>
@@ -90,6 +92,8 @@
   <exec_depend>nav_msgs</exec_depend>
   <exec_depend>std_srvs</exec_depend>
   <exec_depend>ds_sensor_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>tf2_geometry_msgs</exec_depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->

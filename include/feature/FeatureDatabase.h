@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "Feature.h"
+#include "utils/recorder.h"
 
 namespace msckf_dvio {
 
@@ -127,6 +128,7 @@ public:
    */
   std::vector<std::shared_ptr<Feature>> features_not_containing_newer(double timestamp, bool remove = false, bool skip_deleted = false) {
 
+
     // Our vector of features that do not have measurements after the specified time
     std::vector<std::shared_ptr<Feature>> feats_old;
 
@@ -160,11 +162,57 @@ public:
     }
 
     // Debugging
-    // std::cout << "feature db size = " << features_idlookup.size() << std::endl;
+    // std::cout << "after: feature db size = " << features_idlookup.size() << std::endl;
 
     // Return the old features
     return feats_old;
   }
+
+  /**
+   * @brief Get all features measurements that lost at given timestamp
+   *
+   * @param timestamp the actual update timestamp
+   * @param feature_lost all the features that lost at update time
+   * @param remove remove the selected feature measurement
+   * @param skip_deleted if ture, skip the marked "deleted" feature
+   */
+  void features_lost(double timestamp, std::vector<Feature> &feat_lost, bool remove = false, bool skip_deleted = false) {
+
+      // Now lets loop through all features, and just make sure they are not old
+      std::unique_lock<std::mutex> lck(mtx);
+
+      for (auto it = features_idlookup.begin(); it != features_idlookup.end();) {
+
+        // Skip if already deleted
+        if (skip_deleted && (*it).second->to_delete) {
+          it++;
+          continue;
+        }
+
+        // Loop through each camera
+        bool has_newer_measurement = false;
+        for (auto const &pair : (*it).second->timestamps) {
+          // If we have a measurement greater-than or equal to the specified, this measurement is find
+          if (!pair.second.empty() && pair.second.at(pair.second.size() - 1) >= timestamp) {
+            has_newer_measurement = true;
+            break;
+          }
+        }
+
+        // If it is not being actively tracked, then it is old
+        if (!has_newer_measurement) {
+          feat_lost.push_back(*(*it).second);
+          if (remove)
+            features_idlookup.erase(it++);
+          else
+            it++;
+        } else {
+          it++;
+        }
+
+      }
+  }
+
 
   /**
    * @brief Get features that has measurements older then the specified time.
@@ -219,6 +267,7 @@ public:
    * This would be used to get all features that occurred at a specific clone/state.
    */
   std::vector<std::shared_ptr<Feature>> features_containing(double timestamp, bool remove = false, bool skip_deleted = false) {
+    // std::cout << "before feature db size = " << features_idlookup.size() << std::endl;
 
     // Our vector of old features
     std::vector<std::shared_ptr<Feature>> feats_has_timestamp;
@@ -231,6 +280,7 @@ public:
         it++;
         continue;
       }
+
       // Boolean if it has the timestamp
       bool has_timestamp = false;
       for (auto const &pair : (*it).second->timestamps) {
@@ -246,6 +296,7 @@ public:
           break;
         }
       }
+
       // Remove this feature if it contains the specified timestamp
       if (has_timestamp) {
         feats_has_timestamp.push_back((*it).second);
@@ -258,13 +309,74 @@ public:
       }
     }
 
-    // Debugging
-    // std::cout << "feature db size = " << features_idlookup.size() << std::endl;
-    // std::cout << "return vector = " << feats_has_timestamp.size() << std::endl;
+    //! TEST:
+    // if(feats_has_timestamp.size() >0){
+    //   printf("\n++++++++++++++++++++++++++++\n");
+    //   printf("marg feats: %ld\n", feats_has_timestamp.size());
+
+    //   for(const auto& i : feats_has_timestamp) {
+    //     printf("id:%ld, tracked:%ld\n", i->featid, i->timestamps[0].size());
+    //   }
+    // }
+
+    // std::cout << "after feature db size = " << features_idlookup.size() << std::endl;
 
     // Return the features
     return feats_has_timestamp;
   }
+
+  /**
+   * @brief Get all features measurements that has the marginalized time, but not inlcued measurements after current update time
+   *
+   * @param time_marg given marginalized timestamp
+   * @param time_update given update timestamp
+   * @param feat_marg selected feature measurements for marginalization
+   * @param remove remove the selected feature measurements or not
+   * @param skip_deleted skip the marked "deleted" feature or not
+   */
+  void features_marginalized(double time_marg, double time_update, std::vector<Feature> &feat_marg, 
+                             bool remove = false, bool skip_deleted = false) {
+
+    // Now lets loop through all features, and just make sure they are not
+    std::unique_lock<std::mutex> lck(mtx);
+    for (auto it = features_idlookup.begin(); it != features_idlookup.end();) {
+      // Skip if already deleted
+      if (skip_deleted && (*it).second->to_delete) {
+        it++;
+        continue;
+      }
+
+      // Boolean if it has the timestamp
+      bool has_timestamp = false;
+      for (auto const &pair : (*it).second->timestamps) {
+        // Loop through all timestamps, and see if it has it
+        for (auto &timefeat : pair.second) {
+          if (timefeat == time_marg) {
+            has_timestamp = true;
+            break;
+          }
+        }
+        // Break out if we found a single timestamp that is equal to the specified time
+        if (has_timestamp) {
+          break;
+        }
+      }
+
+      if (has_timestamp) {
+        // select measurements between time_marg and time_update
+        auto feat = *(*it).second;
+        feat.clean_newer_measurements(time_update);
+        feat_marg.push_back(feat);
+
+        // remove measurements before time_update
+        if (remove)
+          (*it).second->clean_older_measurements(time_update);
+      }
+
+      it++;
+    }
+  }
+
 
   /**
    * @brief This function will delete all features that have been used up.
@@ -290,14 +402,85 @@ public:
     // std::cout << "feat db = " << sizebefore << " -> " << (int)features_idlookup.size() << std::endl;
   }
 
+  //! @brief remove feature pixels that used for update (older then update_time)
+  //!        not delete feature because tracker may already update new tracked pxiels in another thread
+  void cleanupAsync(double update_time) {
+    std::unique_lock<std::mutex> lck(mtx);
+    for (auto it = features_idlookup.begin(); it != features_idlookup.end();) {
+      // loop all the used features
+      if ((*it).second->to_delete) {
+
+        // check if new tracked pxiel exists
+        auto frame = std::find_if(
+          (*it).second->timestamps.at(0).begin(), 
+          (*it).second->timestamps.at(0).end(),
+          [&](const auto& img_time) {return img_time > update_time ;}
+        );
+
+        // found, only remove old pxiels
+        if(frame != (*it).second->timestamps.at(0).end()){
+          int index = frame - (*it).second->timestamps.at(0).begin();
+          // delete timestamp
+          (*it).second->timestamps.at(0).erase(
+            (*it).second->timestamps.at(0).begin(), 
+            (*it).second->timestamps.at(0).begin() + index);
+          // delete uv
+          (*it).second->uvs.at(0).erase(
+            (*it).second->uvs.at(0).begin(), 
+            (*it).second->uvs.at(0).begin() + index);
+          // delete uv_norm
+          (*it).second->uvs_norm.at(0).erase(
+            (*it).second->uvs_norm.at(0).begin(), 
+            (*it).second->uvs_norm.at(0).begin() + index);                                                                                              
+        } 
+        // not found, delete entire feature
+        else {
+          features_idlookup.erase(it++);
+        }                                  
+      } 
+      else {
+        it++;
+      }
+    }
+  }
+
   /**
    * @brief This function will delete all feature measurements that are older then the specified timestamp
    */
   void cleanup_measurements(double timestamp) {
     std::unique_lock<std::mutex> lck(mtx);
     for (auto it = features_idlookup.begin(); it != features_idlookup.end();) {
+
       // Remove the older measurements
       (*it).second->clean_older_measurements(timestamp);
+
+      // for (auto const &pair : (*it).second->timestamps) {
+
+      //   // Assert that we have all the parts of a measurement
+      //   assert((*it).second->timestamps[pair.first].size() == 
+      //     (*it).second->uvs[pair.first].size());
+      //   assert((*it).second->timestamps[pair.first].size() == 
+      //     (*it).second->uvs_norm[pair.first].size());
+
+      //   // Our iterators
+      //   auto it1 = (*it).second->timestamps[pair.first].begin();
+      //   auto it2 = (*it).second->uvs[pair.first].begin();
+      //   auto it3 = (*it).second->uvs_norm[pair.first].begin();
+
+      //   // Loop through measurement times, remove ones that are older then the specified one
+      //   while (it1 != (*it).second->timestamps[pair.first].end()) {
+      //     if (*it1 <= timestamp) {
+      //       it1 = (*it).second->timestamps[pair.first].erase(it1);
+      //       it2 = (*it).second->uvs[pair.first].erase(it2);
+      //       it3 = (*it).second->uvs_norm[pair.first].erase(it3);
+      //     } else {
+      //       ++it1;
+      //       ++it2;
+      //       ++it3;
+      //     }
+      //   }
+      // }
+
       // Count how many measurements
       int ct_meas = 0;
       for (const auto &pair : (*it).second->timestamps) {
@@ -401,6 +584,43 @@ public:
       }
     }
     // std::cout << "feat db = " << sizebefore << " -> " << (int)features_idlookup.size() << std::endl;
+  }
+
+
+  bool checkFeatureTest(size_t id) {
+    std::unique_lock<std::mutex> lck(mtx);
+
+    bool found = false;
+    if(features_idlookup.find(id) != features_idlookup.end()){
+      found = true;
+    }
+
+    return found;
+  }
+
+  void printFeaturesTest() {
+    std::unique_lock<std::mutex> lck(mtx);
+
+    for(const auto& f : features_idlookup) {
+      if(f.second->timestamps[0].size() < 11) {
+        continue;
+      }
+      
+      printf("# left f:%ld, size:%ld\n", f.first, f.second->timestamps[0].size());
+        for(const auto& t: f.second->timestamps[0]){
+          printf(" t=%.9f", t);
+        }
+      printf("\n");
+    }
+    printf("\n");
+  }
+
+  void saveFeatures(std::shared_ptr<Recorder> recoder) {
+    std::unique_lock<std::mutex> lck(mtx);
+
+    for(const auto& f : features_idlookup) {
+      recoder->writeFeature(*f.second);
+    }
   }
 
 protected:

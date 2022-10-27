@@ -3,9 +3,14 @@
 namespace msckf_dvio
 {
 
-Updater::Updater(priorDvl prior_dvl, paramMsckf param_msckf) : 
-  prior_dvl_(prior_dvl), param_msckf_(param_msckf), count(0)
-  {}
+Updater::Updater(Params &params) : 
+  prior_dvl_(params.prior_dvl), 
+  prior_cam_(params.prior_cam), 
+  param_msckf_(params.msckf), 
+  count(0)
+{
+  triangulater = std::unique_ptr<FeatureTriangulation>(new FeatureTriangulation(params.triangualtion));
+}
 
 void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I, const Eigen::Vector3d &v_D) {
 
@@ -38,7 +43,7 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I
                  prior_dvl_.scale;
 
   // measurement function:
-  // DVL BT velocity estimation: v_D = 1/S * R_I_D^T * (R_I_G * v_G_I + [w_I]x * p_I_D) + n
+  // DVL BT velocity estimation: z_D = v_D = 1/S * R_I_D^T * (R_I_G * v_G_I + [w_I]x * p_I_D) + n
 
   // temp 1: 1/S * R_I_D^T
   Eigen::Matrix3d temp_1 = 1 / scale * R_I_D.transpose();
@@ -125,10 +130,8 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I
 
   Eigen::MatrixXd K_transpose = S.ldlt().solve(H * state->cov_);
   Eigen::MatrixXd K = K_transpose.transpose();
-
   // std::cout<<"H: "<< H<<std::endl;
   // std::cout<<"K: "<< K<<std::endl;
-  // std::cout<<"delta X: "<< delta_X.transpose()<<std::endl;
 
   /********************************************************************************/
   /*************************** Update state and covariance ************************/
@@ -137,6 +140,9 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I
   Eigen::Vector3d v_D_hat = temp_1 * temp_3;
   Eigen::Vector3d r = v_D - v_D_hat;
   Eigen::VectorXd delta_X = K * r;
+  // std::cout<<"v_D: "<<v_D.transpose()<<std::endl;
+  // std::cout<<"v_D_hat: "<<v_D_hat.transpose()<<std::endl;
+  // std::cout<<"delta X: "<< delta_X.transpose()<<std::endl;
 
   state->updateState(delta_X);
 
@@ -155,7 +161,6 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I
 }
 
 void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I, const Eigen::Vector3d &v_D, bool is_simple) {
-  std::ofstream file;
 
   /********************************************************************************/
   /************************* construct Jacobian H matrix **************************/
@@ -206,15 +211,6 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I
   Eigen::Vector3d v_I_est = state->getEstimationValue(IMU,EST_VELOCITY);
   count++;
 
-  //// v_m_x,v_m_y_rt,v_m_z_rt,
-  //// v_m_x_r,v_m_y_r,v_m_z_r,
-  //// v_e_x,v_e_y,v_e_z
-  // file.open(file_path, std::ios_base::app);//std::ios_base::app
-  // file<<"\n"<<count<<","<<v_I_meas(0)<<","<<v_I_meas(1)<<","<<v_I_meas(2)<<",";
-  // file<< v_I_meas_R(0)<<","<<v_I_meas_R(1)<<","<<v_I_meas_R(2)<<",";
-  // file<< v_I_est(0)<<","<<v_I_est(1)<<","<<v_I_est(2);
-  // file.close();
-
   Eigen::Vector3d r = v_I_meas - state->getEstimationValue(IMU,EST_VELOCITY);
 
 
@@ -231,6 +227,114 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I
   //update covariance
 
   // P_k = P_k-1 - K * H * P_k-1
+
+  Eigen::MatrixXd I_KH = Eigen::MatrixXd::Identity(K.rows(), H.cols()) - K*H;
+  state->cov_ = I_KH*state->cov_;
+
+  // Fix the covariance to be symmetric
+  Eigen::MatrixXd state_cov_fixed = (state->cov_ + state->cov_.transpose()) / 2.0;
+  state->cov_ = state_cov_fixed;
+}
+
+void Updater::updatePressureTest(std::shared_ptr<State> state, const double pres_begin, const double pres_curr) {
+  /********************************************************************************/
+  /************************* construct Jacobian H matrix **************************/
+  /********************************************************************************/
+
+  int size_measurement = 1;
+  int size_state = state->getCovCols();
+  Eigen::MatrixXd H = Eigen::MatrixXd::Zero(size_measurement, size_state);
+
+  /*-------------------- elements need for estimation --------------------*/
+
+  Eigen::Matrix3d R_I_G = toRotationMatrix(state->getEstimationValue(IMU,EST_QUATERNION));
+
+  Eigen::Vector3d p_G_I = state->getEstimationValue(IMU,EST_POSITION);
+
+  // check if do the DVL extrinsics-rotation online calibration
+  Eigen::Matrix3d R_I_D = param_msckf_.do_R_I_D ? 
+                          toRotationMatrix(state->getEstimationValue(DVL,EST_QUATERNION)) :
+                          toRotationMatrix(prior_dvl_.extrinsics.head(4)); 
+
+  // rotation matrix between DVL and pressure
+  Eigen::Matrix3d R_D_P;
+  R_D_P = Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()) * 
+          Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY()) * 
+          Eigen::AngleAxisd(prior_dvl_.mount_angle, Eigen::Vector3d::UnitX());
+
+  // third value selection
+  Eigen::Matrix<double, 1, 3> s = {0,0,1};
+
+  // measurement function:
+  // pressure estimation: z_p = p_P = p_P_in - s * R_D_P^T * R_I_D^T * R_I_G * p_G_I + n
+
+  /*-------------------- Jacobian related to state --------------------*/
+
+  //! TODO: if R_I_D is not calibrated, this update will cased bad state estimation
+  //! TODO: try this if well calibrated
+  if(param_msckf_.do_R_I_D){
+    // State R_I_G(1x3): dh()/d(imu_R_I_G): - s * R_D_P^T * R_I_D^T * [R_I_G * p_G_I]x
+    Eigen::Matrix<double, 1, 3> d_imu_r = 
+      -s * R_D_P.transpose() * R_I_D.transpose() * toSkewSymmetric(R_I_G*p_G_I);
+    // id 
+    auto id_imu_r = state->getEstimationId(IMU,EST_QUATERNION);
+    // stack jacobian matrix
+    H.block(0,id_imu_r,1,3) = d_imu_r;
+  }
+
+  // State p_G_I(1x3): dh()/d(imu_p_G_I): -s * R_D_P^T * R_I_D^T * R_I_G
+  Eigen::Matrix<double, 1, 3> d_imu_p = 
+    -s * R_D_P.transpose() * R_I_D.transpose() * R_I_G;
+  // id
+  auto id_imu_p = state->getEstimationId(IMU,EST_POSITION);
+  // stack jacobian matrix
+  H.block(0,id_imu_p,1,3) = d_imu_p;
+
+  // State v_G_I(1x3): dh()/d(imu_v_G_I): 0
+
+  // State bias_w(1x3): dh()/d(imu_bw): 0
+
+  // State bias_a(1x3): dh()/d(imu_ba): 0
+
+  /********************************************************************************/
+  /****************************** Compute Kalman Gain *****************************/
+  /********************************************************************************/
+  // K = P * H^T * (H * P * H^T + Rn) ^-1
+
+  // DVL BT measurement noise matrix
+  Eigen::Matrix<double,1,1> Rn(0.1);
+
+  Eigen::MatrixXd S(Rn.rows(), Rn.rows());
+  // S.triangularView<Eigen::Upper>() = H * state->cov_ * H.transpose();
+  // S.triangularView<Eigen::Upper>() += Rn;
+  S = H * state->cov_ * H.transpose() + Rn;
+
+  Eigen::MatrixXd K_transpose = S.ldlt().solve(H * state->cov_);
+  Eigen::MatrixXd K = K_transpose.transpose();
+  // std::cout<<"H: "<< H<<std::endl;
+  // std::cout<<"K: "<< K<<std::endl;
+
+  /********************************************************************************/
+  /*************************** Update state and covariance ************************/
+  /********************************************************************************/
+  Eigen::Vector3d vec_test = R_D_P.transpose() * R_I_D.transpose() * R_I_G * p_G_I;
+  double p_P_hat = pres_begin - s * vec_test;
+  printf("Pressure est: %f, meas: %f, vec_test:%f,%f,%f\n", p_P_hat, pres_curr, 
+        vec_test(0),vec_test(1),vec_test(2));
+
+  Eigen::Matrix<double,1,1> r;
+  r << p_P_hat - pres_curr;
+  Eigen::VectorXd delta_X = K * r;
+  // std::cout<<"v_D: "<<v_D.transpose()<<std::endl;
+  // std::cout<<"v_D_hat: "<<v_D_hat.transpose()<<std::endl;
+  // std::cout<<"delta X: "<< delta_X.transpose()<<std::endl;
+
+  state->updateState(delta_X);
+
+  // P_k = P_k-1 - K * H * P_k-1
+
+  // state->cov_.triangularView<Eigen::Upper>() -= K * H * state->cov_;
+  // state->cov_ = state->cov_.selfadjointView<Eigen::Upper>();
 
   Eigen::MatrixXd I_KH = Eigen::MatrixXd::Identity(K.rows(), H.cols()) - K*H;
   state->cov_ = I_KH*state->cov_;
@@ -258,11 +362,12 @@ void Updater::updatePressure(std::shared_ptr<State> state, const double pres_beg
           Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY()) * 
           Eigen::AngleAxisd(prior_dvl_.mount_angle, Eigen::Vector3d::UnitX());
 
-  Eigen::Matrix3d R_I_G_init;
-  R_I_G_init <<
-          0.999487,0.000000,-0.032023,
-          -0.003259,-0.994808,-0.101722,
-          -0.031856,0.101774,-0.994297;
+  Eigen::Matrix3d R_I_G;
+  R_I_G <<toRotationMatrix(state->getEstimationValue(IMU,EST_QUATERNION));
+  // R_I_G <<
+  //         0.999487,0.000000,-0.032023,
+  //         -0.003259,-0.994808,-0.101722,
+  //         -0.031856,0.101774,-0.994297;
 
   Eigen::Matrix3d R_I_D = toRotationMatrix(prior_dvl_.extrinsics.head(4));
 
@@ -301,15 +406,15 @@ void Updater::updatePressure(std::shared_ptr<State> state, const double pres_beg
   // p_G_I = R_G_I * R_I_D * R_D_P * p_P
   // p_P = R_D_P^T * R_I_D^T * R_G_I^T * p_G_I
 
-  Eigen::Vector3d p_G_I_hat = R_I_G_init.transpose() * R_I_D * R_D_P * p_P;
+  Eigen::Vector3d p_G_I_hat = R_I_G.transpose() * R_I_D * R_D_P * p_P;
 
   Eigen::Matrix<double,1,1> r;
   r << p_G_I_hat(2) - p_G_I(2);
 
-  // Eigen::Vector3d p_G_I_hat = R_I_G_init.transpose() * R_I_D * R_D_P * p_P;
+  // Eigen::Vector3d p_G_I_hat = R_I_G.transpose() * R_I_D * R_D_P * p_P;
   // std::cout<<"p_P meas in Pressure: "<<p_P.transpose()<<std::endl;
   // std::cout<<"p_G_I_hat esti in global: "<<p_G_I_hat.transpose()<<std::endl;
-  // Eigen::Vector3d p_P_hat = R_D_P.transpose() * R_I_D.transpose() * R_I_G_init * p_G_I;
+  // Eigen::Vector3d p_P_hat = R_D_P.transpose() * R_I_D.transpose() * R_I_G * p_G_I;
   // std::cout<<"p_G_I in global from IMU: "<<p_G_I.transpose()<<std::endl;
   // std::cout<<"p_P esti in pressure from IMU: "<<p_P_hat.transpose()<<"\n=============\n";
 
@@ -399,6 +504,177 @@ void Updater::marginalizeDvl(std::shared_ptr<State> state) {
     if( id > id_marg) 
       estimation.second->setId(id - size_marg);
   }
+}
+
+void Updater::marginalize(std::shared_ptr<State> state, SubStateName clone_name) {
+
+  /****************************************************************/
+  /******************** marginalize covariance ********************/
+  /****************************************************************/
+  
+  // find the clone need to marginalize
+  auto marg = state->state_[clone_name].begin();
+
+  auto time_marg = marg->first;
+  auto id_marg = marg->second->getId();
+  auto size_marg = marg->second->getSize();
+  auto size_marg_bef = marg->second->getId();
+  auto size_marg_aft = (int)state->cov_.rows() - size_marg_bef - size_marg;
+
+  //  P_(x_bef,x_bef)  P(x_bef,x_marg)  P(x_bef,x_aft)
+  //  P_(x_marg,x_bef) P(x_marg,x_marg) P(x_marg,x_aft)
+  //  P_(x_aft,x_bef)  P(x_aft,x_marg)  P(x_aft,x_aft)
+  //  
+  //  to
+  //
+  //  P_(x_bef,x_bef) P(x_bef,x_aft)
+  //  P_(x_aft,x_bef) P(x_aft,x_aft)
+
+  // remove covariance
+  Eigen::MatrixXd cov_new(state->cov_.rows() - size_marg, state->cov_.rows() - size_marg);
+
+  // P_(x_bef,x_bef)
+  cov_new.block(0, 0, size_marg_bef, size_marg_bef) = 
+    state->cov_.block(0, 0, size_marg_bef, size_marg_bef);
+
+  // P_(x_bef,x_aft)
+  cov_new.block(0, size_marg_bef, size_marg_bef, size_marg_aft) = 
+    state->cov_.block(0, size_marg_bef + size_marg, size_marg_bef, size_marg_aft);
+
+  // P_(x_aft,x_bef)
+  cov_new.block(size_marg_bef, 0, size_marg_aft, size_marg_bef) = 
+    state->cov_.block(size_marg_bef + size_marg, 0, size_marg_aft, size_marg_bef);
+    //! TODO: don't know why open_vins use this?
+    // cov_new.block(0, size_marg_bef, size_marg_bef, size_marg_aft).transpose();
+
+  // P_(x_aft,x_aft)
+  cov_new.block(size_marg_bef, size_marg_bef, size_marg_aft, size_marg_aft) = 
+    state->cov_.block(size_marg_bef + size_marg, size_marg_bef + size_marg, size_marg_aft, size_marg_aft);
+
+  // set to new covariance
+  state->cov_ = cov_new;
+  assert(state->cov_.rows() == cov_new.rows());
+  assert(state->cov_.cols() == cov_new.cols());
+
+  /****************************************************************/
+  /********************** marginalize clone ***********************/
+  /****************************************************************/
+
+  // remove clone
+  state->state_[clone_name].erase(time_marg);
+
+  // reset id
+  for(auto &clones : state->state_[clone_name]) {
+    auto id = clones.second->getId();
+
+    if( id > id_marg) 
+      clones.second->setId(id - size_marg);
+  }
+  
+}
+
+void Updater::updateCam(
+    std::shared_ptr<State> state, 
+    std::vector<Feature> &features,
+    double timestamp) {
+
+  // -------------------- Triangulation -------------------- //
+
+  // [0] Return if no features
+  if (features.empty())
+    return;
+
+  // [1] Get Camera Pose and Clone Time
+
+  // get known information
+  double cam_time;
+  Eigen::Matrix3d R_I_G, R_C_I;
+  Eigen::Vector3d p_G_I, p_C_I;
+  R_C_I = param_msckf_.do_R_C_I ? 
+          toRotationMatrix(state->getEstimationValue(CAM0,EST_QUATERNION)) :
+          toRotationMatrix(prior_cam_.extrinsics.head(4));
+  p_C_I = param_msckf_.do_p_C_I ?
+          state->getEstimationValue(CAM0,EST_POSITION) :
+          prior_cam_.extrinsics.tail(3);
+
+  // get clone pose 
+  Eigen::Matrix4d T_G_C = Eigen::Matrix4d::Identity();
+  std::unordered_map<double, Eigen::Matrix4d> cam_poses;
+  std::vector<double> clone_times;
+
+  for (const auto &clone : state->state_[CLONE_CAM0]) {
+    // get clone time and IMU pose
+    cam_time = std::stod(clone.first);
+    R_I_G = toRotationMatrix(clone.second->getValue().block(0,0,4,1));
+    p_G_I = clone.second->getValue().block(4,0,3,1);
+
+    // get camera pose in global frame
+    T_G_C.block(0,0,3,3) = R_I_G.transpose() * R_C_I.transpose();
+    T_G_C.block(0,3,3,1) = p_G_I - T_G_C.block(0,0,3,3) * p_C_I;
+
+    // insert to container
+    cam_poses.insert({cam_time, T_G_C});
+    clone_times.emplace_back(cam_time);
+  }
+
+  // [2] Clean all feature: 
+  //      1)make sure they have associated clone; 2)more then 2 for triangulation 
+  auto it0 = features.begin();
+  while (it0 != features.end()) {
+
+    // clean the feature that don't have the clonetime
+    it0->clean_old_measurements(clone_times);
+
+    // count how many measurements
+    int num_measurements = 0;
+    for (const auto &pair : it0->timestamps) {
+      num_measurements += it0->timestamps[pair.first].size();
+    }
+
+    // remove if we don't have enough
+    //! TODO: add min triangulation feature number to parameters
+    if (num_measurements < 2) {
+      it0 = features.erase(it0);
+    } 
+    else {
+      it0++;
+    }
+  }
+
+  // [3] Try to triangulate all MSCKF features
+
+  auto it1 = features.begin();
+  while (it1 != features.end()) {
+
+    // triangulate the feature and remove if it fails
+    bool success_tri = true;
+    bool success_refine = true;
+
+    success_tri = triangulater->single_triangulation(&*it1, cam_poses);
+
+    success_refine = triangulater->single_gaussnewton(&*it1, cam_poses);
+
+    // remove the feature if not a success
+    if (!success_tri || !success_refine) {
+      it1 = features.erase(it1);
+    }
+    else {
+      it1++;
+    }
+  }
+
+  // -------------------- Update -------------------- //
+
+  // [0] Update .....
+
+  // We have used all the left features, delete them
+  //! TODO: no need to assign "to_delete", maybe just erase them from vector to freeup memory
+  // auto it2 = features.begin();
+  // while (it2 != features.end()) {
+  //   it2->to_delete = true;
+  //   it2++;
+  // }
+
 }
 
 } // namespace msckf_dvio

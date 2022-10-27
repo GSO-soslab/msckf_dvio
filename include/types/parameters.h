@@ -37,13 +37,13 @@ struct priorDvl {
 };
 
 struct priorCam {
-  // extrinsic transformation between IMU and CAM
+  // extrinsic transformation between Camera and IMU
   Eigen::Matrix<double, 7, 1> extrinsics;
+  // intrinsics projection transformation 
+  Eigen::Matrix<double, 4, 1> intrinsics;
   // distortion coeffs for camera
   Eigen::Matrix<double, 4, 1> distortion_coeffs;
-  // intrinsics
-  Eigen::Matrix<double, 4, 1> intrinsics;
-  // timeoffset between IMU and Camera
+  // timeoffset between Camera and IMU
   double timeoffset;
 };
 
@@ -58,6 +58,18 @@ struct paramMsckf {
   bool do_scale_D;
   // max clone for DVL 
   int max_clone_D;
+
+  // enable camera exterisic rotation calibration 
+  bool do_R_C_I;
+  // enable camera exterisic translation calibration 
+  bool do_p_C_I;
+  // enable camera time offset calibration
+  bool do_time_C_I;
+  // max clone for camera 
+  int max_clone_C;
+
+  // the max features used for MSCKF update
+  int max_msckf_update;
 };
 
 struct paramInit {
@@ -96,6 +108,27 @@ struct paramTrack {
   double downsample_ratio;
 };
 
+struct paramTriangulation {
+  /// Max condition number of linear triangulation matrix accept triangulated features
+  double max_cond_number;
+  /// Minimum distance to accept triangulated features
+  double min_dist;
+  /// Minimum distance to accept triangulated features
+  double max_dist;
+  /// Multiplier to increase/decrease lambda
+  double lam_mult; 
+  /// Max runs for Levenberg-Marquardt
+  int max_runs; 
+  /// Max lambda for Levenberg-Marquardt optimization
+  double max_lamda;  
+  /// Cutoff for dx increment to consider as converged
+  double min_dx; 
+  /// Cutoff for cost decrement to consider as converged
+  double min_dcost; 
+  /// Max baseline ratio to accept triangulated features
+  double max_baseline;
+};
+
 //! TODO: set sub-parameters as shared_ptr? 
 //!       so the paramters will updated automaticly, used for localization failed case?
 struct Params{
@@ -128,6 +161,8 @@ struct Params{
   paramMsckf msckf;
 
   paramTrack tracking;
+
+  paramTriangulation triangualtion;
 };
 
 

@@ -7,9 +7,16 @@
   <!-- ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
 
   <!-- ======================================== play the dataset ====================================== -->
+  <arg name="config_path" default="$(find msckf_dvio)/config/Alaska/3_29"/>
 
-  <arg name="bag_start" default="50" /> 
-  <arg name="bag" default="/home/lin/develop/data/underIce/alaska/03_30/full_dvlCorrect_timeRestamp_imgCompressed.bag" />
+  <arg name="bag" 
+       default="/home/lin/develop/data/underIce/alaska/03_29/full_imgCompressed_dvlRecoveried_timeRestamped_timeSync.bag" />
+  <arg name="bag_start" default="47" /> 
+
+  <!-- <arg name="bag" 
+       default="/home/lin/develop/data/underIce/alaska/03_30/full_dvlCorrect_timeRestamp_imgCompressed_timeSync.bag" />
+  <arg name="bag_start" default="50" />  -->
+
   <node pkg="rosbag" type="play" name="rosbag" args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)" required="true"/>
 
   <!-- ============================== DVL Helper: raw -> navigation data  ============================= -->
@@ -26,11 +33,11 @@
   <!-- =================================== Camera Helper: Decompress ================================== -->
 
   <node name="right_republish" type="republish" pkg="image_transport" output="screen"
-          args="compressed  in:=/rov_remote/sensors/stereo/right/image_raw_sync 
+          args="compressed  in:=/rov/sensors/stereo/right/image_raw_sync 
               raw        out:=/rov_remote/sensors/stereo/right/image_decompressed" />
 
   <node name="left_republish" type="republish" pkg="image_transport" output="screen"
-          args="compressed  in:=/rov_remote/sensors/stereo/left/image_raw_sync
+          args="compressed  in:=/rov/sensors/stereo/left/image_raw_sync
               raw        out:=/rov_remote/sensors/stereo/left/image_decompressed" />
 
   <!-- =================================== Test Helper: save data... ================================== -->
@@ -42,10 +49,13 @@
   <!-- ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
 
   <!-- ========================================== Parmaters =========================================== -->
+  <arg name="prior_yaml" default="$(arg config_path)/dvl_nocalib/prior.yaml"/>
+  <arg name="system_yaml" default="$(arg config_path)/dvl_nocalib/system.yaml"/>
+  <arg name="tracking_yaml" default="$(arg config_path)/dvl_nocalib/tracking.yaml"/>
 
-  <arg name="prior_yaml" default="$(find msckf_dvio)/config/Alaska/3_30/dvl_nocalib/prior.yaml"/>
+  <!-- <arg name="prior_yaml" default="$(find msckf_dvio)/config/Alaska/3_30/dvl_nocalib/prior.yaml"/>
   <arg name="system_yaml" default="$(find msckf_dvio)/config/Alaska/3_30/dvl_nocalib/system.yaml"/>
-  <arg name="tracking_yaml" default="$(find msckf_dvio)/config/Alaska/3_30/dvl_nocalib/tracking.yaml"/>
+  <arg name="tracking_yaml" default="$(find msckf_dvio)/config/Alaska/3_30/dvl_nocalib/tracking.yaml"/> -->
 
   <!-- ========================================== MSCKF node ========================================== -->
 
@@ -71,5 +81,10 @@
   
   <node name="rviz" pkg="rviz" type="rviz"  
         args="--opengl 300 -d $(find msckf_dvio)/launch/rviz/msckf_dvio.rviz" /> 
+
+    <!-- <node name = "plotjuggler_with_layout" 
+          pkg  = "plotjuggler"
+          type = "plotjuggler"
+          args = "-!-layout $(find msckf_dvio)/launch/Alaska/plotjuggler.xml"/> -->
 
 </launch>

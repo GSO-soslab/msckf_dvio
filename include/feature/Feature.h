@@ -94,6 +94,16 @@ public:
    * @param timestamp Timestamps that our measurements must occur after
    */
   void clean_older_measurements(double timestamp);
+
+  /**
+   * @brief Remove measurements that are newer then the specified timestamp.
+   * 
+   * Remove the measurements after current update timestamp, 
+   * this help to select measurements before current update time for asynchronize update
+   * 
+   * @param timestamp Timestamp
+   */
+  void clean_newer_measurements(double timestamp);
 };
 
 } // namespace msckf_dvio

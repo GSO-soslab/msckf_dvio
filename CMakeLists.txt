@@ -35,7 +35,7 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs cv_bridge message_generation tf2
   tf_conversions eigen_conversions std_srvs
   dynamic_reconfigure message_filters image_transport 
-  ds_sensor_msgs nortek_dvl
+  ds_sensor_msgs nortek_dvl tf2_ros tf2_geometry_msgs
 )
 
 ################################################
@@ -56,6 +56,7 @@ catkin_package(
  CATKIN_DEPENDS roscpp rospy std_msgs rosbag sensor_msgs cv_bridge dynamic_reconfigure
                 geometry_msgs message_runtime nortek_dvl tf_conversions eigen_conversions
                 message_filters image_transport visualization_msgs tf nav_msgs tf2 std_srvs
+                tf2_ros tf2_geometry_msgs
  DEPENDS PCL EIGEN3
 )
 
@@ -96,6 +97,7 @@ add_library(dvio_lib SHARED
   include/msckf/updater.cpp
 
   include/feature/Feature.cpp
+  include/feature/triangulation.cpp
 
   include/tracker/TrackBase.cpp
   include/tracker/TrackKLT.cpp
@@ -107,7 +109,7 @@ target_link_libraries(dvio_lib ${thirdparty_libraries})
 ############### build ros ################
 ##########################################
 
-add_executable(dvio_node ros/node.cpp)
+add_executable(dvio_node ros/node.cpp ros/visualizer.cpp)
 target_link_libraries(dvio_node dvio_lib ${thirdparty_libraries})
 
 add_executable(dvl_helper_node ros/helper/dvl_helper.cpp)
@@ -126,8 +128,12 @@ target_link_libraries(dvl_helper_node ${thirdparty_libraries})
 # add_executable(test_ros_rpy test/cpp/ros_rpy.cpp)
 # target_link_libraries(test_ros_rpy ${thirdparty_libraries})
 
-add_executable(test_eigen test/cpp/eigen.cpp)
-target_link_libraries(test_eigen ${thirdparty_libraries})
+# add_executable(test_shared_ptr test/cpp/test_shared_ptr.cpp)
+# target_link_libraries(test_shared_ptr ${thirdparty_libraries})
+
+# add_executable(test_set_map test/cpp/test_set_map.cpp)
+# target_link_libraries(test_set_map ${thirdparty_libraries})
+
 
 # add_executable(test_remapDVL test/cpp/remap_dvl.cpp)
 # target_link_libraries(test_remapDVL ${thirdparty_libraries})
@@ -139,8 +145,20 @@ target_link_libraries(test_eigen ${thirdparty_libraries})
 # )
 # add_dependencies(test_save ${PROJECT_NAME}_gencfg)
 
-add_executable(test_save test/cpp/save_imu_cloud_odom.cpp)
+add_executable(test_save test/cpp/save_data.cpp)
 target_link_libraries(test_save ${thirdparty_libraries})
+
+add_executable(test_feature test/cpp/feature_database.cpp)
+target_link_libraries(test_feature ${thirdparty_libraries})
+
+add_executable(test_cpp test/cpp/c_plus_plus.cpp)
+target_link_libraries(test_cpp ${thirdparty_libraries})
+
+add_executable(test_timecost test/cpp/test_timecost.cpp)
+target_link_libraries(test_timecost ${thirdparty_libraries})
+
+# add_executable(test_video_stream test/cpp/view_video_stream.cpp)
+# target_link_libraries(test_video_stream ${thirdparty_libraries})
 
 # add_executable(test_evaluation test/cpp/evaluate_image_stitch.cpp)
 # target_link_libraries(test_evaluation ${thirdparty_libraries})
