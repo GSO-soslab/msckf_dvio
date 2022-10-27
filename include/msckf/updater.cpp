@@ -161,7 +161,6 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I
 }
 
 void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I, const Eigen::Vector3d &v_D, bool is_simple) {
-  std::ofstream file;
 
   /********************************************************************************/
   /************************* construct Jacobian H matrix **************************/
@@ -211,15 +210,6 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I
 
   Eigen::Vector3d v_I_est = state->getEstimationValue(IMU,EST_VELOCITY);
   count++;
-
-  //// v_m_x,v_m_y_rt,v_m_z_rt,
-  //// v_m_x_r,v_m_y_r,v_m_z_r,
-  //// v_e_x,v_e_y,v_e_z
-  // file.open(file_path, std::ios_base::app);//std::ios_base::app
-  // file<<"\n"<<count<<","<<v_I_meas(0)<<","<<v_I_meas(1)<<","<<v_I_meas(2)<<",";
-  // file<< v_I_meas_R(0)<<","<<v_I_meas_R(1)<<","<<v_I_meas_R(2)<<",";
-  // file<< v_I_est(0)<<","<<v_I_est(1)<<","<<v_I_est(2);
-  // file.close();
 
   Eigen::Vector3d r = v_I_meas - state->getEstimationValue(IMU,EST_VELOCITY);
 
@@ -585,107 +575,8 @@ void Updater::marginalize(std::shared_ptr<State> state, SubStateName clone_name)
 
 void Updater::updateCam(
     std::shared_ptr<State> state, 
-    std::vector<std::shared_ptr<Feature>> &features) {
-
-  // -----  [0] Feature Triangulation ----- //
-
-  // Return if no features
-  if (features.empty())
-    return;
-
-  // [0-0] Get associated Camera Pose and Clone Time
-
-  // get known information
-  double cam_time;
-  Eigen::Matrix3d R_I_G, R_C_I;
-  Eigen::Vector3d p_G_I, p_C_I;
-  R_C_I = param_msckf_.do_R_C_I ? 
-          toRotationMatrix(state->getEstimationValue(CAM0,EST_QUATERNION)) :
-          toRotationMatrix(prior_cam_.extrinsics.head(4));
-  p_C_I = param_msckf_.do_p_C_I ?
-          state->getEstimationValue(CAM0,EST_POSITION) :
-          prior_cam_.extrinsics.tail(3);
-
-  // get data
-  Eigen::Matrix4d T_G_C = Eigen::Matrix4d::Identity();
-  std::unordered_map<double, Eigen::Matrix4d> cam_poses;
-  std::vector<double> clone_times;
-
-  for (const auto &clone : state->state_[CLONE_CAM0]) {
-    // get clone time and IMU pose
-    cam_time = std::stod(clone.first);
-    R_I_G = toRotationMatrix(clone.second->getValue().block(0,0,4,1));
-    p_G_I = clone.second->getValue().block(4,0,3,1);
-
-    // get camera pose in global frame
-    T_G_C.block(0,0,3,3) = R_I_G.transpose() * R_C_I.transpose();
-    T_G_C.block(0,3,3,1) = p_G_I - T_G_C.block(0,0,3,3) * p_C_I;
-
-    // insert to container
-    cam_poses.insert({cam_time, T_G_C});
-    clone_times.emplace_back(cam_time);
-  }
-
-  // [1] 
-  auto it0 = features.begin();
-  while (it0 != features.end()) {
-
-    // Clean the feature that don't have the clonetime
-    (*it0)->clean_old_measurements(clone_times);
-
-    // Count how many measurements
-    int num_measurements = 0;
-    for (const auto &pair : (*it0)->timestamps) {
-      num_measurements += (*it0)->timestamps[pair.first].size();
-    }
-
-    // Remove if we don't have enough
-    //! TODO: add min triangulation feature number to parameters
-    if (num_measurements < 2) {
-      (*it0)->to_delete = true;
-      it0 = features.erase(it0);
-    } else {
-      it0++;
-    }
-  }
-
-  // [2] Try to triangulate all MSCKF or new SLAM features that have measurements
-  auto it1 = features.begin();
-  while (it1 != features.end()) {
-
-    // Triangulate the feature and remove if it fails
-    bool success_tri = true;
-    bool success_refine = true;
-
-    success_tri = triangulater->single_triangulation(it1->get(), cam_poses);
-    success_refine = triangulater->single_gaussnewton(it1->get(), cam_poses);
-
-    // Remove the feature if not a success
-    if (!success_tri || !success_refine) {
-      (*it1)->to_delete = true;
-      it1 = features.erase(it1);
-      continue;
-    }
-
-    it1++;
-  }
-
-  // [3] Update .....
-
-  // We have used all the left features, delete them
-  //! TODO: no need to assign "to_delete", maybe just erase them from vector to freeup memory
-  auto it2 = features.begin();
-  while (it2 != features.end()) {
-    (*it2)->to_delete = true;
-    // it2 = features.erase(it2);
-    it2++;
-  }
-
-}
-
-void Updater::updateCamTest(
-    std::shared_ptr<State> state, 
-    std::vector<Feature> &features) {
+    std::vector<Feature> &features,
+    double timestamp) {
 
   // -------------------- Triangulation -------------------- //
 
@@ -751,13 +642,16 @@ void Updater::updateCamTest(
   }
 
   // [3] Try to triangulate all MSCKF features
+
   auto it1 = features.begin();
   while (it1 != features.end()) {
 
     // triangulate the feature and remove if it fails
     bool success_tri = true;
     bool success_refine = true;
+
     success_tri = triangulater->single_triangulation(&*it1, cam_poses);
+
     success_refine = triangulater->single_gaussnewton(&*it1, cam_poses);
 
     // remove the feature if not a success

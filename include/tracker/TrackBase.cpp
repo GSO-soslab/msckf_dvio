@@ -158,7 +158,10 @@ void TrackBase::display_history(cv::Mat &img_out, int r1, int g1, int b1, int r2
         continue;
 
       //! TEST:  
-      // printf("vis id:%ld, tracks:%ld\n", feat->featid, feat->uvs[pair.first].size());
+      // auto feat_size = feat->uvs[pair.first].size();
+      // if(feat_size>10) {
+      //   printf("  tracks:%ld\n",feat_size);
+      // }
 
       // Draw the history of this point (start at the last inserted one)
       for (size_t z = feat->uvs[pair.first].size() - 1; z > 0; z--) {

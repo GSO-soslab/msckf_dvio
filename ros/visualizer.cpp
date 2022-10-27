@@ -7,12 +7,14 @@ RosVisualizer::RosVisualizer(const ros::NodeHandle &nh, std::shared_ptr<MsckfMan
   :msckf_manager(manager), it_(nh), nh_(nh), last_visual_times(0) {
 
   // Setup our transform broadcaster
-  odom_broadcaster = std::make_unique<tf::TransformBroadcaster>();
+  odom_broadcaster = std::make_unique<tf2_ros::TransformBroadcaster>();
 
+  // Setup ros sub/pub
   pub_img = it_.advertise("/tracked_img", 20);
   pub_odom = nh_.advertise<nav_msgs::Odometry>("/odom", 10);
   pub_path = nh_.advertise<nav_msgs::Path>("/path", 10);
   pub_features = nh_.advertise<sensor_msgs::PointCloud2>("/feature_clouds", 10); 
+
 }
 
 void RosVisualizer::visualize() {
@@ -24,6 +26,11 @@ void RosVisualizer::visualize() {
 
   // publish current image
   publishImage();
+
+  // return if system is not initialized
+  if(!msckf_manager->isInitialized()) {
+    return;
+  } 
 
   // publish State
   publishState();
@@ -53,9 +60,33 @@ void RosVisualizer::publishImage() {
 }
 
 void RosVisualizer::publishState() {
+  //// get staic tf: Base_link ~ AHRS
+  tf2::Quaternion q_B_I;
+  q_B_I.setRPY( 3.132, 0.003, 3.130);
+  tf2::Vector3 p_B_I(0.295, 0.083, 0.090);
+  tf2::Transform T_B_I;
+  T_B_I.setRotation(q_B_I);
+  T_B_I.setOrigin(p_B_I);
 
+  //// get tf: Odometry ~ AHRS
   auto imu_value = msckf_manager->getState()->getImuValue();
   auto imu_time = msckf_manager->getState()->getTimestamp();
+
+  tf2::Transform T_O_I;
+  T_O_I.setOrigin( tf2::Vector3(imu_value(4), imu_value(5), imu_value(6)) );
+  T_O_I.setRotation( tf2::Quaternion(imu_value(0),imu_value(1),imu_value(2),imu_value(3)) );
+
+  //// get tf: Odometry ~ Base_link
+  tf2::Transform T_O_B = T_O_I * T_B_I.inverse();
+
+  //// Publish tf
+  geometry_msgs::TransformStamped tf_O_B;
+  tf2::convert(T_O_B, tf_O_B.transform);
+
+  tf_O_B.header.stamp = ros::Time(imu_time);
+  tf_O_B.header.frame_id = "odom";
+  tf_O_B.child_frame_id = "base_link";
+  odom_broadcaster->sendTransform(tf_O_B);
 
   //// Publish odometry
 
@@ -65,7 +96,7 @@ void RosVisualizer::publishState() {
 
   msg_odom.header.stamp = ros::Time(imu_time);
   msg_odom.header.frame_id = "odom";
-  msg_odom.child_frame_id = "imu";
+  msg_odom.child_frame_id = "ahrs";
   msg_odom.pose.pose.orientation.x = imu_value(0);
   msg_odom.pose.pose.orientation.y = imu_value(1);
   msg_odom.pose.pose.orientation.z = imu_value(2);
@@ -78,23 +109,6 @@ void RosVisualizer::publishState() {
   msg_odom.twist.twist.linear.z    = imu_value(9);
 
   pub_odom.publish(msg_odom);
-
-  //// Publish tf
-
-  tf::StampedTransform trans;
-  trans.stamp_ = ros::Time::now();
-  trans.frame_id_ = "odom";
-  trans.child_frame_id_ = "imu";
-  tf::Quaternion quat(msg_odom.pose.pose.orientation.x, 
-                      msg_odom.pose.pose.orientation.y, 
-                      msg_odom.pose.pose.orientation.z, 
-                      msg_odom.pose.pose.orientation.w);
-  trans.setRotation(quat);
-  tf::Vector3 orig(msg_odom.pose.pose.position.x, 
-                   msg_odom.pose.pose.position.y, 
-                   msg_odom.pose.pose.position.z);
-  trans.setOrigin(orig);
-  odom_broadcaster->sendTransform(trans);
 
   //// publish path
 
@@ -109,22 +123,31 @@ void RosVisualizer::publishState() {
   path.poses.push_back(pose);
 
   pub_path.publish(path);
+  
 
-  //! TODO: publish odom and base_link
-  // // transformation between Base frame and AHRS frame
-  // tf::Quaternion q_B_A;
-  // q_B_A.setRPY( 3.132, 0.003, 3.130);
-  // tf::Vector3 p_B_A(0.295, 0.083, 0.090);
-  // tf::Transform T_B_A;
-  // T_B_A.setRotation(q_B_A);
-  // T_B_A.setOrigin(p_B_A);
+  // tf::StampedTransform trans;
+  // // trans.stamp_ = ros::Time::now();
+  // trans.stamp_ = ros::Time(imu_time);
+  // trans.frame_id_ = "odom";
+  // trans.child_frame_id_ = "imu";
+  // tf::Quaternion quat(msg_odom.pose.pose.orientation.x, 
+  //                     msg_odom.pose.pose.orientation.y, 
+  //                     msg_odom.pose.pose.orientation.z, 
+  //                     msg_odom.pose.pose.orientation.w);
+  // trans.setRotation(quat);
+  // tf::Vector3 orig(msg_odom.pose.pose.position.x, 
+  //                  msg_odom.pose.pose.position.y, 
+  //                  msg_odom.pose.pose.position.z);
+  // trans.setOrigin(orig);
+  // odom_broadcaster->sendTransform(trans);
+
 }
 
 void RosVisualizer::publishFeatures() {
 // visualize tracked feature in 3D
 
   // get features
-  std::vector<Eigen::Vector3d> feats = msckf_manager->getFeaturesTest1();
+  std::vector<Eigen::Vector3d> feats = msckf_manager->getFeatures();
 
   if(feats.size() == 0 ) {
     return;

@@ -12,12 +12,12 @@
 #include <fstream>
 #include <queue>
 #include <limits>
-#include <chrono>
 // customized
 #include "types/type_all.h"
 
 #include "utils/utils.h"
 #include "utils/recorder.h"
+#include "utils/time_cost.h"
 
 #include "msckf/state.h"
 #include "msckf/predictor.h"
@@ -52,15 +52,13 @@ public:
 
   std::shared_ptr<TrackBase> getTracker() { return tracker; }
 
-  std::vector<Eigen::Vector3d> getFeatures() { return trig_feat; }
-
   void cleanFeatures() { trig_feat.clear(); }
 
   //! TODO: just for test, better handling in visulization_manager
 
-  void setFeaturesTest2(std::vector<Feature> &features);
+  void setFeatures(std::vector<Feature> &features);
 
-  std::vector<Eigen::Vector3d> getFeaturesTest1();
+  std::vector<Eigen::Vector3d> getFeatures();
 
   bool isFeature() {return is_feat; }
 
@@ -80,9 +78,7 @@ private:
 
   std::vector<ImuMsg> selectImu(double t_begin, double t_end);
 
-  std::vector<std::shared_ptr<Feature>> selectFeatures(const double time_curr);
-
-  void selectFeaturesTest(const double time_update, std::vector<Feature> &feat_selected);
+  void selectFeatures(const double time_update, std::vector<Feature> &feat_selected);
 
   void getDataForPressure(PressureMsg &pressure, DvlMsg &dvl, std::vector<ImuMsg> &imus);
 

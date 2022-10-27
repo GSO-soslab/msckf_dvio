@@ -4,7 +4,7 @@
 
 KLT:
   num_aruco: 1024
-  num_pts: 10
+  num_pts: 200
   fast_threshold: 15
   grid_x: 5
   grid_y: 3
@@ -22,11 +22,11 @@ KLT:
 ############################################
 Feature:
   # Max condition number of linear triangulation matrix accept triangulated features
-  max_cond_number: 1000000
+  max_cond_number: 10000
   # Minimum distance to accept triangulated features
-  min_dist: 0.10
+  min_dist: 0.5
   # Minimum distance to accept triangulated features
-  max_dist: 60
+  max_dist: 5
   # Multiplier to increase/decrease lambda
   lam_mult: 10 
   # Max runs for Levenberg-Marquardt
@@ -38,4 +38,4 @@ Feature:
   # Cutoff for cost decrement to consider as converged
   min_dcost: 1e-6
   # Max baseline ratio to accept triangulated features
-  max_baseline: 100
+  max_baseline: 40

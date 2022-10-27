@@ -293,7 +293,7 @@ void RosNode::process() {
     //     std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() * 1e-6,
     //     std::chrono::duration_cast<std::chrono::microseconds>(t3 - t2).count() * 1e-6);
 
-    std::chrono::milliseconds dura(sleep_t);
+    std::chrono::milliseconds dura(5);
     std::this_thread::sleep_for(dura);
   }
 }

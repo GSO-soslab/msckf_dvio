@@ -35,7 +35,7 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs cv_bridge message_generation tf2
   tf_conversions eigen_conversions std_srvs
   dynamic_reconfigure message_filters image_transport 
-  ds_sensor_msgs nortek_dvl
+  ds_sensor_msgs nortek_dvl tf2_ros tf2_geometry_msgs
 )
 
 ################################################
@@ -56,6 +56,7 @@ catkin_package(
  CATKIN_DEPENDS roscpp rospy std_msgs rosbag sensor_msgs cv_bridge dynamic_reconfigure
                 geometry_msgs message_runtime nortek_dvl tf_conversions eigen_conversions
                 message_filters image_transport visualization_msgs tf nav_msgs tf2 std_srvs
+                tf2_ros tf2_geometry_msgs
  DEPENDS PCL EIGEN3
 )
 
@@ -127,10 +128,6 @@ target_link_libraries(dvl_helper_node ${thirdparty_libraries})
 # add_executable(test_ros_rpy test/cpp/ros_rpy.cpp)
 # target_link_libraries(test_ros_rpy ${thirdparty_libraries})
 
-
-add_executable(test_time_cost test/cpp/test_time_cost.cpp)
-target_link_libraries(test_time_cost ${thirdparty_libraries})
-
 # add_executable(test_shared_ptr test/cpp/test_shared_ptr.cpp)
 # target_link_libraries(test_shared_ptr ${thirdparty_libraries})
 
@@ -156,6 +153,9 @@ target_link_libraries(test_feature ${thirdparty_libraries})
 
 add_executable(test_cpp test/cpp/c_plus_plus.cpp)
 target_link_libraries(test_cpp ${thirdparty_libraries})
+
+add_executable(test_timecost test/cpp/test_timecost.cpp)
+target_link_libraries(test_timecost ${thirdparty_libraries})
 
 # add_executable(test_video_stream test/cpp/view_video_stream.cpp)
 # target_link_libraries(test_video_stream ${thirdparty_libraries})

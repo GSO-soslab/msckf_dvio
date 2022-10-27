@@ -51,7 +51,7 @@
   <arg name="system_yaml" default="$(find msckf_dvio)/config/GLRC/dvl_nocalib/system.yaml"/>
   <arg name="image_yaml" default="$(find msckf_dvio)/config/GLRC/dvl_nocalib/image.yaml"/>
 
-  <!-- build with flag: -DCMAKE=debug -->
+  <!-- build with flag: -DCMAKE_BUILD_TYPE=Debug -->
   <!-- add to roslaunch: launch-prefix="gdb -ex run -1-args" -->
   <!-- type: bt -->
   <node name="dvio_node" pkg="msckf_dvio" type="dvio_node" output="screen">

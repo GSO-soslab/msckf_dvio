@@ -6,6 +6,11 @@ namespace msckf_dvio
 
 MsckfManager::MsckfManager(Params &parameters)
 {
+  // This will globally set the thread count we will use
+  // -1 will reset to the system default threading (usually the num of cores)
+  cv::setNumThreads(true ? -1 : 0);
+  cv::setRNGSeed(0);
+
   // init variable
   this->params = parameters;
 
@@ -212,29 +217,37 @@ void MsckfManager::backend() {
   switch(selectUpdateSensor()) {
 
     // choose DVL BT velocity to update IMU
-    case VELOCITY: 
+    case VELOCITY: {
+
       doDVL();
 
       // // individual BT veloicty update 
       // doDvlBT();
       break;
+    }
 
     // choose DVL CP pressure to update IMU
-    case PRESSURE: 
+    case PRESSURE: {
+
       doDVL();
 
       // // individual pressure update
       // doPressure();
       break;
+    }
 
     // choose Camera to update IMU
-    case IMAGE: 
+    case IMAGE: {
+
       doCamera();
+
       break;
+    }
 
     // no sensor data avaiable
-    case NONE: 
+    case NONE:  {
       break;
+    }
   }
 }
 
@@ -316,6 +329,7 @@ void MsckfManager::doCamera() {
   // ------------------------------  Select Data ------------------------------ // 
 
   std::vector<ImuMsg> selected_imu;
+  bool do_update = true;
 
   mtx.lock();
 
@@ -329,11 +343,21 @@ void MsckfManager::doCamera() {
   auto time_curr_state = time_curr_sensor + time_offset;
   // make sure sensors data is not eariler then current state
   if(time_curr_state <= time_prev_state) {
-    printf("Manger error: new image time:%f "
+    printf("Manger warning: new image time:%f "
            "is eariler then current state time:%f, drop it now!\n ",
            time_curr_state, time_prev_state);
-    std::exit(EXIT_FAILURE);
+
+    // erase this image data because bad timestamp
+    buffer_time_img.pop();
+    do_update = false;
   }
+  mtx.unlock();
+
+  if(!do_update) {
+    return;
+  }
+
+  mtx.lock();
 
   // make sure IMU data asscoiated with sensor is arrived, means IMU time > current sensor time 
   auto frame_imu = std::find_if(buffer_imu.begin(), buffer_imu.end(),
@@ -375,16 +399,11 @@ void MsckfManager::doCamera() {
 
   // [2] select tracked features
   std::vector<Feature> feature_MSCKF;
-  selectFeaturesTest(time_curr_sensor,feature_MSCKF);
-  // std::vector<std::shared_ptr<Feature>> feature_MSCKF = selectFeatures(time_curr_sensor);
+  selectFeatures(time_curr_sensor,feature_MSCKF);
 
   // [3] Camera Feature Update: feature triangulation, feature update 
-  // updater->updateCam(state, feature_MSCKF);
-  updater->updateCamTest(state, feature_MSCKF);
-  setFeaturesTest2(feature_MSCKF);
-
-  // // clean up feature pixels that already used for update  
-  // // tracker->get_feature_database()->cleanupAsync(time_curr_sensor);
+  updater->updateCam(state, feature_MSCKF, time_curr_sensor);
+  setFeatures(feature_MSCKF);
 
   //// [4] Marginalization(if reach max clone): 
   if((params.msckf.max_clone_C > 0) &&
@@ -397,20 +416,19 @@ void MsckfManager::doCamera() {
     updater->marginalize(state, CLONE_CAM0);
   }
 
-  // printf("\nmarg cam clone: %ld\n", state->getEstimationNum(CLONE_CAM0));
-  // state->testClone(CLONE_CAM0);
 }
 
-void MsckfManager::setFeaturesTest2(std::vector<Feature> &features) {
-  // std::unique_lock<std::mutex> lck(mtx);
+void MsckfManager::setFeatures(std::vector<Feature> &features) {
+  std::unique_lock<std::mutex> lck(mtx);
+
   // get feature
   for (size_t f = 0; f < features.size(); f++) {
     trig_feat.emplace_back(features[f].p_FinG);
   }
 }
 
-std::vector<Eigen::Vector3d> MsckfManager::getFeaturesTest1() {
-  // std::unique_lock<std::mutex> lck(mtx);
+std::vector<Eigen::Vector3d> MsckfManager::getFeatures() {
+  std::unique_lock<std::mutex> lck(mtx);
 
   std::vector<Eigen::Vector3d> out_trig_feat;
 
@@ -1050,7 +1068,7 @@ std::vector<ImuMsg> MsckfManager::selectImu(double t_begin, double t_end) {
 }
 
 
-void MsckfManager::selectFeaturesTest(const double time_update, std::vector<Feature> &feat_selected) {
+void MsckfManager::selectFeatures(const double time_update, std::vector<Feature> &feat_selected) {
   //! TEST: save all the features in the database
   // recorder->writeString("----- Database -----\n");
   // tracker->get_feature_database()->saveFeatures(recorder);
@@ -1069,14 +1087,14 @@ void MsckfManager::selectFeaturesTest(const double time_update, std::vector<Feat
     tracker->get_feature_database()->features_marginalized(time_marg, time_update, feat_selected, true, true);
   }
 
-  // //! TEST: save all selected features
+  //! TEST: save all selected features
   // std::string str = "----- marg: " + toString(time_marg) + " update: " + toString(time_update) + " -----\n";
   // recorder->writeString(str);
   // for( auto& i :feat_selected) {
   //   recorder->writeFeature(i);
   // }
 
-  // //! TEST: save all the features in the database
+  //! TEST: save all the features in the database
   // recorder->writeString("----- Database -----\n");
   // tracker->get_feature_database()->saveFeatures(recorder);
 
@@ -1100,89 +1118,6 @@ void MsckfManager::selectFeaturesTest(const double time_update, std::vector<Feat
         
     feat_selected.erase(feat_selected.begin(), feat_selected.end() - params.msckf.max_msckf_update);
   }
-}
-
-std::vector<std::shared_ptr<Feature>> MsckfManager::selectFeatures(const double time_curr) {
-
-  // ------------------------------- Grab features ------------------------------------------ //
-
-  // grab lost features: delete them in database
-  std::vector<std::shared_ptr<Feature>> feature_lost, feature_marg;
-  feature_lost = tracker->get_feature_database()->features_not_containing_newer(time_curr, true, true);
-
-  //! TEST:
-  printf("\n---------------\nlost t: %.9f\n",time_curr);
-  for(const auto& f:feature_lost) {
-    printf("  f:%ld, size:%ld\n",  f->featid, f->timestamps[0].size());
-  }
-
-  // grab marginalized features: not delete them in database, 
-  // since so asynchronously tracker maybe added some new feature measurements
-  // will cleanup those used feature measurements
-  if(state->getEstimationNum(CLONE_CAM0) > params.msckf.max_clone_C) {
-
-    double time_marg = state->getMarginalizedTime(CLONE_CAM0);
-
-    //! PROBLEM: it supported to select some features to marg
-    printf("marg t: %.9f\n", time_marg );
-    
-    tracker->get_feature_database()->printFeaturesTest();
-
-    feature_marg = tracker->get_feature_database()->features_containing(time_marg, false, true);
-    //! TEST:
-    printf("marge:\n");
-    for(const auto& f:feature_marg) {
-      printf("  marg f:%ld, size:%ld\n", f->featid, f->timestamps[0].size());
-    }
-
-    tracker->get_feature_database()->printFeaturesTest();
-
-  }
-
-  // tracker->get_feature_database()->printFeaturesTest();
-
-  //! TODO: double check, since delete lost feature, so marg feature will not have lost features
-
-  // We also need to make sure that the max tracks does not contain any lost features
-  // This could happen if the feature was lost in the last frame, but has a measurement at the marg timestep
-  auto it1 = feature_lost.begin();
-  while (it1 != feature_lost.end()) {
-    if (std::find(feature_marg.begin(), feature_marg.end(), (*it1)) != feature_marg.end()) {
-      printf("TEST: marge has lost\n");
-      it1 = feature_marg.erase(it1);
-    } else {
-      it1++;
-    }
-  }
-
-  // ------------------------------- Select features ------------------------------------------ //
-
-  // Concatenate our MSCKF feature arrays: feature lost + feature marginalized 
-  std::vector<std::shared_ptr<Feature>> feature_MSCKF = feature_lost;
-  feature_MSCKF.insert(feature_MSCKF.end(), feature_marg.begin(), feature_marg.end());
-
-  // Sort based on track length
-  // TODO: we should have better selection logic here (i.e. even feature distribution in the FOV etc..)
-  // TODO: right now features that are "lost" are at the front of this vector, while ones at the end are long-tracks
-  std::sort(feature_MSCKF.begin(), feature_MSCKF.end(), [](const std::shared_ptr<Feature> &a, const std::shared_ptr<Feature> &b) -> bool {
-    size_t asize = 0;
-    size_t bsize = 0;
-    for (const auto &pair : a->timestamps)
-      asize += pair.second.size();
-    for (const auto &pair : b->timestamps)
-      bsize += pair.second.size();
-    return asize < bsize;
-  });                     
-
-  // select the longest tracked feature if in limited computational resources device
-  if ((int)feature_MSCKF.size() > params.msckf.max_msckf_update){
-    printf("Manager warning: too many features for update, deleted %ld\n", 
-        feature_MSCKF.size() - params.msckf.max_msckf_update);
-        
-    feature_MSCKF.erase(feature_MSCKF.begin(), feature_MSCKF.end() - params.msckf.max_msckf_update);
-  }
-
-  return feature_MSCKF;
 }
 
 } // namespace msckf_dvio

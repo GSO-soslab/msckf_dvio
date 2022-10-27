@@ -3,7 +3,9 @@
 
 #include "types/type_all.h"
 #include "utils/utils.h"
+#include "utils/time_cost.h"
 #include "msckf/state.h"
+
 #include "feature/Feature.h"
 #include "feature/triangulation.h"
 #include <fstream>
@@ -28,9 +30,7 @@ public:
 
   void marginalize(std::shared_ptr<State> state, SubStateName clone_name);
 
-  void updateCam(std::shared_ptr<State> state, std::vector<std::shared_ptr<Feature>> &features);
-
-  void updateCamTest(std::shared_ptr<State> state, std::vector<Feature> &features);
+  void updateCam(std::shared_ptr<State> state, std::vector<Feature> &features, double timestamp);
   
 private:
   priorDvl prior_dvl_;
@@ -43,7 +43,12 @@ private:
 
   //! TEST:
   long long int count;
-  const char *file_path="/home/lin/develop/ros/soslab_ws/src/slam/msckf_dvio/test_result/msckf_updater.csv";
+  const char *file_path="/home/lin/Desktop/msckf_dvio.txt";
+  std::ofstream file;
+  // file.open(file_path, std::ios_base::app);//std::ios_base::app
+  // file<<"\n"<<"aaa "<<Value;
+  // file.close();
+
 };
 
 } // end of namespace msckf_dvio 

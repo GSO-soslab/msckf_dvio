@@ -4,12 +4,18 @@
 #include <ros/ros.h>
 #include <nav_msgs/Odometry.h>
 #include <nav_msgs/Path.h>
-#include <tf/transform_broadcaster.h>
+#include <tf2/LinearMath/Transform.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2_ros/transform_broadcaster.h>
+#include <tf2/transform_datatypes.h>
+#include <geometry_msgs/TransformStamped.h>
+#include <geometry_msgs/Transform.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/point_cloud2_iterator.h>
 #include <image_transport/image_transport.h>
 #include <cv_bridge/cv_bridge.h>
-
+#include <eigen_conversions/eigen_msg.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include "manager/msckf_manager.h"
 
 namespace msckf_dvio
@@ -52,10 +58,14 @@ private:
 
   nav_msgs::Path path;
 
-  std::unique_ptr<tf::TransformBroadcaster> odom_broadcaster;
+  std::unique_ptr<tf2_ros::TransformBroadcaster> odom_broadcaster;
 
   double last_visual_times;
+
+  tf2_ros::Buffer transform_buffer;
   
+  Eigen::Isometry3d T_B_I;
+
 };
 
 } // end of namespace msckf_dvio
