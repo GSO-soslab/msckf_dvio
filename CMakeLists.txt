@@ -4,6 +4,9 @@ project(msckf_dvio)
 ## Compile as C++14, supported in ROS Kinetic and newer
 add_compile_options(-std=c++14)
 
+## CMAKE module path
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_LIST_DIR}/cmake")
+
 ### Find Library
 
 SET(OpenCV_DIR /home/lin/develop/3rd/opencv/install/opencv-4.2.0/lib/cmake/opencv4/)
@@ -19,6 +22,7 @@ message(STATUS "    include path: ${OpenCV_INCLUDE_DIRS}")
 find_package(Boost REQUIRED COMPONENTS system filesystem thread date_time)
 find_package(Eigen3 REQUIRED)
 find_package(PCL REQUIRED)
+find_package(SuiteSparse REQUIRED)
 
 # set(Open3D_DIR /home/lin/develop/3rd/Open3D/install/lib/cmake/Open3D)
 # find_package(Open3D)
@@ -57,7 +61,7 @@ catkin_package(
                 geometry_msgs message_runtime nortek_dvl tf_conversions eigen_conversions
                 message_filters image_transport visualization_msgs tf nav_msgs tf2 std_srvs
                 tf2_ros tf2_geometry_msgs
- DEPENDS PCL EIGEN3
+ DEPENDS PCL EIGEN3 SUITESPARSE
 )
 
 ###########
@@ -72,6 +76,7 @@ include_directories(
   ${EIGEN3_INCLUDE_DIR}
   ${OpenCV_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
+  ${SUITESPARSE_INCLUDE_DIRS}
   # ${CERES_INCLUDE_DIRS}
   # /home/lin/develop/3rd/kalman-cpp
 )
@@ -81,6 +86,7 @@ list(APPEND thirdparty_libraries
   ${Boost_LIBRARIES}
   ${OpenCV_LIBRARIES}
   ${PCL_LIBRARIES}
+  ${SUITESPARSE_LIBRARIES}
 )
 
 ##########################################

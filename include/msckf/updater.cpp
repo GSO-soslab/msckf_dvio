@@ -1,4 +1,5 @@
 #include "updater.h"
+#include <boost/math/distributions/chi_squared.hpp>
 
 namespace msckf_dvio
 {
@@ -10,6 +11,13 @@ Updater::Updater(Params &params) :
   count(0)
 {
   triangulater = std::unique_ptr<FeatureTriangulation>(new FeatureTriangulation(params.triangualtion));
+
+  // Initialize the chi squared test table with confidence level 0.95
+  for (int i = 1; i < 500; i++) {
+    boost::math::chi_squared chi_squared_dist(i);
+    chi_squared_table[i] = boost::math::quantile(chi_squared_dist, 0.95);
+  }
+
 }
 
 void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I, const Eigen::Vector3d &v_D) {
@@ -78,7 +86,7 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I
 
   // State bias_a(3x3): dh()/d(imu_ba): 0
 
-  /*-------------------- Jacobian related to DVL --------------------*/
+  /*-------------------- Jacobian related to DVL calib --------------------*/
 
   if(param_msckf_.do_R_I_D){
     // dh()/d(dvl_R_I_D) - (3x3):  - 1/S * R_I_D^T * [R_I_G * v_G_I + [w_I]x * p_I_D]x
@@ -663,18 +671,338 @@ void Updater::updateCam(
     }
   }
 
-  // -------------------- Update -------------------- //
+  // -------------------- Update Equation -------------------- //
 
-  // [0] Update .....
+  // [0] create the initial H and r matirx 
 
-  // We have used all the left features, delete them
-  //! TODO: no need to assign "to_delete", maybe just erase them from vector to freeup memory
-  // auto it2 = features.begin();
-  // while (it2 != features.end()) {
-  //   it2->to_delete = true;
-  //   it2++;
-  // }
+  // calculate the max possible measurement size
+  int max_measurements = 0;
+  for(const auto& feat : features) {
+    for(const auto& pair : feat.timestamps) {
+      max_measurements += 2 * pair.second.size();
+    }
+  }
 
+  // calculate max possible state size, covariance size
+  int max_state = state->getCovCols();
+
+  Eigen::MatrixXd H_x = Eigen::MatrixXd::Zero(max_measurements, max_state);
+  Eigen::VectorXd residual = Eigen::VectorXd::Zero(max_measurements);
+  int stack_count = 0;
+
+  // [1] stack all the each feature jacobian 
+  auto it2 = features.begin();
+  while (it2 != features.end()) {
+  // for(const auto& feat : features) {
+    Eigen::MatrixXd H_xj;
+    Eigen::MatrixXd H_fj;
+    Eigen::VectorXd r_j;
+
+    // stack on all the measurements for single feature
+    featureJacobian(state, *it2, H_xj, H_fj, r_j);
+
+    // nullspace projection to remove global feature related
+    nullspace_project(H_fj, H_xj, r_j);
+    // nullspace_project_inplace(H_fj, H_xj, r_j);
+
+    // Mahalanobis gating test
+    // Eq.(16) Mingyang Li et al. ConsistentVIO_2013_IJRR
+    Eigen::MatrixXd S = H_xj * state->cov_ * H_xj.transpose();
+    S.diagonal() += prior_cam_.noise * prior_cam_.noise * Eigen::VectorXd::Ones(S.rows());
+    double gamma = r_j.dot(S.llt().solve(r_j));
+
+    // 95% chi^2 table threshold
+    double chi2_check;
+    if (r_j.rows() < 500) {
+      chi2_check = chi_squared_table[r_j.rows()];
+    } else {
+      boost::math::chi_squared chi_squared_dist(r_j.rows());
+      chi2_check = boost::math::quantile(chi_squared_dist, 0.95);
+      printf("Warning: chi2_check over the residual limit - %d\n", (int)r_j.rows());
+    }
+
+    // Check if we should delete or not
+    if (gamma > chi2_check) {
+      printf("chi2 failed: id:%ld \n", (*it2).featid);
+      it2 = features.erase(it2);
+      continue;
+    }
+
+    // stack one feature's measurements
+    H_x.block(stack_count, 0, H_xj.rows(), H_xj.cols()) = H_xj;
+    residual.block(stack_count, 0, r_j.rows(), 1) = r_j;
+    stack_count += r_j.rows();
+
+    it2++;
+  }
+
+  // [2] resize the matirx to the actual(dimension reduced by nullspace project, gating test filter)
+  if (stack_count < 1) {
+    return;
+  }
+
+  assert(stack_count <= max_measurements);
+  H_x.conservativeResize(stack_count, max_state);
+  residual.conservativeResize(stack_count, 1);
+  if(stack_count > 1500) {
+    printf("warning: large size of measurement jacobian = %d", stack_count);
+  }
+
+  // [3] compress
+  compress(H_x, residual);
+  // compress_inplace(H_x, residual);
+
+  // -------------------- Update EKF:Compute Kalman Gain -------------------- //
+
+  // K = P * H^T * (H * P * H^T + Rn) ^-1
+
+  Eigen::MatrixXd Rn = prior_cam_.noise * prior_cam_.noise * 
+    Eigen::MatrixXd::Identity(residual.rows(), residual.rows());
+
+  Eigen::MatrixXd S(Rn.rows(), Rn.rows());
+  S = H_x * state->cov_ * H_x.transpose() + Rn;
+
+  Eigen::MatrixXd K_transpose = S.ldlt().solve(H_x * state->cov_);
+  Eigen::MatrixXd K = K_transpose.transpose();
+
+  // -------------------- Update EKF: state and covariance -------------------- //
+
+  // d_x = K * r
+  Eigen::VectorXd delta_X = K * residual;
+
+  //update state
+  state->updateState(delta_X);
+
+  //update covariance
+
+  // P_k = P_k-1 - K * H * P_k-1
+
+  Eigen::MatrixXd I_KH = Eigen::MatrixXd::Identity(K.rows(), H_x.cols()) - K*H_x;
+  state->cov_ = I_KH*state->cov_;
+
+  // Fix the covariance to be symmetric
+  Eigen::MatrixXd state_cov_fixed = (state->cov_ + state->cov_.transpose()) / 2.0;
+  state->cov_ = state_cov_fixed;
+
+  // check
+  assert(!state->foundSPD("cam_update"));
+
+}
+
+
+
+void Updater::featureJacobian(std::shared_ptr<State> state, const Feature &feature, 
+                              Eigen::MatrixXd &H_x, Eigen::MatrixXd &H_f, 
+                              Eigen::VectorXd & res) {
+
+  // total number of measurements for this feature
+  int size_measurement = 0;
+  for (auto const &pair : feature.timestamps) {
+    size_measurement += 2 * (int)pair.second.size();
+  }
+
+  // calculate max possible state size, covariance size
+  int size_state = state->getCovCols();
+
+  // setup matrix size
+  H_x = Eigen::MatrixXd::Zero(size_measurement, size_state);
+  H_f = Eigen::MatrixXd::Zero(size_measurement, 3);
+  res = Eigen::VectorXd::Zero(size_measurement);
+  int count = 0;
+
+  for(auto const &pair : feature.timestamps) {
+
+    // get information
+    Eigen::Matrix3d R_C_I = param_msckf_.do_R_C_I ?
+      toRotationMatrix(state->getEstimationValue(CAM0,EST_QUATERNION)) :
+      toRotationMatrix(prior_cam_.extrinsics.head(4)); 
+
+    Eigen::Vector3d p_C_I = param_msckf_.do_p_C_I ? 
+      state->getEstimationValue(CAM0,EST_POSITION) : 
+      prior_cam_.extrinsics.tail(3);
+
+    Eigen::Matrix3d R_Ik_G;
+    Eigen::Vector3d p_G_Ik;
+
+    for (size_t m = 0; m < feature.timestamps.at(pair.first).size(); m++) {
+      
+      // clone IMU pose at clone time
+      auto EST_CLONE_TIME = toCloneStamp(feature.timestamps.at(pair.first).at(m));
+      auto clone_pose = state->getEstimationValue(CLONE_CAM0,EST_CLONE_TIME);
+      R_Ik_G = toRotationMatrix(clone_pose.block(0,0,4,1));
+      p_G_Ik = clone_pose.block(4,0,3,1);
+
+      // get feature on current camera frame
+      Eigen::Vector3d p_C_F = R_C_I * R_Ik_G * (feature.p_FinG - p_G_Ik) + p_C_I;
+
+      // H = [H_calib H_clone H_f]
+
+      /*-------------------- Jacobian related to feature in camera frame --------------------*/
+
+      Eigen::Matrix<double, 2, 3> dhp_dp_C_F = Eigen::Matrix<double, 2, 3>::Zero();
+      dhp_dp_C_F(0, 0) = 1 / p_C_F(2);
+      dhp_dp_C_F(1, 1) = 1 / p_C_F(2);
+      dhp_dp_C_F(0, 2) = - p_C_F(0) / p_C_F(2) * p_C_F(2);
+      dhp_dp_C_F(1, 2) = - p_C_F(1) / p_C_F(2) * p_C_F(2);
+
+      /*-------------------- Jacobian related to Camera calibration --------------------*/
+      if(param_msckf_.do_R_C_I) {
+        // dh()/d(R_C_I) 
+        Eigen::Matrix3d dht_dR_C_I = toSkewSymmetric(R_C_I * R_Ik_G * (feature.p_FinG - p_G_Ik));
+        // id
+        auto id_R_C_I = state->getEstimationId(CAM0,EST_QUATERNION);
+        // stack jacobian matrix
+        H_x.block(2 * count, id_R_C_I, 2, 3) = dhp_dp_C_F * dht_dR_C_I;
+      }
+
+      if(param_msckf_.do_p_C_I) {
+        // dh()/d(p_C_I)  
+        Eigen::Matrix3d dht_dp_C_I = Eigen::Matrix3d::Identity();
+        // id
+        auto id_p_C_I = state->getEstimationId(CAM0,EST_POSITION);
+        // stack jacobian matrix
+        H_x.block(2 * count, id_p_C_I, 2, 3) = dhp_dp_C_F * dht_dp_C_I;
+      }
+
+      /*-------------------- Jacobian related to IMU clone --------------------*/
+      // dh()/d(R_Ik_G)
+      Eigen::Matrix3d dht_dR_Ik_G = R_C_I * toSkewSymmetric(R_Ik_G * (feature.p_FinG - p_G_Ik));
+      // dh()/d(p_G_Ik)
+      Eigen::Matrix3d dht_dp_G_Ik = - R_C_I * R_Ik_G;
+      // stack one for clone pose
+      Eigen::Matrix<double, 2, 6> dht_dclone = Eigen::Matrix<double, 2, 6>::Zero();
+      dht_dclone.block(0, 0, 2, 3) = dhp_dp_C_F * dht_dR_Ik_G;
+      dht_dclone.block(0, 3, 2, 3) = dhp_dp_C_F * dht_dp_G_Ik;
+      // id
+      auto id_clone = state->getEstimationId(CLONE_CAM0,EST_CLONE_TIME);
+      // stack jacobian matrix
+      H_x.block(2 * count, id_clone, 2, 6) = dht_dclone;
+
+      /*-------------------- Jacobian related to features in global frame --------------------*/
+      // dh()/d(p_G_F)
+      Eigen::Matrix3d dht_dp_G_F = R_C_I * R_Ik_G;
+      // stack jacobian
+      H_f.block(2 * count, 0, 2, 3) = dhp_dp_C_F * dht_dp_G_F;
+
+      /*-------------------- residual --------------------*/
+      res.block(2 * count, 0, 2, 1) = 
+          Eigen::Vector2d(feature.uvs_norm.at(pair.first).at(m)(0), 
+                          feature.uvs_norm.at(pair.first).at(m)(1)) - 
+          Eigen::Vector2d(p_C_F(0)/p_C_F(2), p_C_F(1)/p_C_F(2));
+
+      // add for each measurement
+      count++;
+    }
+
+  }
+
+
+}
+
+// from msckf_vio
+void Updater::nullspace_project(Eigen::MatrixXd &H_f, Eigen::MatrixXd &H_x, Eigen::VectorXd &res) {
+
+  // Project the residual and Jacobians onto the nullspace of H_fj.
+  Eigen::JacobiSVD<Eigen::MatrixXd> svd_helper(H_f, Eigen::ComputeFullU | Eigen::ComputeThinV);
+  Eigen::MatrixXd A = svd_helper.matrixU().rightCols(res.size() - 3);
+
+  H_x = A.transpose() * H_x;
+  res = A.transpose() * res;
+}
+
+// from open_vins
+void Updater::nullspace_project_inplace(Eigen::MatrixXd &H_f, Eigen::MatrixXd &H_x, Eigen::VectorXd &res) {
+
+  // Apply the left nullspace of H_f to all variables
+  // Based on "Matrix Computations 4th Edition by Golub and Van Loan"
+  // See page 252, Algorithm 5.2.4 for how these two loops work
+  // They use "matlab" index notation, thus we need to subtract 1 from all index
+  Eigen::JacobiRotation<double> tempHo_GR;
+  for (int n = 0; n < H_f.cols(); ++n) {
+    for (int m = (int)H_f.rows() - 1; m > n; m--) {
+      // Givens matrix G
+      tempHo_GR.makeGivens(H_f(m - 1, n), H_f(m, n));
+      // Multiply G to the corresponding lines (m-1,m) in each matrix
+      // Note: we only apply G to the nonzero cols [n:Ho.cols()-n-1], while
+      //       it is equivalent to applying G to the entire cols [0:Ho.cols()-1].
+      (H_f.block(m - 1, n, 2, H_f.cols() - n)).applyOnTheLeft(0, 1, tempHo_GR.adjoint());
+      (H_x.block(m - 1, 0, 2, H_x.cols())).applyOnTheLeft(0, 1, tempHo_GR.adjoint());
+      (res.block(m - 1, 0, 2, 1)).applyOnTheLeft(0, 1, tempHo_GR.adjoint());
+    }
+  }
+
+  // The H_f jacobian max rank is 3 if it is a 3d position, thus size of the left nullspace is Hf.rows()-3
+  // NOTE: need to eigen3 eval here since this experiences aliasing!
+  // H_f = H_f.block(H_f.cols(),0,H_f.rows()-H_f.cols(),H_f.cols()).eval();
+  H_x = H_x.block(H_f.cols(), 0, H_x.rows() - H_f.cols(), H_x.cols()).eval();
+  res = res.block(H_f.cols(), 0, res.rows() - H_f.cols(), res.cols()).eval();
+
+  // Sanity check
+  assert(H_x.rows() == res.rows());
+}
+
+// from: msckf_vio
+void Updater::compress(Eigen::MatrixXd &H_x, Eigen::VectorXd &res) {
+  // Eq.(27) Anastasios Mourikis et al. MSCKF_ICRA_2007
+  if (H_x.rows() <= H_x.cols())
+    return;
+
+  // Convert H to a sparse matrix.
+  Eigen::SparseMatrix<double> H_sparse = H_x.sparseView();
+
+  // Perform QR decompostion on H_sparse.
+  Eigen::SPQR<Eigen::SparseMatrix<double> > spqr_helper;
+  spqr_helper.setSPQROrdering(SPQR_ORDERING_NATURAL);
+  spqr_helper.compute(H_sparse);
+
+  Eigen::MatrixXd H_temp;
+  Eigen::VectorXd r_temp;
+  (spqr_helper.matrixQ().transpose() * H_x).evalTo(H_temp);
+  (spqr_helper.matrixQ().transpose() * res).evalTo(r_temp);
+
+  H_x = H_temp.topRows(H_x.cols());
+  res = r_temp.head(H_x.cols());
+
+  // Eigen::HouseholderQR<Eigen::MatrixXd> qr_helper(H_x);
+  // Eigen::MatrixXd Q = qr_helper.householderQ();
+  // Eigen::MatrixXd Q1 = Q.leftCols(H_x.cols());
+
+  // H_x = Q1.transpose() * H_x;
+  // res = Q1.transpose() * res;
+}
+
+// from: open_vins
+void Updater::compress_inplace(Eigen::MatrixXd &H_x, Eigen::VectorXd &res) {
+
+  // Return if H_x is a fat matrix (there is no need to compress in this case)
+  if (H_x.rows() <= H_x.cols())
+    return;
+
+  // Do measurement compression through givens rotations
+  // Based on "Matrix Computations 4th Edition by Golub and Van Loan"
+  // See page 252, Algorithm 5.2.4 for how these two loops work
+  // They use "matlab" index notation, thus we need to subtract 1 from all index
+  Eigen::JacobiRotation<double> tempHo_GR;
+  for (int n = 0; n < H_x.cols(); n++) {
+    for (int m = (int)H_x.rows() - 1; m > n; m--) {
+      // Givens matrix G
+      tempHo_GR.makeGivens(H_x(m - 1, n), H_x(m, n));
+      // Multiply G to the corresponding lines (m-1,m) in each matrix
+      // Note: we only apply G to the nonzero cols [n:Ho.cols()-n-1], while
+      //       it is equivalent to applying G to the entire cols [0:Ho.cols()-1].
+      (H_x.block(m - 1, n, 2, H_x.cols() - n)).applyOnTheLeft(0, 1, tempHo_GR.adjoint());
+      (res.block(m - 1, 0, 2, 1)).applyOnTheLeft(0, 1, tempHo_GR.adjoint());
+    }
+  }
+
+  // If H is a fat matrix, then use the rows
+  // Else it should be same size as our state
+  int r = std::min(H_x.rows(), H_x.cols());
+
+  // Construct the smaller jacobian and residual after measurement compression
+  assert(r <= H_x.rows());
+  H_x.conservativeResize(r, H_x.cols());
+  res.conservativeResize(r, res.cols());
 }
 
 } // namespace msckf_dvio

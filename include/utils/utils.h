@@ -273,13 +273,17 @@ inline Eigen::Matrix<double, 3, 3> rightJacobSO3(Eigen::Matrix<double, 3, 1> w) 
 /*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 
 template <typename T>
-std::string toString(const T value, const int n = 9)
+std::string toCloneStamp(const T value, const int n = 9)
 {
     std::ostringstream out;
     out.precision(n);
     out << std::fixed << value;
     return out.str();
 }
+
+// double toSensorStamp(const std::string value) {
+//   return std::stod(value);
+// }
 
 } // namespace msckf_dvio
 

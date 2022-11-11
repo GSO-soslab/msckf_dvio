@@ -38,6 +38,8 @@ State::State(const Params &param) {
   bias_acce->setId(curr_id);
   curr_id += bias_acce->getSize();
 
+  //! TODO: state_[SubStateName::IMU].emplace(EST_QUATERNION, rotation_I_G);
+  
   imu[EST_QUATERNION] = rotation_I_G;
   imu[EST_POSITION] = position_G_I;
   imu[EST_VELOCITY] = velocity_G_I;

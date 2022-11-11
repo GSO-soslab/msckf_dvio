@@ -26,7 +26,7 @@ struct priorDvl {
   double scale; 
   // sound speed: used when not estimate the scale and do sound spped correction
   double sound_speed;
-  // BT 3-axis veloicty measurement white noise
+  // BT 3-axis veloicty measurement white noise( standard deviation )
   Eigen::Vector3d sigma_bt;
   // the angle that the actual mounting position rotate to the standing position, 
   // used to transfer pressure measurement into DVL frame's Z
@@ -45,6 +45,8 @@ struct priorCam {
   Eigen::Matrix<double, 4, 1> distortion_coeffs;
   // timeoffset between Camera and IMU
   double timeoffset;
+  // measurement white noise( standard deviation ) in pixel
+  double noise;
 };
 
 struct paramMsckf {

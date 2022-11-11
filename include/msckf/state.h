@@ -130,7 +130,7 @@ public:
 
     // find each sub states: IMU, DVL, CLONE
     for(auto & sub_state: state_) {
-      // find each estimation: q, p, v, bias, timeoffset ....
+      // find each estimation: q, p, v, bias, timeoffset, clone_pose ....
       for(auto &estimation : sub_state.second) {
         // grab associated block based on state id and state size
         estimation.second->update(new_value.block(estimation.second->getId(),   0, 
@@ -208,12 +208,12 @@ public:
 
   //! @brief: We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d) 
   //!
-  inline bool foundSPD() {
+  inline bool foundSPD(const std::string &mission) {
     Eigen::VectorXd diags = cov_.diagonal();
 
     for (int i = 0; i < diags.rows(); i++) {
       if (diags(i) < 0.0) {
-        printf("Covariance propagation: - diagonal at %d is %.2f\n", i, diags(i));
+        printf("Covariance %s: - diagonal at %d is %.2f\n", mission.c_str(), i, diags(i));
         return true;
       }
     }
