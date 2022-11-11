@@ -387,7 +387,7 @@ void MsckfManager::doCamera() {
 
   //// [0] IMU Propagation
   predictor->propagate(state, selected_imu);
-  assert(!state->foundSPD());
+  assert(!state->foundSPD("cam_propagate"));
 
   //// [1] State Augmentation: 
   Eigen::Vector3d w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
@@ -495,7 +495,7 @@ void MsckfManager::doDvlBT() {
 
   // [0] IMU Propagation
   predictor->propagate(state, selected_imu);
-  assert(!state->foundSPD());
+  assert(!state->foundSPD("dvl_bt_propagate"));
 
   // [1] State Augment: clone IMU pose, augment covariance
   Eigen::Vector3d last_w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
@@ -599,7 +599,7 @@ void MsckfManager::doPressure() {
 
   // [0] IMU propagation
   predictor->propagate(state, selected_imu);
-  assert(!state->foundSPD());
+  assert(!state->foundSPD("pressure_propagate"));
 
   // auto imu_value = getNewImuState();
   // printf("imu0:q=%f,%f,%f,%f,p:%f,%f,%f\n",imu_value(0),imu_value(1),imu_value(2),imu_value(3)
@@ -903,7 +903,7 @@ void MsckfManager::doDVL() {
       predictor->propagate(state, selected_imu);
 
       // We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d)
-      assert(!state->foundSPD());
+      assert(!state->foundSPD("dvl_propagate"));
 
       // Last angular velocity and linear velocity
       Eigen::Vector3d last_w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
@@ -1009,7 +1009,7 @@ void MsckfManager::doPressure_test() {
     predictor->propagate(state, selected_imu);
 
     // We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d)
-    assert(!state->foundSPD());
+    assert(!state->foundSPD("press_test_propagate"));
 
     // get the begin pressure value
     double pres_init = state->getPressureInit();
@@ -1088,7 +1088,7 @@ void MsckfManager::selectFeatures(const double time_update, std::vector<Feature>
   }
 
   //! TEST: save all selected features
-  // std::string str = "----- marg: " + toString(time_marg) + " update: " + toString(time_update) + " -----\n";
+  // std::string str = "----- marg: " + toCloneStamp(time_marg) + " update: " + toCloneStamp(time_update) + " -----\n";
   // recorder->writeString(str);
   // for( auto& i :feat_selected) {
   //   recorder->writeFeature(i);

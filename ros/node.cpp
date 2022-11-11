@@ -77,6 +77,7 @@ Params RosNode::loadParameters() {
   nh_private_.getParam     ("CAM0/distortion_coeffs", distortion_coeffs);
   nh_private_.getParam     ("CAM0/intrinsics",        intrinsics);
   nh_private_.param<double>("CAM0/timeoffset_C_I",    params.prior_cam.timeoffset, 0.0);
+  nh_private_.param<double>("CAM0/noise",    params.prior_cam.noise, 1.0);
 
 
   //// convert matrix into pose 

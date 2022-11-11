@@ -10,6 +10,11 @@
 #include "feature/triangulation.h"
 #include <fstream>
 
+#include <Eigen/SVD>
+#include <Eigen/QR>
+#include <Eigen/SparseCore>
+#include <Eigen/SPQRSupport>
+
 namespace msckf_dvio
 {
 
@@ -32,6 +37,20 @@ public:
 
   void updateCam(std::shared_ptr<State> state, std::vector<Feature> &features, double timestamp);
   
+  void featureJacobian(std::shared_ptr<State> state, const Feature &feature, 
+                       Eigen::MatrixXd &H_x, Eigen::MatrixXd &H_f, 
+                       Eigen::VectorXd & res);
+                       
+  void nullspace_project(Eigen::MatrixXd &H_f, Eigen::MatrixXd &H_x, Eigen::VectorXd &res);
+
+  void nullspace_project_inplace(Eigen::MatrixXd &H_f, Eigen::MatrixXd &H_x, Eigen::VectorXd &res);
+
+  bool gatingTest(const Eigen::MatrixXd &H, const Eigen::VectorXd &r, const int &dof);
+
+  void compress(Eigen::MatrixXd &H_x, Eigen::VectorXd &res);
+
+  void compress_inplace(Eigen::MatrixXd &H_x, Eigen::VectorXd &res);
+
 private:
   priorDvl prior_dvl_;
 
@@ -41,6 +60,9 @@ private:
 
   std::unique_ptr<FeatureTriangulation> triangulater;
 
+  /// Chi squared 95th percentile table (lookup would be size of residual)
+  std::map<int, double> chi_squared_table;
+  
   //! TEST:
   long long int count;
   const char *file_path="/home/lin/Desktop/msckf_dvio.txt";

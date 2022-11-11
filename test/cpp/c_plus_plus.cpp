@@ -3,7 +3,7 @@
 #include <sstream>
 
 template <typename T>
-std::string toString(const T a_value, const int n = 9)
+std::string toCloneStamp(const T a_value, const int n = 9)
 {
     std::ostringstream out;
     out.precision(n);
@@ -16,7 +16,7 @@ int main() {
   double time = 1614971139.511340141;
 
   // same dimension
-  std::string time_str_1 = toString(time);
+  std::string time_str_1 = toCloneStamp(time);
   double time_1 = std::stod(time_str_1);
 
   printf("bef time=%.9f\n", time);
@@ -24,7 +24,7 @@ int main() {
 
 
   // wrong dimension
-  std::string time_str_2 = toString(time,6);
+  std::string time_str_2 = toCloneStamp(time,6);
   double time_2 = std::stod(time_str_2);
 
   printf("bef time=%.9f\n", time);
