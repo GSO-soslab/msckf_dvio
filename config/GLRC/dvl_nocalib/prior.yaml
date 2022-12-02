@@ -33,13 +33,13 @@ DVL:
   # Default:1.0; Scale factor for DVL measurement effected by sound speed (caused by salinity, temperature...)
   scale: 0.944666667
   # noise on DVL tottom track 3-axis velocity measurement
-  noise_bt: [0.1, 0.1, 0.1]
+  noise_bt: [0.1, 0.1, 0.2]
   # Note: the angle that the actual mounting position rotate to the standing position,
   #       used to transfer pressure measurement into DVL frame's Z
   # Default: 0: x-forward, up-looking; PI: x-forward, down-looking; -PI/2: x-forward, right-looking; PI/2: x-forward, left-looking
   mount_angle: 0
-  
-  noise_pressure: 0.1
+  # noise for pressure update
+  noise_pressure: 0.01
 
 ##################################################################################### 
 ##################################################################################### 

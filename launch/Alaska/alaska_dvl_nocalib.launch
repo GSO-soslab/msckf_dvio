@@ -40,6 +40,9 @@
           args="compressed  in:=/rov/sensors/stereo/left/image_raw_sync
               raw        out:=/rov_remote/sensors/stereo/left/image_decompressed" />
 
+  <!-- =================================== URDF Helper ================================== -->
+    <include file="$(find msckf_dvio)/launch/Alaska/urdf_alaska.launch"/>
+
   <!-- =================================== Test Helper: save data... ================================== -->
 
 
@@ -70,7 +73,7 @@
       <remap from="imu" to="/rov/sensors/ahrs/imu/data"/>
       <remap from="dvl" to="/rov/sensors/dvl/buttom_track_velocity"/>
       <remap from="pressure" to="/rov/sensors/dvl/pressure"/>
-      <remap from="image" to="/rov_remote/sensors/stereo/left/image_decompressed"/>
+      <!-- <remap from="image" to="/rov_remote/sensors/stereo/left/image_decompressed"/> -->
 
       <remap from="odom" to="/msckf/odom"/>
       <remap from="path" to="/msckf/path"/>

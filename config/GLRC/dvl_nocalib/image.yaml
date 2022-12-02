@@ -39,3 +39,4 @@ Feature:
   min_dcost: 1e-6
   # Max baseline ratio to accept triangulated features
   max_baseline: 40
+

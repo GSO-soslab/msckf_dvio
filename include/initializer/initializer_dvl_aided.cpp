@@ -467,12 +467,13 @@ void InitDvlAided::doInitialization(const std::vector<DvlMsg> &dvl_a,
   ba_avg = ba_avg / (dvl_a.size()-1);
 
 /*** Gyro bias estimation ***/
-  // bg_avg = Eigen::Vector3d::Zero();
-  // for(const auto &imu : imu_g) 
-  //   bg_avg += imu.w;
-  // bg_avg /= imu_g.size();
+  bg_avg = Eigen::Vector3d::Zero();
+  for(const auto &imu : imu_g) 
+    bg_avg += imu.w;
+  bg_avg /= imu_g.size();
+
   //! TEST: manual set gyro bias
-  bg_avg = Eigen::Vector3d(0.01,0.01,-0.01);
+  // bg_avg = Eigen::Vector3d(0.01,0.01,-0.01);
 
 /*** pressure sensor initialization ***/
   //// get starting pressure before alignment 

@@ -62,6 +62,10 @@ public:
 
   bool isFeature() {return is_feat; }
 
+  cv::Mat getImgHistory();
+
+  void updateImgHistory();
+
 private:
 
   void doDVL();
@@ -72,15 +76,31 @@ private:
 
   void doCamera();
 
+  void doCameraKeyframe();
+
   void doPressure_test();
 
   SensorName selectUpdateSensor();
 
   std::vector<ImuMsg> selectImu(double t_begin, double t_end);
 
+  void getDataForPressure(PressureMsg &pressure, DvlMsg &dvl, std::vector<ImuMsg> &imus);
+
+  bool checkKeyframeMotion();
+
+  bool checkKeyframeCount();
+
   void selectFeatures(const double time_update, std::vector<Feature> &feat_selected);
 
-  void getDataForPressure(PressureMsg &pressure, DvlMsg &dvl, std::vector<ImuMsg> &imus);
+  void selectFeaturesSlideWindow(
+    const double time_update, std::vector<Feature> &feat_lost, std::vector<Feature> &feat_marg);
+
+  void selectFeaturesKeyFrame(
+    const double time_update, std::vector<Feature> &feat_lost, std::vector<Feature> &feat_marg);
+
+  int frame_count;
+
+  double frame_distance;
 
   std::vector<ImuMsg> buffer_imu;
   
@@ -116,6 +136,10 @@ private:
   // get triangulated feature position
   std::atomic<bool> is_feat;
   std::vector<Eigen::Vector3d> trig_feat;
+
+  std::queue<double> slide_window;
+  cv::Mat img_history;
+  std::recursive_mutex img_mtx;
 
 };
 

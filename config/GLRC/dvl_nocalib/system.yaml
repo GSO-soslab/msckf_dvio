@@ -73,7 +73,12 @@ MSCKF:
   # enable camera time offset calibration
   cam_timeoffset: false
   # Max camera clone
-  cam_clone: 11 
+  # default: 11 for non-key-frame
+  cam_clone: 10 
+  # key-frame strategy 1) use frame count
+  key_frame_count: 2 
+  # key-frame strategy 2) relative motion constraint
+  key_frame_motion: 0.1
 
   ################################    Update    ##################################
 

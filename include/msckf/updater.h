@@ -25,18 +25,33 @@ public:
 
   void updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I, const Eigen::Vector3d &v_D);
 
-  void updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I, const Eigen::Vector3d &v_D, bool is_simple);
+  void updateDvlSimple(std::shared_ptr<State> state, const Eigen::Vector3d &w_I, const Eigen::Vector3d &v_D, bool is_simple);
 
   void updatePressure(std::shared_ptr<State> state, const double pres_begin, const double pres_curr, bool is_simple);
 
   void updatePressureTest(std::shared_ptr<State> state, const double pres_begin, const double pres_curr);
   
+  void updatePressureSimple(std::shared_ptr<State> state, const double pres_begin, const double pres_curr);
+
+  void updateDvlPressure(  
+      std::shared_ptr<State> state,const Eigen::Vector3d &w_I, 
+      const Eigen::Vector3d &v_D,const double pres_begin, const double pres_curr);
+
+  void updateDvlPressureSimple(
+      std::shared_ptr<State> state,const Eigen::Vector3d &w_I, 
+      const Eigen::Vector3d &v_D,const double pres_begin, const double pres_curr); 
+
   void marginalizeDvl(std::shared_ptr<State> state);
 
   void marginalize(std::shared_ptr<State> state, SubStateName clone_name);
 
   void updateCam(std::shared_ptr<State> state, std::vector<Feature> &features, double timestamp);
   
+  void cameraMeasurement(    
+    std::shared_ptr<State> state, 
+    std::vector<Feature> &features,
+    double timestamp);
+
   void featureJacobian(std::shared_ptr<State> state, const Feature &feature, 
                        Eigen::MatrixXd &H_x, Eigen::MatrixXd &H_f, 
                        Eigen::VectorXd & res);

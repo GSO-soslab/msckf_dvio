@@ -55,7 +55,9 @@ Params RosNode::loadParameters() {
   nh_private_.getParam     ("DVL/noise_bt",         noise_bt);
   //// get mount angle
   nh_private_.param<double>("DVL/mount_angle",      params.prior_dvl.mount_angle, 0.0);
-  
+  //// DVL pressure measurement noise 
+  nh_private_.param<double>("DVL/noise_pressure",   params.prior_dvl.sigma_pressure, 0.0);
+
   //// convert matrix into pose 
   Eigen::Matrix4d T_I_D;
   ROS_ASSERT(rosparam_dvl.getType() == XmlRpc::XmlRpcValue::TypeArray);
@@ -162,6 +164,8 @@ Params RosNode::loadParameters() {
   nh_private_.param<bool>("MSCKF/cam_exterisic_p", params.msckf.do_p_C_I,    true);
   nh_private_.param<bool>("MSCKF/cam_timeoffset",  params.msckf.do_time_C_I, true);
   nh_private_.param<int> ("MSCKF/cam_clone",       params.msckf.max_clone_C, 9);
+  nh_private_.param<int> ("MSCKF/key_frame_count", params.msckf.key_frame_count, 2);
+  nh_private_.param<double> ("MSCKF/key_frame_motion", params.msckf.key_frame_motion, 0.2);
 
   nh_private_.param<int> ("MSCKF/max_msckf_update", params.msckf.max_msckf_update, params.tracking.num_pts);
 

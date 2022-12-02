@@ -31,6 +31,8 @@ struct priorDvl {
   // the angle that the actual mounting position rotate to the standing position, 
   // used to transfer pressure measurement into DVL frame's Z
   double mount_angle;
+  // noise for pressure (standard deviation)
+  double sigma_pressure;
 
   //! TODO: for initial_covariance
   // Eigen::VectorXd sigma_init;
@@ -69,6 +71,10 @@ struct paramMsckf {
   bool do_time_C_I;
   // max clone for camera 
   int max_clone_C;
+  // key frame count
+  int key_frame_count;
+  // key frame motion
+  double key_frame_motion;
 
   // the max features used for MSCKF update
   int max_msckf_update;

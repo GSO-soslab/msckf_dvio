@@ -37,12 +37,12 @@ public:
    */
   void visualize();
 
+  /// Publish the active tracking image
+  void publishImage();
+
 private:
   /// Publish the current state
   void publishState();
-
-  /// Publish the active tracking image
-  void publishImage();
 
   /// Publish current features
   void publishFeatures();

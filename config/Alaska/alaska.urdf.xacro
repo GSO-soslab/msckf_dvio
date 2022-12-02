@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="rov">
+
+<xacro:property name="PI" value="3.1415926"/>
+
+  <!-- Left-Bottom of 8020 bar on the ground -->
+  <link name="base_link"/>
+
+    <link name="microstrain_ahrs"/>
+
+    <link name="left_camera"/>
+
+    <link name="right_camera"/>
+
+    <link name="nortek_dvl"/>
+
+    <link name="sonar"/>
+
+  <!-- ahrs -->
+  <joint name="base_to_ahrs" type="fixed">
+    <parent link="base_link"/>
+    <child link="microstrain_ahrs"/>
+    <origin xyz="0.406 -0.262 0.089" rpy="0 -${PI} 0"/>
+  </joint>
+  
+  <!-- left cam -->
+  <joint name="base_to_left_cam" type="fixed">
+    <parent link="base_link"/>
+    <child link="left_camera"/>
+    <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- right cam -->
+  <joint name="base_to_right_cam" type="fixed">
+    <parent link="base_link"/>
+    <child link="right_camera"/>
+    <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- dvl -->
+  <joint name="base_to_dvl" type="fixed">
+    <parent link="base_link"/>
+    <child link="nortek_dvl"/>
+    <origin xyz="-0.0635 -0.155575 0.409575" rpy="0 0 0"/>
+  </joint>
+
+  <!-- sonar -->
+  <joint name="base_to_sonar" type="fixed">
+    <parent link="base_link"/>
+    <child link="sonar"/>
+    <origin xyz="0.7086 -0.1778 0.2387" rpy="0 -0.2617 0"/>
+  </joint>
+
+</robot>

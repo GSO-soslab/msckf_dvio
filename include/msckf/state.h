@@ -111,6 +111,13 @@ public:
   //!
   double getMarginalizedTime(const SubStateName sub_state_name);
 
+  //! @brief the timestamp of clone with given index
+  //!
+  //! @param sub_state_name: each sub state, e.g. SENSOR and CLONE
+  //! @param index: index of marg clone from window
+  //!
+  double getMargTime(const SubStateName sub_state_name, int index);
+
   //! @brief set value of angle estimation of any sub state, will override the original value
   //!
   //! @param sub_state_name: sub state name, e.g. IMU, DVL, CAM, CLONE

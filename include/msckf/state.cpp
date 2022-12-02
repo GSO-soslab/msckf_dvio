@@ -190,4 +190,13 @@ double State::getMarginalizedTime(const SubStateName sub_state_name) {
   return time;
 }
 
+double State::getMargTime(const SubStateName sub_state_name, int index) {
+
+  // select clone based on given index
+  auto iter = std::next(state_[sub_state_name].begin(),index);
+
+  // select clone timestamp and convert to double type
+  return std::stod((*iter).first);
+}
+
 }
