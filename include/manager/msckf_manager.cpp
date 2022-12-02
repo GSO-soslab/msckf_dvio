@@ -448,7 +448,8 @@ void MsckfManager::doCameraKeyframe() {
 
   //// [4] Marginalization(if reach max clone): 
   if((params.msckf.max_clone_C > 0) &&
-     (params.msckf.max_clone_C < state->getEstimationNum(CLONE_CAM0))) {
+    //  (params.msckf.max_clone_C < state->getEstimationNum(CLONE_CAM0))) {
+     (params.msckf.max_clone_C == state->getEstimationNum(CLONE_CAM0))) {
     // Cleanup any measurements older then the marginalization time
     tracker->get_feature_database()->cleanup_measurements(state->getMarginalizedTime(CLONE_CAM0));
     
@@ -550,7 +551,7 @@ void MsckfManager::doCamera() {
 
   //// [4] Marginalization(if reach max clone): 
   if((params.msckf.max_clone_C > 0) &&
-     (params.msckf.max_clone_C < state->getEstimationNum(CLONE_CAM0))) {
+     (params.msckf.max_clone_C == state->getEstimationNum(CLONE_CAM0))) {
     // Cleanup any features older then the marginalization time
     //! TODO: this clean will make memory issue
     tracker->get_feature_database()->cleanup_measurements(state->getMarginalizedTime(CLONE_CAM0));
@@ -1289,7 +1290,7 @@ void MsckfManager::selectFeaturesKeyFrame(
   //    1) select the oldest clone time and second latest
   //    2) grab whole the measurements for each feature that contain the given timestamp
   //    3) not delete
-  if(state->getEstimationNum(CLONE_CAM0) > params.msckf.max_clone_C) {
+  if(state->getEstimationNum(CLONE_CAM0) == params.msckf.max_clone_C) {
     // Grab marg feature 0 
 
     // get oldest clone time
@@ -1357,7 +1358,8 @@ void MsckfManager::selectFeaturesSlideWindow(
   //    1) select the oldest clone time
   //    2) grab whole the measurements for each feature that contain the given timestamp
   //    3) not delete
-  if(state->getEstimationNum(CLONE_CAM0) > params.msckf.max_clone_C) {
+  // if(state->getEstimationNum(CLONE_CAM0) > params.msckf.max_clone_C) {
+  if(state->getEstimationNum(CLONE_CAM0) == params.msckf.max_clone_C) {
     // get oldest clone time
     auto time_marg = state->getMarginalizedTime(CLONE_CAM0);
     // get feature contain the marg time
@@ -1449,7 +1451,7 @@ void MsckfManager::selectFeatures(const double time_update, std::vector<Feature>
 
   // grab maginalized features
   double time_marg;
-  if(state->getEstimationNum(CLONE_CAM0) > params.msckf.max_clone_C) {
+  if(state->getEstimationNum(CLONE_CAM0) == params.msckf.max_clone_C) {
 
     time_marg = state->getMarginalizedTime(CLONE_CAM0);
     
