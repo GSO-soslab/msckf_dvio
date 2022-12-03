@@ -437,8 +437,8 @@ void MsckfManager::doCameraKeyframe() {
   // [2] select tracked features
   std::vector<Feature> feature_lost;
   std::vector<Feature> feature_marg;
-  selectFeaturesSlideWindow(time_curr_sensor, feature_lost, feature_marg);
-  // selectFeaturesKeyFrame(time_curr_sensor, feature_lost, feature_marg);
+  // selectFeaturesSlideWindow(time_curr_sensor, feature_lost, feature_marg);
+  selectFeaturesKeyFrame(time_curr_sensor, feature_lost, feature_marg);
 
   // [3] Camera Feature Update: feature triangulation, feature update 
   // updater->cameraMeasurement();
@@ -449,24 +449,26 @@ void MsckfManager::doCameraKeyframe() {
   //// [4] Marginalization(if reach max clone): 
   if((params.msckf.max_clone_C > 0) &&
      (params.msckf.max_clone_C == state->getEstimationNum(CLONE_CAM0))) {
-    // // Cleanup any measurements older then the marginalization time
-    // tracker->get_feature_database()->cleanup_measurements(state->getMarginalizedTime(CLONE_CAM0));
-    
-    // // remove the clone and related covarinace
-    // int index = 0;
-    // updater->marginalize(state, CLONE_CAM0, index);
 
-    //! TEST: 
+    // Marginalization: oldest
+    auto marg_index_0 = 0;
+    auto marg_time_0 = state->getMargTime(CLONE_CAM0, marg_index_0);
+    // remove feature measurements
+    tracker->get_feature_database()->cleanup_measurements_marg(marg_time_0);
+    // remove clone state and covaraince
+    updater->marginalize(state, CLONE_CAM0, marg_index_0);
 
-    // remove feature measurements at marginalized timestamp (oldest)
-    tracker->get_feature_database()->cleanup_measurements_marg(state->getMarginalizedTime(CLONE_CAM0));
-
-    // remove clone state and covaraince at marginalized  timestamp (oldest)
-    int index = 0;
-    updater->marginalize(state, CLONE_CAM0, index);
+    // Marginalization: second latest
+    auto marg_index_1 = state->getEstimationNum(CLONE_CAM0) - 2;
+    auto marg_time_1 = state->getMargTime(CLONE_CAM0, marg_index_1);
+    // remove feature measurements
+    tracker->get_feature_database()->cleanup_measurements_marg(marg_time_1);
+    // remove clone state and covaraince
+    updater->marginalize(state, CLONE_CAM0, marg_index_1);
 
     // remove feature measurements only older then oldest clone timestamp 
-    tracker->get_feature_database()->cleanup_measurements_outside(state->getMarginalizedTime(CLONE_CAM0));
+    auto oldest_time = state->getMargTime(CLONE_CAM0, 0);
+    tracker->get_feature_database()->cleanup_measurements_outside(oldest_time);
 
     printf("[TEST]: aft clean:%d\n", state->getEstimationNum(CLONE_CAM0));
   }
@@ -1302,7 +1304,6 @@ void MsckfManager::selectFeaturesKeyFrame(
   //    3) not delete
   if(state->getEstimationNum(CLONE_CAM0) == params.msckf.max_clone_C) {
     // Grab marg feature 0 
-
     // get oldest clone time
     auto index = 0;
     auto time_oldest = state->getMargTime(CLONE_CAM0, index);
@@ -1311,7 +1312,6 @@ void MsckfManager::selectFeaturesKeyFrame(
     tracker->get_feature_database()->features_selected(time_oldest, feat_marg_0, false, true);
 
     // Grab marg feature 1
-
     // get second latest clone time
     index = state->getEstimationNum(CLONE_CAM0) - 2;
     auto time_second_latest = state->getMargTime(CLONE_CAM0, index);
@@ -1320,12 +1320,9 @@ void MsckfManager::selectFeaturesKeyFrame(
     tracker->get_feature_database()->features_selected(time_second_latest, feat_marg_1, false, true);
 
     // Combine both marg features
-
     // get marg feature 0
     feat_marg = feat_marg_0;
-
     // get marg feature 1
-    TimeCost t;
     for(const auto& feat_1 : feat_marg_1) {
       // check if feat_1 exist in feat_0 list
       auto exist = std::find_if(feat_marg_0.begin(), feat_marg_0.end(),
@@ -1335,8 +1332,6 @@ void MsckfManager::selectFeaturesKeyFrame(
         feat_marg.emplace_back(feat_1);
       }
     }
-
-    printf("[TEST] time: %f\n", t.timecost());
   }
 
   if(feat_lost.size() > 0) {
