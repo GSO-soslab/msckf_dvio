@@ -468,7 +468,7 @@ public:
 
         // remove measurements before time_update
         if (remove)
-          (*it).second->clean_older_measurements(time_update);
+          (*it).second->clean_older_equal_measurements(time_update);
       }
 
       it++;
@@ -543,41 +543,14 @@ public:
   }
 
   /**
-   * @brief This function will delete all feature measurements that are older then the specified timestamp
+   * @brief This function will delete all feature measurements that are older then & Equal To the specified timestamp
    */
   void cleanup_measurements(double timestamp) {
     std::unique_lock<std::mutex> lck(mtx);
     for (auto it = features_idlookup.begin(); it != features_idlookup.end();) {
 
       // Remove the older measurements
-      (*it).second->clean_older_measurements(timestamp);
-
-      // for (auto const &pair : (*it).second->timestamps) {
-
-      //   // Assert that we have all the parts of a measurement
-      //   assert((*it).second->timestamps[pair.first].size() == 
-      //     (*it).second->uvs[pair.first].size());
-      //   assert((*it).second->timestamps[pair.first].size() == 
-      //     (*it).second->uvs_norm[pair.first].size());
-
-      //   // Our iterators
-      //   auto it1 = (*it).second->timestamps[pair.first].begin();
-      //   auto it2 = (*it).second->uvs[pair.first].begin();
-      //   auto it3 = (*it).second->uvs_norm[pair.first].begin();
-
-      //   // Loop through measurement times, remove ones that are older then the specified one
-      //   while (it1 != (*it).second->timestamps[pair.first].end()) {
-      //     if (*it1 <= timestamp) {
-      //       it1 = (*it).second->timestamps[pair.first].erase(it1);
-      //       it2 = (*it).second->uvs[pair.first].erase(it2);
-      //       it3 = (*it).second->uvs_norm[pair.first].erase(it3);
-      //     } else {
-      //       ++it1;
-      //       ++it2;
-      //       ++it3;
-      //     }
-      //   }
-      // }
+      (*it).second->clean_older_equal_measurements(timestamp);
 
       // Count how many measurements
       int ct_meas = 0;
@@ -617,6 +590,31 @@ public:
       } else {
         it++;
       }
+    }
+  }
+
+  /**
+   * @brief This function will ONLY delete all feature measurements that are at the specified timestamp
+   */
+  void cleanup_measurements_marg(double timestamp) {
+    std::unique_lock<std::mutex> lck(mtx);
+    std::vector<double> timestamps = {timestamp};
+    for (auto it = features_idlookup.begin(); it != features_idlookup.end(); it++) {
+      // Remove the older measurements
+      (*it).second->clean_invalid_measurements(timestamps);
+    }
+  }
+
+  /**
+   * @brief This function will ONLY delete all feature measurements that outside of slide window
+   * 
+   * @param timestamp: the oldest timestamp in the silde window
+   */
+  void cleanup_measurements_outside(double timestamp) {
+    std::unique_lock<std::mutex> lck(mtx);
+    for (auto it = features_idlookup.begin(); it != features_idlookup.end(); it++) {
+      // Remove the older measurements
+      (*it).second->clean_older_measurements(timestamp);
     }
   }
 

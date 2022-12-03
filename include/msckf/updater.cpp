@@ -747,80 +747,14 @@ void Updater::updatePressure(std::shared_ptr<State> state, const double pres_beg
   // std::cout<<"cov new: \n"<<state->cov_<<std::endl;
 }
 
-void Updater::marginalizeDvl(std::shared_ptr<State> state) {
+void Updater::marginalize(std::shared_ptr<State> state, SubStateName clone_name, int index) {
 
   /****************************************************************/
   /******************** marginalize covariance ********************/
   /****************************************************************/
-  
-  // find the clone need to marginalize
-  auto marg = state->state_[CLONE_DVL].begin();
 
-  auto time_marg = marg->first;
-  auto id_marg = marg->second->getId();
-  auto size_marg = marg->second->getSize();
-  auto size_marg_bef = marg->second->getId();
-  auto size_marg_aft = (int)state->cov_.rows() - size_marg_bef - size_marg;
-
-  //  P_(x_bef,x_bef)  P(x_bef,x_marg)  P(x_bef,x_aft)
-  //  P_(x_marg,x_bef) P(x_marg,x_marg) P(x_marg,x_aft)
-  //  P_(x_aft,x_bef)  P(x_aft,x_marg)  P(x_aft,x_aft)
-  //  
-  //  to
-  //
-  //  P_(x_bef,x_bef) P(x_bef,x_aft)
-  //  P_(x_aft,x_bef) P(x_aft,x_aft)
-
-  // remove covariance
-  Eigen::MatrixXd cov_new(state->cov_.rows() - size_marg, state->cov_.rows() - size_marg);
-
-  // P_(x_bef,x_bef)
-  cov_new.block(0, 0, size_marg_bef, size_marg_bef) = 
-    state->cov_.block(0, 0, size_marg_bef, size_marg_bef);
-  // P_(x_bef,x_aft)
-  cov_new.block(0, size_marg_bef, size_marg_bef, size_marg_aft) = 
-    state->cov_.block(0, size_marg_bef + size_marg, size_marg_bef, size_marg_aft);
-  // P_(x_aft,x_bef)
-  cov_new.block(size_marg_bef, 0, size_marg_aft, size_marg_bef) = 
-    cov_new.block(0, size_marg_bef, size_marg_bef, size_marg_aft).transpose();
-  // P_(x_aft,x_aft)
-  cov_new.block(size_marg_bef, size_marg_bef, size_marg_aft, size_marg_aft) = 
-    state->cov_.block(size_marg_bef + size_marg, size_marg_bef + size_marg, size_marg_aft, size_marg_aft);
-
-  // set to new covariance
-  state->cov_ = cov_new;
-  assert(state->cov_.rows() == cov_new.rows());
-  assert(state->cov_.cols() == cov_new.cols());
-
-  /****************************************************************/
-  /********************** marginalize clone ***********************/
-  /****************************************************************/
-
-  // remove clone
-  //! TODO: make this as function with clone_type and time_marg, could also used for camera marg
-  state->state_[CLONE_DVL].erase(time_marg);
-
-  // reset id
-  for(auto &estimation : state->state_[CLONE_DVL]) {
-    auto id = estimation.second->getId();
-
-    if( id > id_marg) 
-      estimation.second->setId(id - size_marg);
-  }
-}
-
-// void Updater::marginalize(std::shared_ptr<State> state, SubStateName clone_name, int clone_id){
-
-// }
-
-void Updater::marginalize(std::shared_ptr<State> state, SubStateName clone_name) {
-
-  /****************************************************************/
-  /******************** marginalize covariance ********************/
-  /****************************************************************/
-  
-  // find the clone need to marginalize
-  auto marg = state->state_[clone_name].begin();
+  // find the clone need to marginalize based on given index
+  auto marg = std::next(state->state_[clone_name].begin(),index);
 
   auto time_marg = marg->first;
   auto id_marg = marg->second->getId();
@@ -864,7 +798,7 @@ void Updater::marginalize(std::shared_ptr<State> state, SubStateName clone_name)
   assert(state->cov_.cols() == cov_new.cols());
 
   /****************************************************************/
-  /********************** marginalize clone ***********************/
+  /******************* marginalize clone state ********************/
   /****************************************************************/
 
   // remove clone

@@ -41,9 +41,7 @@ public:
       std::shared_ptr<State> state,const Eigen::Vector3d &w_I, 
       const Eigen::Vector3d &v_D,const double pres_begin, const double pres_curr); 
 
-  void marginalizeDvl(std::shared_ptr<State> state);
-
-  void marginalize(std::shared_ptr<State> state, SubStateName clone_name);
+  void marginalize(std::shared_ptr<State> state, SubStateName clone_name, int index);
 
   void updateCam(std::shared_ptr<State> state, std::vector<Feature> &features, double timestamp);
   

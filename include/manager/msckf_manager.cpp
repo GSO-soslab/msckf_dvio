@@ -449,18 +449,26 @@ void MsckfManager::doCameraKeyframe() {
   //// [4] Marginalization(if reach max clone): 
   if((params.msckf.max_clone_C > 0) &&
      (params.msckf.max_clone_C == state->getEstimationNum(CLONE_CAM0))) {
-    // Cleanup any measurements older then the marginalization time
-    tracker->get_feature_database()->cleanup_measurements(state->getMarginalizedTime(CLONE_CAM0));
+    // // Cleanup any measurements older then the marginalization time
+    // tracker->get_feature_database()->cleanup_measurements(state->getMarginalizedTime(CLONE_CAM0));
     
-    // remove the clone and related covarinace
-    updater->marginalize(state, CLONE_CAM0);
+    // // remove the clone and related covarinace
+    // int index = 0;
+    // updater->marginalize(state, CLONE_CAM0, index);
 
-    // remove the oldest clone
+    //! TEST: 
 
-    // remove the second latest clone
+    // remove feature measurements at marginalized timestamp (oldest)
+    tracker->get_feature_database()->cleanup_measurements_marg(state->getMarginalizedTime(CLONE_CAM0));
+
+    // remove clone state and covaraince at marginalized  timestamp (oldest)
+    int index = 0;
+    updater->marginalize(state, CLONE_CAM0, index);
+
+    // remove feature measurements only older then oldest clone timestamp 
+    tracker->get_feature_database()->cleanup_measurements_outside(state->getMarginalizedTime(CLONE_CAM0));
 
     printf("[TEST]: aft clean:%d\n", state->getEstimationNum(CLONE_CAM0));
-
   }
 
 }
@@ -556,7 +564,8 @@ void MsckfManager::doCamera() {
     tracker->get_feature_database()->cleanup_measurements(state->getMarginalizedTime(CLONE_CAM0));
     
     // remove the clone and related covarinace
-    updater->marginalize(state, CLONE_CAM0);
+    int index = 0;
+    updater->marginalize(state, CLONE_CAM0, index);
   }
 
 }
@@ -697,7 +706,8 @@ void MsckfManager::doDvlBT() {
   // [3] Marginalization: if reach the max clones, remove the clone and related covarinace
   if( (params.msckf.max_clone_D > 0) &&
       (params.msckf.max_clone_D < state->getEstimationNum(CLONE_DVL)) ) {
-    updater->marginalize(state, CLONE_DVL);
+    int index = 0;
+    updater->marginalize(state, CLONE_DVL, index);
   }
 
 }
@@ -1106,7 +1116,8 @@ void MsckfManager::doDVL() {
     //   // if max clone of DVL is reached, then do the marginalize: remove the clone and related covarinace
     //   if( (params.msckf.max_clone_D > 0) &&
     //       (params.msckf.max_clone_D < state->getEstimationNum(CLONE_DVL)) ) {
-    //     updater->marginalize(state, CLONE_DVL);
+    //     int index = 0;  
+    //     updater->marginalize(state, CLONE_DVL, index);
     //   }
     // }
 

@@ -87,6 +87,16 @@ public:
   void clean_invalid_measurements(const std::vector<double> &invalid_times);
 
   /**
+   * @brief Remove measurements that are older then and Equal To the specified timestamp.
+   *
+   * Given a valid timestamp, this will remove all measurements that have occured earlier then this.
+   * 
+   * @note this is the old open_vins function(clean_older_measurements)
+   * @param timestamp Timestamps that our measurements must occur after
+   */
+  void clean_older_equal_measurements(double timestamp);
+
+  /**
    * @brief Remove measurements that are older then the specified timestamp.
    *
    * Given a valid timestamp, this will remove all measurements that have occured earlier then this.
