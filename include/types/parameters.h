@@ -71,6 +71,8 @@ struct paramMsckf {
   bool do_time_C_I;
   // max clone for camera 
   int max_clone_C;
+  // index of marginalzied clone 
+  std::vector<int> marginalized_clone;
   // key frame count
   int key_frame_count;
   // key frame motion

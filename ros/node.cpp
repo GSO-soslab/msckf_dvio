@@ -169,8 +169,8 @@ Params RosNode::loadParameters() {
 
   nh_private_.param<int> ("MSCKF/max_msckf_update", params.msckf.max_msckf_update, params.tracking.num_pts);
 
-
-
+  nh_private_.getParam("MSCKF/marginalized_clone", params.msckf.marginalized_clone);
+  
   return params;
 }
 

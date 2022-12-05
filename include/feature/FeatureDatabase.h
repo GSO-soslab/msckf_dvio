@@ -682,6 +682,22 @@ public:
     // std::cout << "feat db = " << sizebefore << " -> " << (int)features_idlookup.size() << std::endl;
   }
 
+  /**
+   * @brief Update the triangulation result and flag to the features
+   */
+  void update_new_triangulation(const std::vector<Feature> &features) {
+    std::unique_lock<std::mutex> lck(mtx);
+
+    for(const auto& feat : features) {
+      // find if each of given feature exist
+      if (features_idlookup.find(feat.featid) != features_idlookup.end()) {
+        // update: first update or overridde to the given information 
+        features_idlookup[feat.featid]->p_FinA = feat.p_FinA;
+        features_idlookup[feat.featid]->p_FinG = feat.p_FinG;
+        features_idlookup[feat.featid]->triangulated = feat.triangulated;
+      }
+    }
+  }
 
   bool checkFeatureTest(size_t id) {
     std::unique_lock<std::mutex> lck(mtx);

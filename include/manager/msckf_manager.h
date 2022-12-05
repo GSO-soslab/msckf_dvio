@@ -74,7 +74,7 @@ private:
 
   void doPressure();
 
-  void doCamera();
+  void doCameraSlideWindow();
 
   void doCameraKeyframe();
 

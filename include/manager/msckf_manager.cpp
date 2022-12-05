@@ -268,7 +268,7 @@ void MsckfManager::backend() {
     // choose Camera to update IMU
     case IMAGE: {
 
-      // doCamera();
+      // doCameraSlideWindow();
 
       doCameraKeyframe();
 
@@ -441,9 +441,18 @@ void MsckfManager::doCameraKeyframe() {
   selectFeaturesKeyFrame(time_curr_sensor, feature_lost, feature_marg);
 
   // [3] Camera Feature Update: feature triangulation, feature update 
-  // updater->cameraMeasurement();
+
+  // feature triangulation
+  std::vector<Feature> feature_msckf;
+  updater->cameraMeasurementKeyFrame(state, feature_lost, feature_marg, feature_msckf);
+
+  // update triangulation to the database
+  tracker->get_feature_database()->update_new_triangulation(feature_msckf);
+
   // updater->updateCam();
-  // setFeatures();
+
+  // setup new MSCKF features for visualization
+  setFeatures(feature_msckf);
 
 
   //// [4] Marginalization(if reach max clone): 
@@ -451,7 +460,7 @@ void MsckfManager::doCameraKeyframe() {
      (params.msckf.max_clone_C == state->getEstimationNum(CLONE_CAM0))) {
 
     // Marginalization: oldest
-    auto marg_index_0 = 0;
+    auto marg_index_0 = params.msckf.marginalized_clone.at(0);
     auto marg_time_0 = state->getMargTime(CLONE_CAM0, marg_index_0);
     // remove feature measurements
     tracker->get_feature_database()->cleanup_measurements_marg(marg_time_0);
@@ -459,7 +468,7 @@ void MsckfManager::doCameraKeyframe() {
     updater->marginalize(state, CLONE_CAM0, marg_index_0);
 
     // Marginalization: second latest
-    auto marg_index_1 = state->getEstimationNum(CLONE_CAM0) - 2;
+    auto marg_index_1 = params.msckf.marginalized_clone.at(1);
     auto marg_time_1 = state->getMargTime(CLONE_CAM0, marg_index_1);
     // remove feature measurements
     tracker->get_feature_database()->cleanup_measurements_marg(marg_time_1);
@@ -475,7 +484,7 @@ void MsckfManager::doCameraKeyframe() {
 
 }
 
-void MsckfManager::doCamera() {
+void MsckfManager::doCameraSlideWindow() {
 
   // ------------------------------  Select Data ------------------------------ // 
 
@@ -1305,7 +1314,7 @@ void MsckfManager::selectFeaturesKeyFrame(
   if(state->getEstimationNum(CLONE_CAM0) == params.msckf.max_clone_C) {
     // Grab marg feature 0 
     // get oldest clone time
-    auto index = 0;
+    auto index = params.msckf.marginalized_clone.at(0);
     auto time_oldest = state->getMargTime(CLONE_CAM0, index);
     // get feature contain this marg time
     std::vector<Feature> feat_marg_0;
@@ -1313,7 +1322,7 @@ void MsckfManager::selectFeaturesKeyFrame(
 
     // Grab marg feature 1
     // get second latest clone time
-    index = state->getEstimationNum(CLONE_CAM0) - 2;
+    index = params.msckf.marginalized_clone.at(1);
     auto time_second_latest = state->getMargTime(CLONE_CAM0, index);
     // get feature contain this marg time
     std::vector<Feature> feat_marg_1;
@@ -1334,19 +1343,6 @@ void MsckfManager::selectFeaturesKeyFrame(
     }
   }
 
-  if(feat_lost.size() > 0) {
-    printf("  Lost feat size=%ld\n", feat_lost.size());
-    // for(const auto& f : feat_lost) {
-    //   printf("  id:%ld, meas:%ld\n", f.featid, f.timestamps.at(0).size());
-    // }
-  }
-
-  if(feat_marg.size()>0) {
-    printf("  Marg feat size=%ld\n", feat_marg.size());
-    // for(const auto& f : feat_marg) {
-    //   printf("  id:%ld, meas:%ld\n", f.featid, f.timestamps.at(0).size());
-    // }
-  }
 }
 
 void MsckfManager::selectFeaturesSlideWindow(

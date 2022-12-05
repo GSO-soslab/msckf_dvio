@@ -67,6 +67,9 @@ public:
   /// Triangulated position of this feature, in the global frame
   Eigen::Vector3d p_FinG;
 
+  /// Indicated if this feature is triangulated
+  bool triangulated = false;
+
   /**
    * @brief Remove measurements that do not occur at passed timestamps.
    *

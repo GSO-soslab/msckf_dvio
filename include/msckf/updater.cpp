@@ -814,6 +814,141 @@ void Updater::marginalize(std::shared_ptr<State> state, SubStateName clone_name,
   
 }
 
+void Updater::cameraMeasurementKeyFrame(
+    std::shared_ptr<State> state, 
+    std::vector<Feature> &feat_lost,
+    std::vector<Feature> &feat_marg,
+    std::vector<Feature> &feat_msckf) {
+
+  // -------------------- Get Camera Pose and Clone Time -------------------- //
+
+  // get known information
+  double cam_time;
+  Eigen::Matrix3d R_I_G, R_C_I;
+  Eigen::Vector3d p_G_I, p_C_I;
+  R_C_I = param_msckf_.do_R_C_I ? 
+          toRotationMatrix(state->getEstimationValue(CAM0,EST_QUATERNION)) :
+          toRotationMatrix(prior_cam_.extrinsics.head(4));
+  p_C_I = param_msckf_.do_p_C_I ?
+          state->getEstimationValue(CAM0,EST_POSITION) :
+          prior_cam_.extrinsics.tail(3);
+
+  // get clone pose 
+  Eigen::Matrix4d T_G_C = Eigen::Matrix4d::Identity();
+  std::unordered_map<double, Eigen::Matrix4d> cam_poses;
+  std::vector<double> clone_times;
+
+  for (const auto &clone : state->state_[CLONE_CAM0]) {
+    // get clone time and IMU pose
+    cam_time = std::stod(clone.first);
+    R_I_G = toRotationMatrix(clone.second->getValue().block(0,0,4,1));
+    p_G_I = clone.second->getValue().block(4,0,3,1);
+
+    // get camera pose in global frame
+    T_G_C.block(0,0,3,3) = R_I_G.transpose() * R_C_I.transpose();
+    T_G_C.block(0,3,3,1) = p_G_I - T_G_C.block(0,0,3,3) * p_C_I;
+
+    // insert to container
+    cam_poses.insert({cam_time, T_G_C});
+    clone_times.emplace_back(cam_time);
+  }
+
+  // -------------------- Triangulation for Lost Features -------------------- //
+
+  auto it0 = feat_lost.begin();
+  while (it0 != feat_lost.end()) {
+
+    // [0] Clean non-clone stamp measurements
+    it0->clean_old_measurements(clone_times);
+
+    // [1] Check if this feature is triangulated 
+    if(it0->triangulated) {
+      it0++;
+      continue;
+    }
+
+    // [2] Triangulate the feature
+    bool success_tri = true;
+    bool success_refine = true;
+
+    success_tri = triangulater->single_triangulation(&*it0, cam_poses);
+    success_refine = triangulater->single_gaussnewton(&*it0, cam_poses);
+
+    // [3] Remove the feature if triangulation failed
+    if (!success_tri || !success_refine) {
+      it0 = feat_lost.erase(it0);
+    }
+    else {
+      it0++;
+    }
+  }
+
+  if(feat_lost.size() > 0) {
+    printf("  Lost feat size=%ld\n", feat_lost.size());
+    // for(const auto& f : feat_lost) {
+    //   printf("  id:%ld, meas:%ld\n", f.featid, f.timestamps.at(0).size());
+    // }
+  }
+
+  // -------------------- Triangulation for Marg Features -------------------- //
+
+  auto it1 = feat_marg.begin();
+  while (it1 != feat_marg.end()) {
+
+    // [0] Clean non-clone stamp measurements
+    it1->clean_old_measurements(clone_times);
+
+    // [1] Check if this feature is triangulated 
+    if(it1->triangulated) {
+      it1++;
+      continue;
+    }
+
+    // [2] Triangulate the feature
+    bool success_tri = true;
+    bool success_refine = true;
+
+    success_tri = triangulater->single_triangulation(&*it1, cam_poses);
+    success_refine = triangulater->single_gaussnewton(&*it1, cam_poses);
+
+    // [3] Remove the feature if triangulation failed
+    if (!success_tri || !success_refine) {
+      it1 = feat_marg.erase(it1);
+    }
+    else {
+      it1++;
+    }
+  }
+
+  if(feat_marg.size()>0) {
+    printf("  Marg feat size=%ld\n", feat_marg.size());
+    // for(const auto& f : feat_marg) {
+    //   printf("  id:%ld, meas:%ld\n", f.featid, f.timestamps.at(0).size());
+    // }
+  }
+  
+  // -------------------- Finish the Final MSCKF Features for Update -------------------- //
+
+  if(state->getEstimationNum(CLONE_CAM0) == param_msckf_.max_clone_C) {
+    // [0] Create marg clone timestamps
+    clone_times.clear();
+    for(const auto& index : param_msckf_.marginalized_clone) {
+      clone_times.push_back(
+        state->getMargTime(CLONE_CAM0,index));
+    }
+
+    // [1] Only keep marg clone timestamp measurements
+    for(auto& feat : feat_marg) {
+      feat.clean_old_measurements(clone_times);
+    }
+  }
+
+  // [2] Combine lost and marg feature measurements for update
+  feat_msckf.insert(feat_msckf.end(), feat_marg.begin(), feat_marg.end());
+  feat_msckf.insert(feat_msckf.end(), feat_lost.begin(), feat_lost.end());
+
+}
+
 void Updater::cameraMeasurement(    
     std::shared_ptr<State> state, 
     std::vector<Feature> &features,

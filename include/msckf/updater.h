@@ -50,6 +50,13 @@ public:
     std::vector<Feature> &features,
     double timestamp);
 
+  void cameraMeasurementKeyFrame(
+    std::shared_ptr<State> state, 
+    std::vector<Feature> &feat_lost,
+    std::vector<Feature> &feat_marg,
+    std::vector<Feature> &feat_msckf
+  );
+
   void featureJacobian(std::shared_ptr<State> state, const Feature &feature, 
                        Eigen::MatrixXd &H_x, Eigen::MatrixXd &H_f, 
                        Eigen::VectorXd & res);
