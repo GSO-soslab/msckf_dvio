@@ -12,9 +12,12 @@ SYS:
 ####################################################################################
 
 INIT:
-  # Default: 1; (0: static; 1:DVL-aided; 2:SFM-aided)
+  # Default: 2; (0: setting; 1:static; 2:DVL-Pressure; 3:camera)
+  mode: 2
+
+  # Default: 2; (0: setting; 1:static; 2:DVL-Pressure; 3:camera)
   # Note: Estimate IMU bias and find out the rotation matrix between inertial world frame and IMU body frame;
-  imu_init_mode: 1      
+  imu_init_mode: 2
 
   # Default: 10
   # Note: how many IMU data is selected to detect IMU jump (suddenly move)  

@@ -78,7 +78,16 @@ struct paramMsckf {
   int max_msckf_update;
 };
 
+enum InitMode {
+  SETTING = 0,
+  STATIC = 1,
+  DVL_PRESSURE = 2,
+  CAMERA = 3,
+  DVL_CAMERA = 4
+};
+
 struct paramInit {
+  InitMode mode;
   // Estimate IMU bias and find out the rotation matrix between inertial world frame and IMU body frame using different method
   int imu_init_mode;
   // how many IMU data is selected to detect IMU jump (suddenly move)

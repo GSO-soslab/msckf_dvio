@@ -270,7 +270,7 @@ Visualization Manager:
       Near Clip Distance: 0.009999999776482582
       Pitch: 0.3997969925403595
       Target Frame: <Fixed Frame>
-      Yaw: 1.2053691148757935
+      Yaw: 1.200369119644165
     Saved: ~
 Window Geometry:
   Displays:
@@ -292,5 +292,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 1920
-  X: 1920
+  X: 0
   Y: 27

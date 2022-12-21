@@ -18,7 +18,7 @@
 * interpolate init pressure at the initialized timestamp
 */
 
-namespace msckf_dvio {
+using namespace msckf_dvio;
 
 InitDvlAided::InitDvlAided(paramInit param_init_, priorImu prior_imu_, priorDvl prior_dvl_) 
    : Initializer(param_init_), 
@@ -53,7 +53,38 @@ void InitDvlAided::checkInit() {
 
 }
 
-void InitDvlAided::updateInit(std::shared_ptr<State> state, Params &params, std::vector<double> &data_time) {
+bool InitDvlAided::useSensor(const Sensor &sensor) {
+  // this initializer will use IMU, DVL, Pressure data
+
+  if(sensor == Sensor::IMU || sensor == Sensor::DVL || sensor == Sensor::PRESSURE) {
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+void InitDvlAided::cleanBuffer() {
+  buffer_mutex.lock();
+
+  std::vector<ImuMsg>().swap(buffer_imu);
+  std::vector<DvlMsg>().swap(buffer_dvl);
+  std::vector<PressureMsg>().swap(buffer_pressure);
+  std::vector<std::tuple<std::vector<ImuMsg>, double>>().swap(sections_imu);
+  std::vector<DvlMsg>().swap(sections_dvl);
+
+  // buffer_imu.clear();
+  // buffer_dvl.clear();
+  // buffer_pressure.clear();
+  // sections_imu.clear();
+  // sections_dvl.clear();
+
+  buffer_mutex.unlock();
+}
+
+//! TODO: should conside case that pressure and DVL are not from the same sensor
+//! TODO: which means timestamp are different
+void InitDvlAided::updateInit(std::shared_ptr<State> state, Params &params, std::map<Sensor, double> &data_time) {
 
   // ====================== get init result ====================== //
 
@@ -88,12 +119,17 @@ void InitDvlAided::updateInit(std::shared_ptr<State> state, Params &params, std:
   state->setPressureInit(pres_init.p);
 
   // ====================== return data time to clean buffer ====================== //
-  // clean IMU buffer
-  data_time.emplace_back(time_I_init);
-  // clean DVL buffer
-  data_time.emplace_back(time_D_init);
-  // clean pressure buffer
-  data_time.emplace_back(time_D_init);
+
+  data_time[Sensor::IMU] = time_I_init;
+  data_time[Sensor::DVL] = time_D_init;
+  data_time[Sensor::PRESSURE] = time_D_init;
+
+  // // clean IMU buffer
+  // data_time.emplace_back(time_I_init);
+  // // clean DVL buffer
+  // data_time.emplace_back(time_D_init);
+  // // clean pressure buffer
+  // data_time.emplace_back(time_D_init);
 }
 
 void InitDvlAided::findAlignmentImu() {
@@ -277,6 +313,7 @@ bool InitDvlAided::grabInitializationData(std::vector<DvlMsg> &dvl_a,
   //   printf("t: %f\n", imu.time);
 
 /**** timestamp at Initialized state ****/
+  // the initialized point is at end of second time-duration
   time_I_init = imu_a.at(imu_a.size()-2).time;
   time_D_init = selected_dvl.back().time;
 
@@ -518,26 +555,6 @@ void InitDvlAided::doInitialization(const std::vector<DvlMsg> &dvl_a,
   cleanBuffer();
 
   initialized = true;
-}
-
-void InitDvlAided::cleanBuffer() {
-  buffer_mutex.lock();
-
-  std::vector<ImuMsg>().swap(buffer_imu);
-  std::vector<DvlMsg>().swap(buffer_dvl);
-  std::vector<PressureMsg>().swap(buffer_pressure);
-  std::vector<std::tuple<std::vector<ImuMsg>, double>>().swap(sections_imu);
-  std::vector<DvlMsg>().swap(sections_dvl);
-
-  // buffer_imu.clear();
-  // buffer_dvl.clear();
-  // buffer_pressure.clear();
-  // sections_imu.clear();
-  // sections_dvl.clear();
-
-  buffer_mutex.unlock();
-}
-
 }
 
 

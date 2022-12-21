@@ -23,9 +23,12 @@ public:
 
   virtual void checkInit() = 0;
 
-  virtual void updateInit(std::shared_ptr<State> state, Params &params, std::vector<double> &data_time) = 0;
+  virtual void updateInit(std::shared_ptr<State> state, Params &params, std::map<Sensor, double> &data_time) = 0;
 
   virtual void cleanBuffer() = 0;
+
+  // check if this sensor will used in initialization
+  virtual bool useSensor(const Sensor &sensor) = 0;
 
   void feedImu(const ImuMsg &data) {
     buffer_mutex.lock();

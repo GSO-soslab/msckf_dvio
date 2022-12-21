@@ -17,7 +17,25 @@ MsckfManager::MsckfManager(Params &parameters)
   state = std::make_shared<State>(params);
 
   //// setup imu initializer
-  initializer = std::shared_ptr<InitDvlAided>(new InitDvlAided(params.init, params.prior_imu, params.prior_dvl));
+  switch(params.init.mode) {
+    case InitMode::SETTING: {
+      break;
+    }
+
+    case InitMode::STATIC: {
+      break;
+    }
+
+    case InitMode::DVL_PRESSURE: {
+      initializer = std::shared_ptr<InitDvlAided>(new InitDvlAided(params.init, params.prior_imu, params.prior_dvl));
+      break;
+    }
+
+    default:
+      break;
+  }
+
+  // initializer = std::shared_ptr<InitDvlAided>(new InitDvlAided(params.init, params.prior_imu, params.prior_dvl));
                                                       
   //// setup predictor
   predictor = std::make_shared<Predictor>(params.prior_imu);
@@ -56,8 +74,9 @@ void MsckfManager::feedImu(const ImuMsg &data) {
   buffer_imu.emplace_back(data);
 
   //// if imu not initialized, feed to initializer
-  if(!initializer->isInit())
+  if(!initializer->isInit() && initializer->useSensor(Sensor::IMU)) {
     initializer->feedImu(data);
+  }
 
   //!TODO: delete imu messages that are older then some time, 
   //!      like 10s in case 
@@ -79,8 +98,9 @@ void MsckfManager::feedDvl(const DvlMsg &data) {
   // }
 
   //// if imu not initialized, feed to initializer
-  if(!initializer->isInit())
+  if(!initializer->isInit() && initializer->useSensor(Sensor::DVL)) {
     initializer->feedDvl(data);
+  }
 }
 
 void MsckfManager::feedPressure(const PressureMsg &data) {
@@ -97,8 +117,9 @@ void MsckfManager::feedPressure(const PressureMsg &data) {
   //// if imu not initialized, feed to initializer
   //! TODO: check if this sensor is need for initialization
   //! initializer->needSensor(PRESSURE) ?
-  if(!initializer->isInit())
+  if(!initializer->isInit() && initializer->useSensor(Sensor::PRESSURE)) {
     initializer->feedPressure(data);
+  }
 }
 
 void MsckfManager::feedCamera(ImageMsg &data) {
@@ -171,43 +192,37 @@ void MsckfManager::backend() {
 
     initializer->checkInit();
 
-    if(initializer->isInit()){
-      std::vector<double> data_time;
-      initializer->updateInit(state, params, data_time);
-
-      printf("\n+++++++++++++++\n");
-
-      //// clean manager data buffer which used in initialization
-      mtx.lock();
-      
-      // delete IMU used for initialization
-      auto frame_imu = std::find_if(buffer_imu.begin(), buffer_imu.end(),
-                    [&](const auto& imu){return imu.time == data_time.at(0) ;});
-      if (frame_imu != buffer_imu.end())
-        buffer_imu.erase(buffer_imu.begin(), frame_imu);
-
-      // delete DVL BT Velocity used for initialization
-      printf("dvl init time:%f, buffer end time:%f, buffer size=%ld\n",
-            data_time.at(1), buffer_dvl.at(buffer_dvl.size()-1).time, buffer_dvl.size());
-
-      auto frame_dvl = std::find_if(buffer_dvl.begin(), buffer_dvl.end(),
-                    [&](const auto& dvl){return dvl.time >= data_time.at(1) ;});
-      if (frame_dvl != buffer_dvl.end()){
-        last_dvl = *(frame_dvl);
-        buffer_dvl.erase(buffer_dvl.begin(), frame_dvl);
-        printf("after erased:%f\n", buffer_dvl.begin()->time);
-      }                    
-
-      // delete DVL pressure used for initialization
-      auto frame_pres = std::find_if(buffer_pressure.begin(), buffer_pressure.end(),
-                    [&](const auto& pressure){return pressure.time >= data_time.at(2) ;});
-      if (frame_pres != buffer_pressure.end())                    
-        buffer_pressure.erase(buffer_pressure.begin(), frame_pres);
-
-      mtx.unlock();
-    }
-    else
+    if(!initializer->isInit()) {
       return;
+    }
+
+    // update to initialized result
+    std::map<Sensor, double> timelines;
+    initializer->updateInit(state, params, timelines);
+
+    // clean those used in initialization in global buffer
+    for (const auto& kv : timelines) {
+      switch(kv.first) {
+        case Sensor::IMU: {
+          releaseImuBuffer(kv.second);
+          break;
+        }
+
+        case Sensor::DVL: {
+          releaseDvlBuffer(kv.second);
+          break;
+        }
+
+        case Sensor::PRESSURE: {
+          releasePressureBuffer(kv.second);
+          break;
+        }
+
+        default:
+          break;
+      }
+    }
+
   }
 
 /******************** Check Initialization with given state ********************/
@@ -695,6 +710,42 @@ bool MsckfManager::checkFrameCount() {
   else {
     return false;
   }
+}                  
+        
+
+void MsckfManager::releaseImuBuffer(double timeline) {
+  std::unique_lock<std::mutex> lck(mtx);
+
+  auto frame = std::find_if(buffer_imu.begin(), buffer_imu.end(),
+                [&](const auto& imu){return imu.time >= timeline;});
+
+  if (frame != buffer_imu.end()){
+    buffer_imu.erase(buffer_imu.begin(), frame);
+  }
+}
+
+void MsckfManager::releaseDvlBuffer(double timeline) {
+  std::unique_lock<std::mutex> lck(mtx);
+
+  auto frame = std::find_if(buffer_dvl.begin(), buffer_dvl.end(),
+                [&](const auto& dvl){return dvl.time >= timeline;});
+
+  if (frame != buffer_dvl.end()){
+    last_dvl = *(frame);
+    buffer_dvl.erase(buffer_dvl.begin(), frame);
+  }     
+
+}
+
+void MsckfManager::releasePressureBuffer(double timeline) {
+  std::unique_lock<std::mutex> lck(mtx);
+
+  auto frame = std::find_if(buffer_pressure.begin(), buffer_pressure.end(),
+                [&](const auto& pressure){return pressure.time >= timeline;});
+
+  if (frame != buffer_pressure.end()) {
+    buffer_pressure.erase(buffer_pressure.begin(), frame);
+  }  
 }
 
 void MsckfManager::setFeatures(std::vector<Feature> &features) {

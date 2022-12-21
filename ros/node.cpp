@@ -107,6 +107,9 @@ Params RosNode::loadParameters() {
   nh_private_.param<double>("SYS/dvl_v_threshold", params.dvl_v_threshold, 2.0);
 
   // ==================== Initialization ==================== //
+  int init_mode;
+
+  nh_private_.param<int>   ("INIT/mode",     init_mode,     2);
   nh_private_.param<int>   ("INIT/imu_init_mode",     params.init.imu_init_mode,     1);
   nh_private_.param<int>   ("INIT/imu_window",        params.init.imu_window,        20);
   nh_private_.param<double>("INIT/imu_var",           params.init.imu_var,           0.2);
@@ -115,8 +118,12 @@ Params RosNode::loadParameters() {
   nh_private_.param<double>("INIT/dvl_delta",         params.init.dvl_delta,         0.05);
   nh_private_.param<double>("INIT/dvl_delta",         params.init.dvl_delta,         0.05);
   nh_private_.param<double>("INIT/dvl_init_duration", params.init.dvl_init_duration, 1.0);
-  
   nh_private_.param<bool>  ("INIT/init_given",    params.init.init_given,    false);
+
+  // convert 
+
+  params.init.mode = static_cast<InitMode>(init_mode);
+
   std::vector<double> init_state(17);
   if(params.init.init_given ) {
     nh_private_.getParam   ("INIT/init_state",    init_state);

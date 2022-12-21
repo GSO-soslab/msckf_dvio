@@ -100,6 +100,12 @@ private:
   void selectFeaturesKeyFrame(
     const double time_update, std::vector<Feature> &feat_lost, std::vector<Feature> &feat_marg);
 
+  void releaseImuBuffer(double timeline);
+
+  void releaseDvlBuffer(double timeline);
+
+  void releasePressureBuffer(double timeline);
+
   int frame_count;
 
   double frame_distance;
@@ -113,6 +119,7 @@ private:
 
   DvlMsg last_dvl; 
   
+  //! TODO: add more mutex for different resource management
   std::mutex mtx;
 
   std::shared_ptr<Recorder> recorder;
