@@ -41,14 +41,13 @@ public:
       std::shared_ptr<State> state,const Eigen::Vector3d &w_I, 
       const Eigen::Vector3d &v_D,const double pres_begin, const double pres_curr); 
 
-  void marginalize(std::shared_ptr<State> state, SubStateName clone_name, int index);
+  void marginalize(std::shared_ptr<State> state, Sensor clone_name, int index);
 
-  void updateCam(std::shared_ptr<State> state, std::vector<Feature> &features, double timestamp);
+  void updateCam(std::shared_ptr<State> state, std::vector<Feature> &features);
   
   void cameraMeasurement(    
     std::shared_ptr<State> state, 
-    std::vector<Feature> &features,
-    double timestamp);
+    std::vector<Feature> &features);
 
   void cameraMeasurementKeyFrame(
     std::shared_ptr<State> state, 

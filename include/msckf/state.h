@@ -23,24 +23,15 @@
 #define EST_TIMEOFFSET "Timeoffset"
 #define EST_SCALE "Scale"
 
-//! TODO: merge SubStateName and UpdateSource into one SensorName ???
-
 //! Use the actual sensor state name
-enum SubStateName{
-  IMU = 0,
+enum Sensor{
+  NONE = 0,
+  IMU,
   DVL,
+  PRESSURE,
   CAM0,
   CLONE_DVL,
   CLONE_CAM0
-};
-
-//! Use the actual data type name
-
-enum SensorName{
-  NONE = 0,
-  VELOCITY,
-  PRESSURE,
-  IMAGE
 };
 
 namespace msckf_dvio
@@ -52,8 +43,7 @@ typedef std::map<std::string, std::shared_ptr<Type>> SubState;
 
 //! @brief full state including all the sub state
 //!
-typedef std::map<SubStateName, SubState> FullState;
-
+typedef std::map<Sensor, SubState> FullState;
 
 
 class State {
@@ -72,19 +62,19 @@ public:
   /********************************************************************************/
   //! @brief get each sub state including several actual estimated states, e.g. rotation, position
   //! @param sub_state_name: each sub state, e.g. SENSOR and CLONE
-  inline SubState getSubState(const SubStateName sub_state_name) { return state_[sub_state_name]; }
+  inline SubState getSubState(const Sensor sub_state_name) { return state_[sub_state_name]; }
  
   //! @brief get each estimated state value
   //! @param sub_state_name: each sub state, e.g. SENSOR and CLONE
   //! @param est_name: each actual estimation in the sub state, e.g. rotation, position, calibration...
-  inline Eigen::VectorXd getEstimationValue(const SubStateName sub_state_name,  const std::string &est_name) {
+  inline Eigen::VectorXd getEstimationValue(const Sensor sub_state_name,  const std::string &est_name) {
     return state_[sub_state_name].at(est_name)->getValue();
   }
 
   //! @brief get each estimated state location in the state vector or covariance
   //! @param sub_state_name: each sub state, e.g. SENSOR and CLONE
   //! @param est_name: each actual estimation in the sub state, e.g. rotation, position, calibration...
-  inline int getEstimationId(const SubStateName sub_state_name,  const std::string &est_name) {
+  inline int getEstimationId(const Sensor sub_state_name,  const std::string &est_name) {
     return state_[sub_state_name].at(est_name)->getId();
   }
 
@@ -93,7 +83,7 @@ public:
   //! @param sub_state_name: each sub state, e.g. SENSOR and CLONE
   //! @param est_name: each actual estimation in the sub state, e.g. rotation, position, calibration...
   //!
-  inline int getEstimationSize(const SubStateName sub_state_name,  const std::string &est_name) {
+  inline int getEstimationSize(const Sensor sub_state_name,  const std::string &est_name) {
     return state_[sub_state_name].at(est_name)->getSize();
   }
 
@@ -101,7 +91,7 @@ public:
   //!
   //! @param sub_state_name: each sub state, e.g. SENSOR and CLONE
   //!
-  inline int getEstimationNum(const SubStateName sub_state_name) {
+  inline int getEstimationNum(const Sensor sub_state_name) {
     return state_[sub_state_name].size();
   }
 
@@ -109,14 +99,21 @@ public:
   //!
   //! @param sub_state_name: each sub state, e.g. SENSOR and CLONE
   //!
-  double getMarginalizedTime(const SubStateName sub_state_name);
+  double getMarginalizedTime(const Sensor sub_state_name);
 
   //! @brief the timestamp of clone with given index
   //!
   //! @param sub_state_name: each sub state, e.g. SENSOR and CLONE
   //! @param index: index of marg clone from window
   //!
-  double getMargTime(const SubStateName sub_state_name, int index);
+  double getCloneTime(const Sensor sub_state_name, int index);
+
+  //! @brief the clone pose with given index
+  //!
+  //! @param sub_state_name: each sub state, e.g. SENSOR and CLONE
+  //! @param index: index of marg clone from window
+  //!
+  Eigen::VectorXd getClonePose(const Sensor sub_state_name, int index);
 
   //! @brief set value of angle estimation of any sub state, will override the original value
   //!
@@ -124,7 +121,7 @@ public:
   //! @param est_name: each actual estimation in the sub state, e.g. rotation, position, calibration...
   //! @param new_value: estimated value
   //!
-  inline void setEstimationValue(const SubStateName &sub_state_name, const std::string &est_name, const Eigen::MatrixXd &new_value){
+  inline void setEstimationValue(const Sensor &sub_state_name, const std::string &est_name, const Eigen::MatrixXd &new_value){
     state_[sub_state_name].at(est_name)->setValue(new_value);
   }
 
@@ -146,7 +143,7 @@ public:
     }
   }
 
-  void testClone(const SubStateName sub_state_name) {
+  void testClone(const Sensor sub_state_name) {
     for(const auto & clone : state_[sub_state_name]) {
       printf("  t: %s\n", clone.first.c_str());
     }
@@ -194,7 +191,7 @@ public:
 
   //================================= CLONE ========================================//
 
-  inline bool foundClone(const SubStateName &sub_state_name, const std::string &clone_name) {
+  inline bool foundClone(const Sensor &sub_state_name, const std::string &clone_name) {
     return state_[sub_state_name].find(clone_name) != state_[sub_state_name].end() ? true : false; 
   }
   

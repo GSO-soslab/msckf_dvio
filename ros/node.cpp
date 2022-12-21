@@ -129,7 +129,7 @@ Params RosNode::loadParameters() {
                               init_state.at(14),init_state.at(15),init_state.at(16); //ba
   }
 
-  // ==================== Tracking ==================== //
+  // ==================== Image frontend ==================== //
   nh_private_.param<int>   ("KLT/num_aruco",        params.tracking.num_aruco,        1024);
   nh_private_.param<int>   ("KLT/num_pts",          params.tracking.num_pts,          250);
   nh_private_.param<int>   ("KLT/fast_threshold",   params.tracking.fast_threshold,   15);
@@ -153,6 +153,12 @@ Params RosNode::loadParameters() {
   nh_private_.param<double>("Feature/min_dcost",        params.triangualtion.min_dcost,       1e-6);
   nh_private_.param<double>("Feature/max_baseline",     params.triangualtion.max_baseline,    40);
 
+  nh_private_.param<int>   ("Keyframe/frame_count",  params.keyframe.frame_count,  5);
+  nh_private_.param<double>("Keyframe/frame_motion", params.keyframe.frame_motion, 0.1);
+  nh_private_.param<int>   ("Keyframe/motion_space", params.keyframe.motion_space, 3);
+  nh_private_.param<int>   ("Keyframe/min_tracked",  params.keyframe.min_tracked,  50);
+  nh_private_.param<double>("Keyframe/scene_ratio",  params.keyframe.scene_ratio,  0.8);
+
   // ==================== MSCKF ==================== //
   nh_private_.param<bool>("MSCKF/dvl_exterisic_R", params.msckf.do_R_I_D,    true);
   nh_private_.param<bool>("MSCKF/dvl_exterisic_p", params.msckf.do_p_I_D,    true);
@@ -164,8 +170,6 @@ Params RosNode::loadParameters() {
   nh_private_.param<bool>("MSCKF/cam_exterisic_p", params.msckf.do_p_C_I,    true);
   nh_private_.param<bool>("MSCKF/cam_timeoffset",  params.msckf.do_time_C_I, true);
   nh_private_.param<int> ("MSCKF/cam_clone",       params.msckf.max_clone_C, 9);
-  nh_private_.param<int> ("MSCKF/key_frame_count", params.msckf.key_frame_count, 2);
-  nh_private_.param<double> ("MSCKF/key_frame_motion", params.msckf.key_frame_motion, 0.2);
 
   nh_private_.param<int> ("MSCKF/max_msckf_update", params.msckf.max_msckf_update, params.tracking.num_pts);
 
@@ -275,6 +279,10 @@ void RosNode::pressureCallback(const sensor_msgs::FluidPressure::ConstPtr &msg) 
 
 void RosNode::pointcloudCallback(const sensor_msgs::PointCloud2::ConstPtr &msg){
   //! TODO: multi-path will has degraded measurement, filter multi-path based on sub_map, plane-constrain
+  // pcl::PCLPointCloud2 pc2;
+  // pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+  // pcl_conversions::toPCL(*msg, pc2);
+  // pcl::fromPCLPointCloud2(pc2, *cloud);
 
 }
 

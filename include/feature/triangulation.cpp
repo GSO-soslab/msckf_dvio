@@ -53,17 +53,7 @@ double FeatureTriangulation::compute_error(
 //!
 bool FeatureTriangulation::single_triangulation(
   Feature *feature, 
-  const std::unordered_map<double, Eigen::Matrix4d> &T_G_C) {
-
-  // count how many measurements
-  int num_measurements = 0;
-  for (const auto &pair : feature->timestamps) {
-    num_measurements += feature->timestamps[pair.first].size();
-  }                  
-
-  if(num_measurements < 2) {
-    return false;
-  }          
+  const std::unordered_map<double, Eigen::Matrix4d> &T_G_C) {        
 
   // get Anchor transfomration
   Eigen::Matrix3d R_A_G = T_G_C.begin()->second.block(0,0,3,3).transpose();
@@ -136,16 +126,6 @@ bool FeatureTriangulation::single_triangulation(
 bool FeatureTriangulation::single_gaussnewton(
   Feature *feature, 
   const std::unordered_map<double, Eigen::Matrix4d> &T_G_C) {
-
-  // count how many measurements
-  int num_measurements = 0;
-  for (const auto &pair : feature->timestamps) {
-    num_measurements += feature->timestamps[pair.first].size();
-  }                  
-
-  if(num_measurements < 2) {
-    return false;
-  } 
 
   // get Anchor transfomration
   Eigen::Matrix3d R_A_G = T_G_C.begin()->second.block(0,0,3,3).transpose();

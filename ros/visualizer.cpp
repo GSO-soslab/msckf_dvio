@@ -14,7 +14,7 @@ RosVisualizer::RosVisualizer(const ros::NodeHandle &nh, std::shared_ptr<MsckfMan
   pub_odom = nh_.advertise<nav_msgs::Odometry>("/odom", 10);
   pub_path = nh_.advertise<nav_msgs::Path>("/path", 10);
   pub_features = nh_.advertise<sensor_msgs::PointCloud2>("/feature_clouds", 10); 
-
+  pub_bias = nh_.advertise<geometry_msgs::TwistStamped>("/imu_bias", 100); 
 }
 
 void RosVisualizer::visualize() {
@@ -87,6 +87,18 @@ void RosVisualizer::publishState() {
   tf_O_B.header.frame_id = "odom";
   tf_O_B.child_frame_id = "base_link";
   odom_broadcaster->sendTransform(tf_O_B);
+
+  //// publish bias
+  geometry_msgs::TwistStamped msg_bias;
+  msg_bias.header.stamp = ros::Time(imu_time);
+  msg_bias.header.frame_id = "ahrs";
+  msg_bias.twist.angular.x = imu_value(10);
+  msg_bias.twist.angular.y = imu_value(11);
+  msg_bias.twist.angular.z = imu_value(12);
+  msg_bias.twist.linear.x = imu_value(13);
+  msg_bias.twist.linear.y = imu_value(14);
+  msg_bias.twist.linear.z = imu_value(15);
+  pub_bias.publish(msg_bias);
 
   //// Publish odometry
 

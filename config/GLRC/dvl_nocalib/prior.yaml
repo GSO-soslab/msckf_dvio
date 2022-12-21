@@ -39,7 +39,8 @@ DVL:
   # Default: 0: x-forward, up-looking; PI: x-forward, down-looking; -PI/2: x-forward, right-looking; PI/2: x-forward, left-looking
   mount_angle: 0
   # noise for pressure update
-  noise_pressure: 0.01
+  # default: 0.01
+  noise_pressure: 0.1
 
 ##################################################################################### 
 ##################################################################################### 

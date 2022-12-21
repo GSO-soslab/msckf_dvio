@@ -73,10 +73,6 @@ struct paramMsckf {
   int max_clone_C;
   // index of marginalzied clone 
   std::vector<int> marginalized_clone;
-  // key frame count
-  int key_frame_count;
-  // key frame motion
-  double key_frame_motion;
 
   // the max features used for MSCKF update
   int max_msckf_update;
@@ -139,16 +135,31 @@ struct paramTriangulation {
   double max_baseline;
 };
 
+struct paramKeyframe {
+  /// option 1: frame count
+  int frame_count;
+  /// option 2: relative motion constraint
+  double frame_motion;
+  /// motion constraint for 3D or 2D
+  int motion_space;
+  /// option 3: minimum tracked features
+  int min_tracked;
+  /// option 4: ratio = tracked feature num from last keyframe / total features at current frame
+  double scene_ratio;
+};
+
 //! TODO: set sub-parameters as shared_ptr? 
 //!       so the paramters will updated automaticly, used for localization failed case?
 struct Params{
 
-/***** Estimation *****/
+/***** Image frontend *****/
 
-/***** Tracker *****/
+  paramTrack tracking;
 
-/***** Feature Triangulation *****/
+  paramTriangulation triangualtion;
 
+  paramKeyframe keyframe;
+  
 /***** Prior ****/
 
   priorImu prior_imu;
@@ -170,9 +181,6 @@ struct Params{
 
   paramMsckf msckf;
 
-  paramTrack tracking;
-
-  paramTriangulation triangualtion;
 };
 
 

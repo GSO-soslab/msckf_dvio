@@ -10,6 +10,7 @@
 #include <tf2/transform_datatypes.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <geometry_msgs/Transform.h>
+#include <geometry_msgs/TwistStamped.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/point_cloud2_iterator.h>
 #include <image_transport/image_transport.h>
@@ -52,7 +53,7 @@ private:
   ros::NodeHandle nh_;
   image_transport::ImageTransport it_;
 
-  ros::Publisher pub_odom, pub_path;
+  ros::Publisher pub_odom, pub_path, pub_bias;
   ros::Publisher pub_features;
   image_transport::Publisher pub_img;
 

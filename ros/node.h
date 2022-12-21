@@ -25,6 +25,10 @@
 #include <tf/transform_listener.h>
 #include <std_srvs/Trigger.h>
 
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/PCLPointCloud2.h>
+#include <pcl/point_types.h>
+
 //
 #include "manager/msckf_manager.h"
 #include "types/type_all.h"

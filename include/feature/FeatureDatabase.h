@@ -375,6 +375,62 @@ public:
   }
 
   /**
+   * @brief Get measurement of all features that at the given timestamp
+   * 
+   * @details each feature will only has one measurements
+   *
+   * @param time_given given timestamp
+   * @param feat_selected selected feature measurements for marginalization
+   * @param skip_deleted skip the marked "deleted" feature or not
+   */
+  void features_measurement_selected(
+    double time_given, std::vector<Feature> &feat_selected, bool skip_deleted = false) {
+    // Now lets loop through all features, and just make sure they are not
+    std::unique_lock<std::mutex> lck(mtx);
+
+    for (auto it = features_idlookup.begin(); it != features_idlookup.end();) {
+      // skip if already deleted
+      if (skip_deleted && (*it).second->to_delete) {
+        it++;
+        continue;
+      }
+
+      // loop the timestamp to find feature
+      for(auto it_time = (*it).second->timestamps[0].rbegin(); 
+               it_time != (*it).second->timestamps[0].rend(); 
+               it_time ++) {
+
+        if(*it_time == time_given) {
+            // prepare the feature
+            Feature feat;
+            // feature id
+            feat.featid = (*it).second->featid;
+            // feature timestamp
+            feat.timestamps[0].push_back(*it_time);
+            // feature uv
+            auto it_uv = it_time - (*it).second->timestamps[0].rbegin() + 
+                        (*it).second->uvs[0].rbegin(); 
+            feat.uvs[0].push_back(*it_uv);
+            // feature un_norm
+            auto it_uvn = it_time - (*it).second->timestamps[0].rbegin() + 
+                         (*it).second->uvs_norm[0].rbegin();
+            feat.uvs_norm[0].push_back(*it_uvn);
+
+            // save 
+            feat_selected.push_back(feat); 
+
+            // found then break
+            break;
+        }
+      }
+
+      // go to next feature
+      it++;
+    }
+  }
+
+
+  /**
    * @brief Get all features measurements that has the given timestamp
    *
    * @param time_given given timestamp
@@ -596,7 +652,7 @@ public:
   /**
    * @brief This function will ONLY delete all feature measurements that are at the specified timestamp
    */
-  void cleanup_measurements_marg(double timestamp) {
+  void cleanup_marg_timestamp(double timestamp) {
     std::unique_lock<std::mutex> lck(mtx);
     std::vector<double> timestamps = {timestamp};
     for (auto it = features_idlookup.begin(); it != features_idlookup.end(); it++) {
@@ -606,11 +662,46 @@ public:
   }
 
   /**
+   * @brief This function will ONLY delete given feature measurements 
+   * @details those updated measurements will be deleted
+   */
+  void cleanup_marg_measurements(const std::vector<Feature> &features) {
+    std::unique_lock<std::mutex> lck(mtx);
+
+    for(auto& feat : features) {
+      // make sure this feature must exist in the database
+      if(features_idlookup.find(feat.featid) == features_idlookup.end()) {
+        continue;
+      }
+
+      auto feat_ptr = features_idlookup[feat.featid];
+
+      // only conside mono camera
+      for(auto& given_time : feat.timestamps.at(0)) {
+        // find given timestamp in the this feature database
+        auto frame = std::find_if(feat_ptr->timestamps.at(0).begin(), feat_ptr->timestamps.at(0).end(),
+                     [&](const auto& database_time){return database_time == given_time ;});
+        if(frame != feat_ptr->timestamps.at(0).end()) {
+          // delete timestamp
+          feat_ptr->timestamps.at(0).erase(frame);
+          // delete uv
+          auto it_uv = feat_ptr->uvs.at(0).begin() + (frame - feat_ptr->timestamps.at(0).begin());
+          feat_ptr->uvs.at(0).erase(it_uv);
+          // delete uv_norm
+          auto it_uvn = feat_ptr->uvs_norm.at(0).begin() + (frame - feat_ptr->timestamps.at(0).begin());
+          feat_ptr->uvs_norm.at(0).erase(it_uvn);
+        }
+      }
+      
+    }
+  }
+
+  /**
    * @brief This function will ONLY delete all feature measurements that outside of slide window
    * 
    * @param timestamp: the oldest timestamp in the silde window
    */
-  void cleanup_measurements_outside(double timestamp) {
+  void cleanup_out_measurements(double timestamp) {
     std::unique_lock<std::mutex> lck(mtx);
     for (auto it = features_idlookup.begin(); it != features_idlookup.end(); it++) {
       // Remove the older measurements

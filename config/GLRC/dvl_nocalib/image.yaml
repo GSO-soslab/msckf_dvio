@@ -40,3 +40,17 @@ Feature:
   # Max baseline ratio to accept triangulated features
   max_baseline: 40
 
+############################################
+####        Keyframe Strategy           ####
+############################################
+Keyframe:
+  # option 1: frame count
+  frame_count: 2 
+  # option 2: relative motion constraint
+  frame_motion: 0.1
+  # 2: 2D space constraint, for up-looking ice surface, 3: 3D space constraint
+  motion_space: 2
+  # option 3: minimum tracked features
+  min_tracked: 50
+  # option 4: ratio = tracked feature num from last keyframe / total features at current frame
+  scene_ratio: 0.8

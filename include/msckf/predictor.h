@@ -18,8 +18,8 @@ public:
 
   void augmentDvl(std::shared_ptr<State> state, double sensor_time, const Eigen::Vector3d &w);
 
-  void augment(SubStateName sensor_name,
-               SubStateName clone_name, 
+  void augment(Sensor sensor_name,
+               Sensor clone_name, 
                std::shared_ptr<State> state,
                double sensor_time, 
                const Eigen::Vector3d &w);

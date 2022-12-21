@@ -77,12 +77,8 @@ MSCKF:
   cam_clone: 10 
   # Index of clone need to marginalize 
   # example: we have 10 clones [0,1,2,3,4,5,6,7,8,9]
-  #          the marg out clones: oldest, second latest [0,8]
+  #          the marg clone measurements: oldest, second latest [0,8]
   marginalized_clone: [0, 8]
-  # key-frame strategy 1) use frame count
-  key_frame_count: 2 
-  # key-frame strategy 2) relative motion constraint
-  key_frame_motion: 0.1
 
   ################################    Update    ##################################
 

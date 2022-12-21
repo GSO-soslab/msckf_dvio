@@ -80,15 +80,17 @@ private:
 
   void doPressure_test();
 
-  SensorName selectUpdateSensor();
+  Sensor selectUpdateSensor();
 
   std::vector<ImuMsg> selectImu(double t_begin, double t_end);
 
   void getDataForPressure(PressureMsg &pressure, DvlMsg &dvl, std::vector<ImuMsg> &imus);
 
-  bool checkKeyframeMotion();
+  bool checkMotion();
 
-  bool checkKeyframeCount();
+  bool checkScene(double curr_time);
+
+  bool checkFrameCount();
 
   void selectFeatures(const double time_update, std::vector<Feature> &feat_selected);
 
@@ -131,7 +133,8 @@ private:
 
   //! TEST: 
   
-  const char *file_path="/home/lin/develop/ros/soslab_ws/src/slam/msckf_dvio/test_result/msckf_data.dat";
+  const char *file_path="/home/lin/Desktop/msckf.txt";
+  std::ofstream file;
 
   // get triangulated feature position
   std::atomic<bool> is_feat;

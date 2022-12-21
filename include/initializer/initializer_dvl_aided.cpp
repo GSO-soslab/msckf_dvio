@@ -523,11 +523,17 @@ void InitDvlAided::doInitialization(const std::vector<DvlMsg> &dvl_a,
 void InitDvlAided::cleanBuffer() {
   buffer_mutex.lock();
 
-  buffer_imu.clear();
-  buffer_dvl.clear();
-  buffer_pressure.clear();
-  sections_imu.clear();
-  sections_dvl.clear();
+  std::vector<ImuMsg>().swap(buffer_imu);
+  std::vector<DvlMsg>().swap(buffer_dvl);
+  std::vector<PressureMsg>().swap(buffer_pressure);
+  std::vector<std::tuple<std::vector<ImuMsg>, double>>().swap(sections_imu);
+  std::vector<DvlMsg>().swap(sections_dvl);
+
+  // buffer_imu.clear();
+  // buffer_dvl.clear();
+  // buffer_pressure.clear();
+  // sections_imu.clear();
+  // sections_dvl.clear();
 
   buffer_mutex.unlock();
 }
