@@ -96,6 +96,7 @@ list(APPEND thirdparty_libraries
 add_library(dvio_lib SHARED
 
   include/initializer/initializer_dvl_aided.cpp
+  include/initializer/initializer_setting.cpp
   
   include/manager/msckf_manager.cpp
 

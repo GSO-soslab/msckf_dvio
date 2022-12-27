@@ -5,38 +5,6 @@ SYS:
   backend_hz: 50
 
 
-INIT:
-  # Default: 1; (0: static; 1:DVL-aided; 2:SFM-aided)
-  # Note: Estimate IMU bias and find out the rotation matrix between inertial world frame and IMU body frame;
-  imu_init_mode: 1      
-
-  # Default: 10
-  # Note: how many IMU data is selected to detect IMU jump (suddenly move)  
-  imu_window: 10
-
-  # Default: 0.2
-  # Note: the IMU variance threshold that indicates IMU jump inclued
-  imu_var: 0.2
-
-  # Default: 0.07
-  # Note: IMU accleraion difference in x-axis(forward direction) shows at the suddenly movement time
-  imu_delta: 0.07
-
-  # Default: 5
-  # Note: how many DVL data is selected to detect DVL jump (suddenly move)  
-  dvl_window: 4
-  
-  # Default: 0.05
-  # Note: DVL velocity difference in x-axis(forward direction) shows at the suddenly movement time
-  dvl_delta: 0.05
-
-  # use the given initialized state or not
-  init_given: true
-
-  # example: t, qx,qy,qz,qw, px,py,pz, vx,vy,vz, bgx,bgy,bgz, bax,bay,baz
-  init_state: [1521753106.831427336, 0.74971,-0.214086,-0.166702,0.603583, 0.261997,-1.10573,0.159884, -0.24932,-1.14522,0.0835872, 0,0,0, 0,0,0]
-
-
 #### MSCKF parameters
 MSCKF:
   # enable DVL exterisic rotation calibration 

@@ -47,8 +47,13 @@ void InitDvlAided::checkInit() {
 
     bool is_ready = grabInitializationData(dvl_acce, imu_acce, imu_gyro, pres_begin);
 
-    if(is_ready)
+    if(is_ready) {
       doInitialization(dvl_acce, imu_acce, imu_gyro, pres_begin);
+
+      initialized = true;
+
+      cleanBuffer();
+    }
   }
 
 }
@@ -65,21 +70,16 @@ bool InitDvlAided::useSensor(const Sensor &sensor) {
 }
 
 void InitDvlAided::cleanBuffer() {
-  buffer_mutex.lock();
+  std::unique_lock<std::recursive_mutex> lck(buffer_mutex);
 
+  // clear base buffer
   std::vector<ImuMsg>().swap(buffer_imu);
   std::vector<DvlMsg>().swap(buffer_dvl);
   std::vector<PressureMsg>().swap(buffer_pressure);
+
+  // clear this initializer buffer
   std::vector<std::tuple<std::vector<ImuMsg>, double>>().swap(sections_imu);
   std::vector<DvlMsg>().swap(sections_dvl);
-
-  // buffer_imu.clear();
-  // buffer_dvl.clear();
-  // buffer_pressure.clear();
-  // sections_imu.clear();
-  // sections_dvl.clear();
-
-  buffer_mutex.unlock();
 }
 
 //! TODO: should conside case that pressure and DVL are not from the same sensor
@@ -123,13 +123,6 @@ void InitDvlAided::updateInit(std::shared_ptr<State> state, Params &params, std:
   data_time[Sensor::IMU] = time_I_init;
   data_time[Sensor::DVL] = time_D_init;
   data_time[Sensor::PRESSURE] = time_D_init;
-
-  // // clean IMU buffer
-  // data_time.emplace_back(time_I_init);
-  // // clean DVL buffer
-  // data_time.emplace_back(time_D_init);
-  // // clean pressure buffer
-  // data_time.emplace_back(time_D_init);
 }
 
 void InitDvlAided::findAlignmentImu() {
@@ -139,7 +132,7 @@ void InitDvlAided::findAlignmentImu() {
 
   buffer_mutex.lock();
 
-  if(buffer_imu.end() - buffer_imu.begin() - last_index_imu >= param_init.imu_window) {
+  if(buffer_imu.end() - buffer_imu.begin() - last_index_imu >= param_init.dvl_pressure.imu_window) {
     std::copy(buffer_imu.begin() + last_index_imu, buffer_imu.end(), std::back_inserter(selected_imu)); 
     last_index_imu = buffer_imu.end() - buffer_imu.begin(); 
   } 
@@ -172,7 +165,7 @@ void InitDvlAided::findAlignmentImu() {
     printf("IMU Initializer: t=%f~%f, variance=%f\n", std::get<0>(sections_imu.at(1)).front().time, 
                                                       std::get<0>(sections_imu.at(1)).back().time, 
                                                       var2);
-    if(var2 > param_init.imu_var){
+    if(var2 > param_init.dvl_pressure.imu_var){
       //// search IMU jump in this two sections
       std::vector<ImuMsg> imu_data;
       imu_data.insert(imu_data.end(), std::get<0>(sections_imu.at(0)).begin(), std::get<0>(sections_imu.at(0)).end());
@@ -183,15 +176,15 @@ void InitDvlAided::findAlignmentImu() {
         double delta = imu_data.at(i).a.x()-imu_data.at(i-1).a.x();
 
         //// align point is the last position that vehicle still static, right before vehcile moving 
-        if(abs(delta) > param_init.imu_delta) {
+        if(abs(delta) > param_init.dvl_pressure.imu_delta) {
           time_I_align = imu_data.at(i-1).time;
-          printf("IMU Initializer: find IMU align point at time:%f\n", time_I_align);
+          printf("IMU Initializer: find IMU align point at time:%.9f\n", time_I_align);
           break;
         }
       }
 
       if(time_I_align == -1)
-          printf("IMU Initializer: no IMU align point found with imu_delta=%f\n",param_init.imu_delta);
+          printf("IMU Initializer: no IMU align point found with imu_delta=%f\n",param_init.dvl_pressure.imu_delta);
     }
 
     //// remove the last one
@@ -204,7 +197,7 @@ void InitDvlAided::findAlignmentDvl() {
 /*** Select new DVL data for every window size ***/
   buffer_mutex.lock();
 
-  if(buffer_dvl.end() - buffer_dvl.begin() - last_index_dvl >= param_init.dvl_window) {
+  if(buffer_dvl.end() - buffer_dvl.begin() - last_index_dvl >= param_init.dvl_pressure.dvl_window) {
     std::copy(buffer_dvl.begin() + last_index_dvl, buffer_dvl.end(), std::back_inserter(sections_dvl)); 
     last_index_dvl = buffer_dvl.end() - buffer_dvl.begin(); 
   } 
@@ -218,12 +211,12 @@ void InitDvlAided::findAlignmentDvl() {
       double delta = abs(sections_dvl.at(i).v.x()- sections_dvl.at(i-1).v.x());
       printf("IMU Initializer: t=:%f, v:%f, DVL velocity difference:%f\n", 
               sections_dvl.at(i).time, sections_dvl.at(i).v.x(), delta);
-      // if(delta > param_init.dvl_delta)
+      // if(delta > param_init.dvl_pressure.dvl_delta)
         // printf("\n ++++++++++++++ \n");
 
-      if(delta > param_init.dvl_delta) {
+      if(delta > param_init.dvl_pressure.dvl_delta) {
         time_D_align = sections_dvl.at(i-1).time;
-        printf("IMU Initializer: find DVL align point at time:%f\n", time_D_align);
+        printf("IMU Initializer: find DVL align point at time:%.9f\n", time_D_align);
         break;
       }
 
@@ -265,7 +258,7 @@ bool InitDvlAided::grabInitializationData(std::vector<DvlMsg> &dvl_a,
 
   int index=0;
   for(; index<selected_dvl.size(); index++) {
-    if(selected_dvl.at(index).time - selected_dvl.begin()->time >= param_init.dvl_init_duration){
+    if(selected_dvl.at(index).time - selected_dvl.begin()->time >= param_init.dvl_pressure.dvl_init_duration){
       ready = true;
       // printf("t=%f\n", selected_dvl.at(index).time);
       break;
@@ -535,26 +528,22 @@ void InitDvlAided::doInitialization(const std::vector<DvlMsg> &dvl_a,
 
   //// TEST:
   printf("Initialization result at:\n"
-          " IMU time:%f, DVL time:%f, time_I_D:%f\n"
+          " IMU time:%.9f, DVL time:%.9f, time_I_D:%.9f\n"
           " p_G_I:%f,%f,%f\n"
           " v_G_I:%f,%f,%f\n"
           " bg:%f,%f,%f\n"
           " ba:%f,%f,%f\n"
-          " R_I_G:\n %f,%f,%f\n%f,%f,%f\n%f,%f,%f\n",
+          " q_I_G:\n %f,%f,%f,%f\n"
+          " pres_init:\n %f\n",
           time_I_init, time_D_init, time_I_D,
           p_G_I.x(),p_G_I.y(),p_G_I.z(),
           v_G_I.x(),v_G_I.y(),v_G_I.z(),
           bg_avg.x(),bg_avg.y(),bg_avg.z(),
           ba_avg.x(),ba_avg.y(),ba_avg.z(),
-          R_I_G(0,0),R_I_G(0,1),R_I_G(0,2),
-          R_I_G(1,0),R_I_G(1,1),R_I_G(1,2),
-          R_I_G(2,0),R_I_G(2,1),R_I_G(2,2)
+          q_I_G(0),q_I_G(1),q_I_G(2),q_I_G(3),
+          pres_init.p
         );
 
-  //// clean buffer
-  cleanBuffer();
-
-  initialized = true;
 }
 
 

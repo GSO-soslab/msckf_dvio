@@ -19,6 +19,7 @@ MsckfManager::MsckfManager(Params &parameters)
   //// setup imu initializer
   switch(params.init.mode) {
     case InitMode::SETTING: {
+      initializer = std::shared_ptr<InitSetting>(new InitSetting(params.init));
       break;
     }
 
@@ -35,8 +36,6 @@ MsckfManager::MsckfManager(Params &parameters)
       break;
   }
 
-  // initializer = std::shared_ptr<InitDvlAided>(new InitDvlAided(params.init, params.prior_imu, params.prior_dvl));
-                                                      
   //// setup predictor
   predictor = std::make_shared<Predictor>(params.prior_imu);
 
@@ -115,8 +114,6 @@ void MsckfManager::feedPressure(const PressureMsg &data) {
   // }
 
   //// if imu not initialized, feed to initializer
-  //! TODO: check if this sensor is need for initialization
-  //! initializer->needSensor(PRESSURE) ?
   if(!initializer->isInit() && initializer->useSensor(Sensor::PRESSURE)) {
     initializer->feedPressure(data);
   }
@@ -224,32 +221,6 @@ void MsckfManager::backend() {
     }
 
   }
-
-/******************** Check Initialization with given state ********************/
-  // if(!imu_initializer->isInitialized()) {
-    
-  //   imu_initializer->checkInitGiven();
-
-  //   if(imu_initializer->isInitialized()){
-
-  //     //// system initialized, get init result
-  //     Eigen::Matrix<double, 17, 1> state_imu;
-  //     Eigen::Matrix<double, 2, 1>  state_dvl;
-
-  //     std::tie(state_imu, state_dvl) = imu_initializer->getInitResult();
-
-  //     //// update IMU state
-  //     state->setTimestamp(state_imu(0));
-  //     state->setImuValue(state_imu.tail(16));
-
-  //     //// update DVL state
-  //     if(params.msckf.do_time_I_D)
-  //       state->setEstimationValue(DVL, EST_TIMEOFFSET, Eigen::MatrixXd::Constant(1,1,state_dvl(1)));
-  //   }
-  //   else
-  //     //// system not initialized, return 
-  //     return;
-  // }
 
 
 /**************************************************************************************/

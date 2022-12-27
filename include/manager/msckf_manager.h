@@ -24,6 +24,7 @@
 #include "msckf/updater.h"
 
 #include "initializer/initializer_dvl_aided.h"
+#include "initializer/initializer_setting.h"
 
 #include "tracker/TrackKLT.h"
 

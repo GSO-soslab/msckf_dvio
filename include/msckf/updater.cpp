@@ -901,7 +901,7 @@ void Updater::cameraMeasurementKeyFrame(
     // [0] Clean non-clone stamp measurements
     it0->clean_old_measurements(clone_times);
 
-    // [1] Check: at least 2 measurements can be used for update
+    // [1] Check: at least 2 measurements can be used for trig and update
     int num_measurements = 0;
     for (const auto &pair : it0->timestamps) {
       num_measurements += it0->timestamps[pair.first].size();
@@ -1097,6 +1097,11 @@ void Updater::cameraMeasurement(
 void Updater::updateCam(
     std::shared_ptr<State> state, 
     std::vector<Feature> &features) {
+
+  if(features.empty()) {
+    return;
+  }
+
   // -------------------- Update Equation -------------------- //
 
   // [0] create the initial H and r matirx 

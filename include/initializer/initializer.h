@@ -19,10 +19,17 @@ public:
 
   virtual ~Initializer(){};
 
-  bool isInit() { return initialized; }
+  inline bool isInit() { return initialized; }
 
   virtual void checkInit() = 0;
 
+  /**
+   * @brief update the initialization result to state
+   * 
+   * @param state: system state
+   * @param params: parameters
+   * @param data_time: initialized timestamp for each sensor  
+  */
   virtual void updateInit(std::shared_ptr<State> state, Params &params, std::map<Sensor, double> &data_time) = 0;
 
   virtual void cleanBuffer() = 0;
@@ -31,21 +38,21 @@ public:
   virtual bool useSensor(const Sensor &sensor) = 0;
 
   void feedImu(const ImuMsg &data) {
-    buffer_mutex.lock();
+    std::unique_lock<std::recursive_mutex> lck(buffer_mutex);
+
     buffer_imu.emplace_back(data);
-    buffer_mutex.unlock();    
   }
 
   void feedDvl(const DvlMsg &data) {
-    buffer_mutex.lock();
+    std::unique_lock<std::recursive_mutex> lck(buffer_mutex);
+
     buffer_dvl.emplace_back(data);
-    buffer_mutex.unlock();
   }
 
   void feedPressure(const PressureMsg &data) {
-    buffer_mutex.lock();
+    std::unique_lock<std::recursive_mutex> lck(buffer_mutex);
+
     buffer_pressure.emplace_back(data);
-    buffer_mutex.unlock();
   }
 
 protected:
@@ -54,7 +61,7 @@ protected:
 
   paramInit param_init;
 
-  std::mutex buffer_mutex;
+  std::recursive_mutex buffer_mutex;
 
   std::vector<ImuMsg> buffer_imu;
   std::vector<DvlMsg> buffer_dvl;

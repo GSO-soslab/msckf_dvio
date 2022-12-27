@@ -1,0 +1,88 @@
+###############################################################################
+###################    System Initailization Configuration    #################
+###############################################################################
+
+# Default: 2; (0: setting; 1:static; 2:DVL-Pressure; 3:camera)
+INIT_MODE: 0
+
+###############################################################################
+INIT_SETTING:
+  # brief: the timestamp that system got initialized 
+  # note: the sensor name MUST be same to the "enum Sensor"
+  time: 
+    - {IMU: 1614971124.344753027}
+    - {DVL: 1614971124.354732990}
+    - {PRESSURE: 1614971124.354732990}
+
+  ##### IMU #####
+
+  # brief: orientation in quaterion form
+  orientation: [-0.998573, 0.000816, 0.015993, 0.050947]
+
+  # brief: 
+  position: [0.0000, 0.0000, 0.0000]
+
+  # brief:
+  velocity: [-0.346171, 0.008464, 0.042122]
+
+  # brief:
+  bias_gyro: [-0.001849, -0.001689, -0.002033]
+
+  # brief:
+  bias_accel: [-0.003053, -0.004853, -0.020769]
+
+  # brief: the timeoffset initialization for different sensors with IMU if exists
+  temporal:
+    # timeoffset between sensor and IMU
+    - {DVL: 0.000000238}
+
+  # TODO: need test on this form
+  # # brief: the spatial initialization for different sensors with IMU if exists
+  # spatial:
+  #   # x,y,z,q_x,q_y,q_z,q_w
+  #   - {DVL: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}
+
+  # brief: global initialization for some sensors
+  global:
+    # TODO: better initialize this value as global tf between gloabl pressure and IMU ?
+    - {PRESSURE: [4.453799]}
+
+###############################################################################
+# INIT_STATIC:
+  # todo: 0.0
+
+###############################################################################
+INIT_DVL_PRESSURE:
+  # Default: 10
+  # Note: how many IMU data is selected to detect IMU jump (suddenly move)  
+  imu_window: 10
+
+  # Default: 0.2
+  # Note: the IMU variance threshold that indicates IMU jump inclued
+  imu_var: 0.2
+
+  # Default: 0.07
+  # Note: IMU accleraion difference in x-axis(forward direction) shows at the suddenly movement time
+  imu_delta: 0.07
+
+  # Default: 5
+  # Note: how many DVL data is selected to detect DVL jump (suddenly move)  
+  dvl_window: 4
+  
+  # Default: 0.05
+  # Note: DVL velocity difference in x-axis(forward direction) shows at the suddenly movement time
+  dvl_delta: 0.05
+
+  # Default: 1s
+  #Note: how many second selected for initialization
+  dvl_init_duration: 1
+
+
+###############################################################################
+# INIT_CAMERA:
+  # todo: 0.0
+
+
+###############################################################################
+# INIT_DVL_CAMERA:
+  # todo: 0.0

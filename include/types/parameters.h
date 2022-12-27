@@ -3,6 +3,35 @@
 
 namespace msckf_dvio
 {
+//! Single Estimation State name for each Sub State
+// 
+#define EST_QUATERNION "Quaternion"
+#define EST_POSITION "Position"
+#define EST_VELOCITY "Velocity"
+#define EST_BIAS_G "BiasGyro"
+#define EST_BIAS_A "BiasAcce"
+#define EST_TIMEOFFSET "Timeoffset"
+#define EST_SCALE "Scale"
+
+//! Use the actual sensor state name
+enum Sensor{
+  NONE = 0,
+  IMU,
+  DVL,
+  PRESSURE,
+  CAM0,
+  CLONE_DVL,
+  CLONE_CAM0
+};
+
+static const char *enum_string[] =
+{ "NONE", "IMU", "DVL", "PRESSURE" , "CAM0", "CLONE_DVL", "CLONE_CAM0" };
+
+inline std::string enumToString (int val)
+{
+    std::string str(enum_string[val]);
+    return str;
+}
 
 struct priorImu {
   /// gravity
@@ -86,10 +115,30 @@ enum InitMode {
   DVL_CAMERA = 4
 };
 
-struct paramInit {
-  InitMode mode;
-  // Estimate IMU bias and find out the rotation matrix between inertial world frame and IMU body frame using different method
-  int imu_init_mode;
+struct paramInitSetting {
+  // initialized timestamp for each sensor 
+  std::map<Sensor, double> time; 
+  // orientation
+  Eigen::Vector4d orientation;
+  // position
+  Eigen::Vector3d position;
+  // velocity
+  Eigen::Vector3d velocity;
+  // bias_gyro
+  Eigen::Vector3d bias_gyro;
+  // bias_accel
+  Eigen::Vector3d bias_acce;
+  // temporal
+  std::map<Sensor,double> temporal;
+  // global
+  std::map<Sensor,std::vector<double>> global;
+};
+
+struct paramInitStatic {
+  double todo;
+};
+
+struct paramInitDvlPressure {
   // how many IMU data is selected to detect IMU jump (suddenly move)
   int imu_window;
   // the IMU variance threshold that indicates IMU jump inclued
@@ -102,10 +151,23 @@ struct paramInit {
   double dvl_delta;
   // how many second selected for initialization
   double dvl_init_duration;
-  // use given init state result or not
-  bool init_given;
-  // gievn state
-  Eigen::Matrix<double, 17, 1> init_state;
+};
+
+struct paramInitCamera {
+  double todo;
+};
+
+struct paramInitDvlCamera {
+  double todo;
+};
+
+struct paramInit {
+  InitMode mode;
+  paramInitSetting setting;
+  paramInitStatic stationary;
+  paramInitDvlPressure dvl_pressure;
+  paramInitCamera camera;
+  paramInitDvlCamera dvl_camera;
 };
 
 struct paramTrack {

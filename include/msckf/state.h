@@ -13,27 +13,6 @@
 // #include "msgs.h"
 #include "types/parameters.h"
 
-//! Single Estimation State name for each Sub State
-// 
-#define EST_QUATERNION "Quaternion"
-#define EST_POSITION "Position"
-#define EST_VELOCITY "Velocity"
-#define EST_BIAS_G "BiasGyro"
-#define EST_BIAS_A "BiasAcce"
-#define EST_TIMEOFFSET "Timeoffset"
-#define EST_SCALE "Scale"
-
-//! Use the actual sensor state name
-enum Sensor{
-  NONE = 0,
-  IMU,
-  DVL,
-  PRESSURE,
-  CAM0,
-  CLONE_DVL,
-  CLONE_CAM0
-};
-
 namespace msckf_dvio
 {
 
