@@ -53,9 +53,14 @@ Params RosNode::loadParameters() {
   nh_private_.param<double>("DVL/scale",            params.prior_dvl.scale, 1.0);
   //// DVL BT velocity measurement noise
   nh_private_.getParam     ("DVL/noise_bt",         noise_bt);
+
+  // ==================== PRESSURE ==================== //
+
   //// get mount angle
-  nh_private_.param<double>("DVL/mount_angle",      params.prior_dvl.mount_angle, 0.0);
-  
+  nh_private_.param<double>("PRESSURE/mount_angle",      params.prior_pressure.mount_angle, 0.0);
+  //// pressure measurement noise 
+  nh_private_.param<double>("PRESSURE/noise_pressure",   params.prior_pressure.sigma_pressure, 0.0);
+
   //// convert matrix into pose 
   Eigen::Matrix4d T_I_D;
   ROS_ASSERT(rosparam_dvl.getType() == XmlRpc::XmlRpcValue::TypeArray);
@@ -105,29 +110,146 @@ Params RosNode::loadParameters() {
   nh_private_.param<double>("SYS/dvl_v_threshold", params.dvl_v_threshold, 2.0);
 
   // ==================== Initialization ==================== //
-  nh_private_.param<int>   ("INIT/imu_init_mode",     params.init.imu_init_mode,     1);
-  nh_private_.param<int>   ("INIT/imu_window",        params.init.imu_window,        20);
-  nh_private_.param<double>("INIT/imu_var",           params.init.imu_var,           0.2);
-  nh_private_.param<double>("INIT/imu_delta",         params.init.imu_delta,         0.07);
-  nh_private_.param<int>   ("INIT/dvl_window",        params.init.dvl_window,        4);
-  nh_private_.param<double>("INIT/dvl_delta",         params.init.dvl_delta,         0.05);
-  nh_private_.param<double>("INIT/dvl_delta",         params.init.dvl_delta,         0.05);
-  nh_private_.param<double>("INIT/dvl_init_duration", params.init.dvl_init_duration, 1.0);
-  
-  nh_private_.param<bool>  ("INIT/init_given",    params.init.init_given,    false);
-  std::vector<double> init_state(17);
-  if(params.init.init_given ) {
-    nh_private_.getParam   ("INIT/init_state",    init_state);
+  int init_mode;
 
-    params.init.init_state << init_state.at(0), //t
-                              init_state.at(1),init_state.at(2),init_state.at(3),init_state.at(4), //q
-                              init_state.at(5),init_state.at(6),init_state.at(7), //p
-                              init_state.at(8),init_state.at(9),init_state.at(10), //v
-                              init_state.at(11),init_state.at(12),init_state.at(13), //bg
-                              init_state.at(14),init_state.at(15),init_state.at(16); //ba
+  nh_private_.param<int>   ("INIT_MODE",     init_mode,     2);
+  params.init.mode = static_cast<InitMode>(init_mode);
+
+  switch(params.init.mode) {
+
+    case InitMode::DVL_PRESSURE: {
+      nh_private_.param<int>   ("INIT_DVL_PRESSURE/imu_window",        params.init.dvl_pressure.imu_window,        20);
+      nh_private_.param<double>("INIT_DVL_PRESSURE/imu_var",           params.init.dvl_pressure.imu_var,           0.2);
+      nh_private_.param<double>("INIT_DVL_PRESSURE/imu_delta",         params.init.dvl_pressure.imu_delta,         0.07);
+      nh_private_.param<int>   ("INIT_DVL_PRESSURE/dvl_window",        params.init.dvl_pressure.dvl_window,        4);
+      nh_private_.param<double>("INIT_DVL_PRESSURE/dvl_delta",         params.init.dvl_pressure.dvl_delta,         0.05);
+      nh_private_.param<double>("INIT_DVL_PRESSURE/dvl_init_duration", params.init.dvl_pressure.dvl_init_duration, 1.0);
+      break;
+    }
+
+    case InitMode::SETTING: {
+      // --------------- time --------------- //
+      XmlRpc::XmlRpcValue rosparam_time;
+      nh_private_.getParam("INIT_SETTING/time", rosparam_time);
+      ROS_ASSERT(rosparam_time.getType() == XmlRpc::XmlRpcValue::TypeArray);
+
+      // get all the sensor used in this MSCKF application
+      std::vector<Sensor> sensor_name;
+      sensor_name.push_back(Sensor::IMU);
+      sensor_name.push_back(Sensor::DVL);
+      sensor_name.push_back(Sensor::PRESSURE);
+      sensor_name.push_back(Sensor::CAM0);
+
+      for(uint32_t i = 0 ; i < rosparam_time.size() ; i++) {
+          for(const auto& name : sensor_name) {
+              // convert sensor name enum to string
+              auto key = enumToString(name);
+              // check if this sensor time exist
+              if(rosparam_time[i][key].getType() == XmlRpc::XmlRpcValue::TypeInvalid) {
+                  continue;
+              }
+              // save to parameters
+              auto time = static_cast<double>(rosparam_time[i][key]);
+              params.init.setting.time[name] = time;
+              // each line only has one sensor, so found and break
+              break;
+          }
+      }
+
+      // --------------- 15 states --------------- //
+      // define vector to save parameters
+      std::vector<double> orientation(4);
+      std::vector<double> position(3);
+      std::vector<double> velocity(3);
+      std::vector<double> bias_gyro(3);
+      std::vector<double> bias_acce(3);
+      // load
+      nh_private_.getParam("INIT_SETTING/orientation", orientation);
+      nh_private_.getParam("INIT_SETTING/position", position);
+      nh_private_.getParam("INIT_SETTING/velocity", velocity);
+      nh_private_.getParam("INIT_SETTING/bias_gyro", bias_gyro);
+      nh_private_.getParam("INIT_SETTING/bias_accel", bias_acce);
+      // convert to eigen
+      params.init.setting.orientation << orientation.at(0), orientation.at(1), 
+                                         orientation.at(2), orientation.at(3);
+      params.init.setting.position << position.at(0), position.at(1), position.at(2);                                         
+      params.init.setting.velocity << velocity.at(0), velocity.at(1), velocity.at(2);                                         
+      params.init.setting.bias_gyro << bias_gyro.at(0), bias_gyro.at(1), bias_gyro.at(2);                                         
+      params.init.setting.bias_acce << bias_acce.at(0), bias_acce.at(1), bias_acce.at(2);                                         
+
+      // --------------- temporal --------------- //
+      XmlRpc::XmlRpcValue rosparam_temporal;
+      nh_private_.getParam("INIT_SETTING/temporal", rosparam_temporal);
+      ROS_ASSERT(rosparam_temporal.getType() == XmlRpc::XmlRpcValue::TypeArray);
+
+      for(uint32_t i = 0 ; i < rosparam_temporal.size() ; i++) {
+          for(const auto& name : sensor_name) {
+              // convert sensor name enum to string
+              auto key = enumToString(name);
+              // check if this sensor time exist
+              if(rosparam_temporal[i][key].getType() == XmlRpc::XmlRpcValue::TypeInvalid) {
+                  continue;
+              }
+              // save to parameters
+              auto dt = static_cast<double>(rosparam_temporal[i][key]);
+              params.init.setting.temporal[name] = dt;
+              // each line only has one sensor, so found and break
+              break;
+          }
+      }
+
+      // --------------- Global --------------- //
+      XmlRpc::XmlRpcValue rosparam_global;
+      nh_private_.getParam("INIT_SETTING/global", rosparam_global);
+      ROS_ASSERT(rosparam_global.getType() == XmlRpc::XmlRpcValue::TypeArray);
+
+      for(uint32_t i = 0 ; i < rosparam_global.size() ; i++) {
+          for(const auto& name : sensor_name) {
+              // convert sensor name enum to string
+              auto key = enumToString(name);
+              // check if this sensor time exist
+              if(rosparam_global[i][key].getType() == XmlRpc::XmlRpcValue::TypeInvalid) {
+                  continue;
+              }
+
+              // save to parameters
+              for(int j=0; j < rosparam_global[i][key].size(); j++){
+                params.init.setting.global[name].push_back(static_cast<double>(rosparam_global[i][key][j]));
+              }
+
+              // each line only has one sensor, so found and break
+              break;
+          }
+      }
+
+      for(const auto& kv: params.init.setting.time){
+        printf("time: sensor=%s, time=%.9f\n", enumToString(kv.first).c_str(), kv.second);
+      }
+
+      std::cout<<"orientation(q_x,q_y,q_z,q_w): " << params.init.setting.orientation.transpose() << std::endl;
+      std::cout<<"position(x,y,z): " << params.init.setting.position.transpose() <<std::endl;
+      std::cout<<"velocity(x,y,z): " << params.init.setting.velocity.transpose() <<std::endl;
+      std::cout<<"bias_gyro(x,y,z): " << params.init.setting.bias_gyro.transpose() <<std::endl;
+      std::cout<<"bias_acce(x,y,z): " << params.init.setting.bias_acce.transpose() <<std::endl;
+
+      for(const auto& kv: params.init.setting.temporal){
+        printf("temporal: sensor=%s, temporal=%.9f\n", enumToString(kv.first).c_str(), kv.second);
+      }
+
+      for(const auto& kv : params.init.setting.global) {
+        for(const auto& vec : params.init.setting.global[kv.first]) {
+          printf("global: sensor=%s, value=%f\n", enumToString(kv.first).c_str(), vec);
+        }
+      }
+
+      break;
+    }  
+
+    default:
+      break;
   }
 
-  // ==================== Tracking ==================== //
+  // ==================== Image frontend ==================== //
   nh_private_.param<int>   ("KLT/num_aruco",        params.tracking.num_aruco,        1024);
   nh_private_.param<int>   ("KLT/num_pts",          params.tracking.num_pts,          250);
   nh_private_.param<int>   ("KLT/fast_threshold",   params.tracking.fast_threshold,   15);
@@ -151,6 +273,12 @@ Params RosNode::loadParameters() {
   nh_private_.param<double>("Feature/min_dcost",        params.triangualtion.min_dcost,       1e-6);
   nh_private_.param<double>("Feature/max_baseline",     params.triangualtion.max_baseline,    40);
 
+  nh_private_.param<int>   ("Keyframe/frame_count",  params.keyframe.frame_count,  5);
+  nh_private_.param<double>("Keyframe/frame_motion", params.keyframe.frame_motion, 0.1);
+  nh_private_.param<int>   ("Keyframe/motion_space", params.keyframe.motion_space, 3);
+  nh_private_.param<int>   ("Keyframe/min_tracked",  params.keyframe.min_tracked,  50);
+  nh_private_.param<double>("Keyframe/scene_ratio",  params.keyframe.scene_ratio,  0.8);
+
   // ==================== MSCKF ==================== //
   nh_private_.param<bool>("MSCKF/dvl_exterisic_R", params.msckf.do_R_I_D,    true);
   nh_private_.param<bool>("MSCKF/dvl_exterisic_p", params.msckf.do_p_I_D,    true);
@@ -165,8 +293,8 @@ Params RosNode::loadParameters() {
 
   nh_private_.param<int> ("MSCKF/max_msckf_update", params.msckf.max_msckf_update, params.tracking.num_pts);
 
-
-
+  nh_private_.getParam("MSCKF/marginalized_clone", params.msckf.marginalized_clone);
+  
   return params;
 }
 
@@ -271,6 +399,10 @@ void RosNode::pressureCallback(const sensor_msgs::FluidPressure::ConstPtr &msg) 
 
 void RosNode::pointcloudCallback(const sensor_msgs::PointCloud2::ConstPtr &msg){
   //! TODO: multi-path will has degraded measurement, filter multi-path based on sub_map, plane-constrain
+  // pcl::PCLPointCloud2 pc2;
+  // pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+  // pcl_conversions::toPCL(*msg, pc2);
+  // pcl::fromPCLPointCloud2(pc2, *cloud);
 
 }
 

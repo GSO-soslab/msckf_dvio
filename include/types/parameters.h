@@ -3,6 +3,35 @@
 
 namespace msckf_dvio
 {
+//! Single Estimation State name for each Sub State
+// 
+#define EST_QUATERNION "Quaternion"
+#define EST_POSITION "Position"
+#define EST_VELOCITY "Velocity"
+#define EST_BIAS_G "BiasGyro"
+#define EST_BIAS_A "BiasAcce"
+#define EST_TIMEOFFSET "Timeoffset"
+#define EST_SCALE "Scale"
+
+//! Use the actual sensor state name
+enum Sensor{
+  NONE = 0,
+  IMU,
+  DVL,
+  PRESSURE,
+  CAM0,
+  CLONE_DVL,
+  CLONE_CAM0
+};
+
+static const char *enum_string[] =
+{ "NONE", "IMU", "DVL", "PRESSURE" , "CAM0", "CLONE_DVL", "CLONE_CAM0" };
+
+inline std::string enumToString (int val)
+{
+    std::string str(enum_string[val]);
+    return str;
+}
 
 struct priorImu {
   /// gravity
@@ -28,12 +57,17 @@ struct priorDvl {
   double sound_speed;
   // BT 3-axis veloicty measurement white noise( standard deviation )
   Eigen::Vector3d sigma_bt;
-  // the angle that the actual mounting position rotate to the standing position, 
-  // used to transfer pressure measurement into DVL frame's Z
-  double mount_angle;
 
   //! TODO: for initial_covariance
   // Eigen::VectorXd sigma_init;
+};
+
+struct priorPressure {
+  // the angle that the actual mounting position rotate to the standing position, 
+  // used to transfer pressure measurement into DVL frame's Z
+  double mount_angle;
+  // noise for pressure (standard deviation)
+  double sigma_pressure;
 };
 
 struct priorCam {
@@ -69,14 +103,45 @@ struct paramMsckf {
   bool do_time_C_I;
   // max clone for camera 
   int max_clone_C;
+  // index of marginalzied clone 
+  std::vector<int> marginalized_clone;
 
   // the max features used for MSCKF update
   int max_msckf_update;
 };
 
-struct paramInit {
-  // Estimate IMU bias and find out the rotation matrix between inertial world frame and IMU body frame using different method
-  int imu_init_mode;
+enum InitMode {
+  SETTING = 0,
+  STATIC = 1,
+  DVL_PRESSURE = 2,
+  CAMERA = 3,
+  DVL_CAMERA = 4
+};
+
+struct paramInitSetting {
+  // initialized timestamp for each sensor 
+  std::map<Sensor, double> time; 
+  // orientation
+  Eigen::Vector4d orientation;
+  // position
+  Eigen::Vector3d position;
+  // velocity
+  Eigen::Vector3d velocity;
+  // bias_gyro
+  Eigen::Vector3d bias_gyro;
+  // bias_accel
+  Eigen::Vector3d bias_acce;
+  // temporal
+  std::map<Sensor,double> temporal;
+  // global
+  std::map<Sensor,std::vector<double>> global;
+};
+
+struct paramInitStatic {
+  double todo;
+};
+
+struct paramInitDvlPressure {
   // how many IMU data is selected to detect IMU jump (suddenly move)
   int imu_window;
   // the IMU variance threshold that indicates IMU jump inclued
@@ -89,10 +154,23 @@ struct paramInit {
   double dvl_delta;
   // how many second selected for initialization
   double dvl_init_duration;
-  // use given init state result or not
-  bool init_given;
-  // gievn state
-  Eigen::Matrix<double, 17, 1> init_state;
+};
+
+struct paramInitCamera {
+  double todo;
+};
+
+struct paramInitDvlCamera {
+  double todo;
+};
+
+struct paramInit {
+  InitMode mode;
+  paramInitSetting setting;
+  paramInitStatic stationary;
+  paramInitDvlPressure dvl_pressure;
+  paramInitCamera camera;
+  paramInitDvlCamera dvl_camera;
 };
 
 struct paramTrack {
@@ -131,21 +209,38 @@ struct paramTriangulation {
   double max_baseline;
 };
 
+struct paramKeyframe {
+  /// option 1: frame count
+  int frame_count;
+  /// option 2: relative motion constraint
+  double frame_motion;
+  /// motion constraint for 3D or 2D
+  int motion_space;
+  /// option 3: minimum tracked features
+  int min_tracked;
+  /// option 4: ratio = tracked feature num from last keyframe / total features at current frame
+  double scene_ratio;
+};
+
 //! TODO: set sub-parameters as shared_ptr? 
 //!       so the paramters will updated automaticly, used for localization failed case?
 struct Params{
 
-/***** Estimation *****/
+/***** Image frontend *****/
 
-/***** Tracker *****/
+  paramTrack tracking;
 
-/***** Feature Triangulation *****/
+  paramTriangulation triangualtion;
 
+  paramKeyframe keyframe;
+  
 /***** Prior ****/
 
   priorImu prior_imu;
 
   priorDvl prior_dvl;
+
+  priorPressure prior_pressure;
 
   priorCam prior_cam;
 
@@ -162,9 +257,6 @@ struct Params{
 
   paramMsckf msckf;
 
-  paramTrack tracking;
-
-  paramTriangulation triangualtion;
 };
 
 

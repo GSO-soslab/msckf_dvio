@@ -38,14 +38,14 @@ State::State(const Params &param) {
   bias_acce->setId(curr_id);
   curr_id += bias_acce->getSize();
 
-  //! TODO: state_[SubStateName::IMU].emplace(EST_QUATERNION, rotation_I_G);
+  //! TODO: state_[Sensor::IMU].emplace(EST_QUATERNION, rotation_I_G);
   
   imu[EST_QUATERNION] = rotation_I_G;
   imu[EST_POSITION] = position_G_I;
   imu[EST_VELOCITY] = velocity_G_I;
   imu[EST_BIAS_G] = bias_gyro;
   imu[EST_BIAS_A] = bias_acce;
-  state_[SubStateName::IMU] = imu;
+  state_[Sensor::IMU] = imu;
 
   /*==============================  DVL ==============================*/
   SubState dvl;
@@ -90,7 +90,7 @@ State::State(const Params &param) {
   }
 
 
-  state_[SubStateName::DVL] = dvl;
+  state_[Sensor::DVL] = dvl;
 
   /* ==============================  CAM0 ============================== */
   SubState cam0;
@@ -125,7 +125,7 @@ State::State(const Params &param) {
     cam0[EST_TIMEOFFSET] = timeoffset_C_I;
   }
 
-  state_[SubStateName::CAM0] = cam0;
+  state_[Sensor::CAM0] = cam0;
 
 
   /********************************************************************************/                       
@@ -179,7 +179,7 @@ State::State(const Params &param) {
 
 }
 
-double State::getMarginalizedTime(const SubStateName sub_state_name) {
+double State::getMarginalizedTime(const Sensor sub_state_name) {
   double time = INFINITY;
   for (const auto &clone : state_[sub_state_name]) {
     double clone_time = std::stod(clone.first);
@@ -188,6 +188,23 @@ double State::getMarginalizedTime(const SubStateName sub_state_name) {
     }
   }
   return time;
+}
+
+double State::getCloneTime(const Sensor sub_state_name, int index) {
+
+  // select clone based on given index
+  auto iter = std::next(state_[sub_state_name].begin(),index);
+
+  // select clone timestamp and convert to double type
+  return std::stod(iter->first);
+}
+
+Eigen::VectorXd State::getClonePose(const Sensor sub_state_name, int index) {
+  // select clone based on given index
+  auto iter = std::next(state_[sub_state_name].begin(),index);
+
+  // select clone pose (vectorXd type)
+  return iter->second->getValue();
 }
 
 }

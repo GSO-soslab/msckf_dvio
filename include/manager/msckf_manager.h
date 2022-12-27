@@ -24,6 +24,7 @@
 #include "msckf/updater.h"
 
 #include "initializer/initializer_dvl_aided.h"
+#include "initializer/initializer_setting.h"
 
 #include "tracker/TrackKLT.h"
 
@@ -62,6 +63,10 @@ public:
 
   bool isFeature() {return is_feat; }
 
+  cv::Mat getImgHistory();
+
+  void updateImgHistory();
+
 private:
 
   void doDVL();
@@ -70,17 +75,41 @@ private:
 
   void doPressure();
 
-  void doCamera();
+  void doCameraSlideWindow();
+
+  void doCameraKeyframe();
 
   void doPressure_test();
 
-  SensorName selectUpdateSensor();
+  Sensor selectUpdateSensor();
 
   std::vector<ImuMsg> selectImu(double t_begin, double t_end);
 
+  void getDataForPressure(PressureMsg &pressure, DvlMsg &dvl, std::vector<ImuMsg> &imus);
+
+  bool checkMotion();
+
+  bool checkScene(double curr_time);
+
+  bool checkFrameCount();
+
   void selectFeatures(const double time_update, std::vector<Feature> &feat_selected);
 
-  void getDataForPressure(PressureMsg &pressure, DvlMsg &dvl, std::vector<ImuMsg> &imus);
+  void selectFeaturesSlideWindow(
+    const double time_update, std::vector<Feature> &feat_lost, std::vector<Feature> &feat_marg);
+
+  void selectFeaturesKeyFrame(
+    const double time_update, std::vector<Feature> &feat_lost, std::vector<Feature> &feat_marg);
+
+  void releaseImuBuffer(double timeline);
+
+  void releaseDvlBuffer(double timeline);
+
+  void releasePressureBuffer(double timeline);
+
+  int frame_count;
+
+  double frame_distance;
 
   std::vector<ImuMsg> buffer_imu;
   
@@ -91,6 +120,7 @@ private:
 
   DvlMsg last_dvl; 
   
+  //! TODO: add more mutex for different resource management
   std::mutex mtx;
 
   std::shared_ptr<Recorder> recorder;
@@ -111,11 +141,16 @@ private:
 
   //! TEST: 
   
-  const char *file_path="/home/lin/develop/ros/soslab_ws/src/slam/msckf_dvio/test_result/msckf_data.dat";
+  const char *file_path="/home/lin/Desktop/msckf.txt";
+  std::ofstream file;
 
   // get triangulated feature position
   std::atomic<bool> is_feat;
   std::vector<Eigen::Vector3d> trig_feat;
+
+  std::queue<double> slide_window;
+  cv::Mat img_history;
+  std::recursive_mutex img_mtx;
 
 };
 

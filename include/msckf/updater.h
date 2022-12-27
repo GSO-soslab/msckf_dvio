@@ -25,18 +25,37 @@ public:
 
   void updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I, const Eigen::Vector3d &v_D);
 
-  void updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I, const Eigen::Vector3d &v_D, bool is_simple);
+  void updateDvlSimple(std::shared_ptr<State> state, const Eigen::Vector3d &w_I, const Eigen::Vector3d &v_D, bool is_simple);
 
   void updatePressure(std::shared_ptr<State> state, const double pres_begin, const double pres_curr, bool is_simple);
 
   void updatePressureTest(std::shared_ptr<State> state, const double pres_begin, const double pres_curr);
   
-  void marginalizeDvl(std::shared_ptr<State> state);
+  void updatePressureSimple(std::shared_ptr<State> state, const double pres_begin, const double pres_curr);
 
-  void marginalize(std::shared_ptr<State> state, SubStateName clone_name);
+  void updateDvlPressure(  
+      std::shared_ptr<State> state,const Eigen::Vector3d &w_I, 
+      const Eigen::Vector3d &v_D,const double pres_begin, const double pres_curr);
 
-  void updateCam(std::shared_ptr<State> state, std::vector<Feature> &features, double timestamp);
+  void updateDvlPressureSimple(
+      std::shared_ptr<State> state,const Eigen::Vector3d &w_I, 
+      const Eigen::Vector3d &v_D,const double pres_begin, const double pres_curr); 
+
+  void marginalize(std::shared_ptr<State> state, Sensor clone_name, int index);
+
+  void updateCam(std::shared_ptr<State> state, std::vector<Feature> &features);
   
+  void cameraMeasurement(    
+    std::shared_ptr<State> state, 
+    std::vector<Feature> &features);
+
+  void cameraMeasurementKeyFrame(
+    std::shared_ptr<State> state, 
+    std::vector<Feature> &feat_lost,
+    std::vector<Feature> &feat_marg,
+    std::vector<Feature> &feat_msckf
+  );
+
   void featureJacobian(std::shared_ptr<State> state, const Feature &feature, 
                        Eigen::MatrixXd &H_x, Eigen::MatrixXd &H_f, 
                        Eigen::VectorXd & res);
@@ -53,6 +72,8 @@ public:
 
 private:
   priorDvl prior_dvl_;
+
+  priorPressure prior_pressure_;
 
   priorCam prior_cam_;
 

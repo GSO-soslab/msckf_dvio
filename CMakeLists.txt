@@ -40,6 +40,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf_conversions eigen_conversions std_srvs
   dynamic_reconfigure message_filters image_transport 
   ds_sensor_msgs nortek_dvl tf2_ros tf2_geometry_msgs
+  pcl_conversions
 )
 
 ################################################
@@ -60,7 +61,7 @@ catkin_package(
  CATKIN_DEPENDS roscpp rospy std_msgs rosbag sensor_msgs cv_bridge dynamic_reconfigure
                 geometry_msgs message_runtime nortek_dvl tf_conversions eigen_conversions
                 message_filters image_transport visualization_msgs tf nav_msgs tf2 std_srvs
-                tf2_ros tf2_geometry_msgs
+                tf2_ros tf2_geometry_msgs pcl_conversions
  DEPENDS PCL EIGEN3 SUITESPARSE
 )
 
@@ -95,6 +96,7 @@ list(APPEND thirdparty_libraries
 add_library(dvio_lib SHARED
 
   include/initializer/initializer_dvl_aided.cpp
+  include/initializer/initializer_setting.cpp
   
   include/manager/msckf_manager.cpp
 

@@ -120,8 +120,9 @@ void TrackBase::display_history(cv::Mat &img_out, int r1, int g1, int b1, int r2
   bool image_new = ((int)img_last_cache.size() * max_width != img_out.cols || max_height != img_out.rows);
 
   // If new, then resize the current image
-  if (image_new)
+  if (image_new) {
     img_out = cv::Mat(max_height, (int)img_last_cache.size() * max_width, CV_8UC3, cv::Scalar(0, 0, 0));
+  }
 
   // Max tracks to show (otherwise it clutters up the screen)
   size_t maxtracks = 50;

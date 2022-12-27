@@ -1,0 +1,72 @@
+###############################################################################
+###################    System Initailization Configuration    #################
+###############################################################################
+
+# Default: 2; (0: setting; 1:static; 2:DVL-Pressure; 3:camera)
+INIT_MODE: 0
+
+
+###############################################################################
+INIT_SETTING:
+  # brief: the timestamp that system got initialized 
+  # note: the sensor name MUST be same to the "enum Sensor"
+  time: 
+    - {IMU: 1521753106.831427336}
+    # - {DVL: 12.3}
+    # - {PRESSURE: 33.21}
+
+  # brief: orientation in quaterion form (qx,qy,qz,qw)
+  orientation: [0.74971,-0.214086,-0.166702,0.603583]
+
+  # brief: 
+  position: [-0.24932,-1.14522,0.0835872]
+
+  # brief:
+  velocity: [0.0000, 0.0000, 0.0000]
+
+  # brief:
+  bias_gyro: [0.0033, 0.0177, 0.0764]
+
+  # brief:
+  bias_accel: [-0.0521, 0.0037, 0.0143]
+
+
+###############################################################################
+# INIT_STATIC:
+  # todo: 0.0
+
+###############################################################################
+INIT_DVL_PRESSURE:
+  # Default: 10
+  # Note: how many IMU data is selected to detect IMU jump (suddenly move)  
+  imu_window: 10
+
+  # Default: 0.2
+  # Note: the IMU variance threshold that indicates IMU jump inclued
+  imu_var: 0.2
+
+  # Default: 0.07
+  # Note: IMU accleraion difference in x-axis(forward direction) shows at the suddenly movement time
+  imu_delta: 0.07
+
+  # Default: 5
+  # Note: how many DVL data is selected to detect DVL jump (suddenly move)  
+  dvl_window: 4
+  
+  # Default: 0.05
+  # Note: DVL velocity difference in x-axis(forward direction) shows at the suddenly movement time
+  dvl_delta: 0.05
+
+  # Default: 1s
+  #Note: how many second selected for initialization
+  dvl_init_duration: 1
+
+
+###############################################################################
+# INIT_CAMERA:
+  # todo: 0.0
+
+
+###############################################################################
+# INIT_DVL_CAMERA:
+  # todo: 0.0

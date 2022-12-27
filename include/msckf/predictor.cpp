@@ -262,7 +262,7 @@ void Predictor::augmentDvl(std::shared_ptr<State> state, double sensor_time, con
   int id_curr = state->cov_.rows();
   clone_pose->setId(id_curr);
 
-  state->state_[SubStateName::CLONE_DVL].emplace(clone_time, clone_pose);
+  state->state_[Sensor::CLONE_DVL].emplace(clone_time, clone_pose);
 
 
   /******************** augment covariance ********************/
@@ -297,8 +297,8 @@ void Predictor::augmentDvl(std::shared_ptr<State> state, double sensor_time, con
 
 }
 
-void Predictor::augment(SubStateName sensor_name,
-                        SubStateName clone_name, 
+void Predictor::augment(Sensor sensor_name,
+                        Sensor clone_name, 
                         std::shared_ptr<State> state,
                         double sensor_time, 
                         const Eigen::Vector3d &w) {

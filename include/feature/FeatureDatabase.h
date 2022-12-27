@@ -168,6 +168,55 @@ public:
     return feats_old;
   }
 
+/**
+   * @brief Get features that do not have newer measurement then the specified time.
+   *
+   * This function will return all features that do not a measurement at a time greater than the specified time.
+   * For example this could be used to get features that have not been successfully tracked into the newest frame.
+   * All features returned will not have any measurements occurring at a time greater then the specified.
+   */
+  std::vector<Feature> features_not_containing_newer_test(double timestamp, bool remove = false, bool skip_deleted = false) {
+
+
+    // Our vector of features that do not have measurements after the specified time
+    std::vector<Feature> feats_old;
+
+    // Now lets loop through all features, and just make sure they are not old
+    std::unique_lock<std::mutex> lck(mtx);
+    for (auto it = features_idlookup.begin(); it != features_idlookup.end();) {
+      // Skip if already deleted
+      if (skip_deleted && (*it).second->to_delete) {
+        it++;
+        continue;
+      }
+      // Loop through each camera
+      bool has_newer_measurement = false;
+      for (auto const &pair : (*it).second->timestamps) {
+        // If we have a measurement greater-than or equal to the specified, this measurement is find
+        if (!pair.second.empty() && pair.second.at(pair.second.size() - 1) >= timestamp) {
+          has_newer_measurement = true;
+          break;
+        }
+      }
+      // If it is not being actively tracked, then it is old
+      if (!has_newer_measurement) {
+        feats_old.push_back(*(*it).second);
+        if (remove)
+          features_idlookup.erase(it++);
+        else
+          it++;
+      } else {
+        it++;
+      }
+    }
+
+    // Debugging
+    // std::cout << "after: feature db size = " << features_idlookup.size() << std::endl;
+
+    // Return the old features
+    return feats_old;
+  }
+
   /**
    * @brief Get all features measurements that lost at given timestamp
    *
@@ -326,6 +375,111 @@ public:
   }
 
   /**
+   * @brief Get measurement of all features that at the given timestamp
+   * 
+   * @details each feature will only has one measurements
+   *
+   * @param time_given given timestamp
+   * @param feat_selected selected feature measurements for marginalization
+   * @param skip_deleted skip the marked "deleted" feature or not
+   */
+  void features_measurement_selected(
+    double time_given, std::vector<Feature> &feat_selected, bool skip_deleted = false) {
+    // Now lets loop through all features, and just make sure they are not
+    std::unique_lock<std::mutex> lck(mtx);
+
+    for (auto it = features_idlookup.begin(); it != features_idlookup.end();) {
+      // skip if already deleted
+      if (skip_deleted && (*it).second->to_delete) {
+        it++;
+        continue;
+      }
+
+      // loop the timestamp to find feature
+      for(auto it_time = (*it).second->timestamps[0].rbegin(); 
+               it_time != (*it).second->timestamps[0].rend(); 
+               it_time ++) {
+
+        if(*it_time == time_given) {
+            // prepare the feature
+            Feature feat;
+            // feature id
+            feat.featid = (*it).second->featid;
+            // feature timestamp
+            feat.timestamps[0].push_back(*it_time);
+            // feature uv
+            auto it_uv = it_time - (*it).second->timestamps[0].rbegin() + 
+                        (*it).second->uvs[0].rbegin(); 
+            feat.uvs[0].push_back(*it_uv);
+            // feature un_norm
+            auto it_uvn = it_time - (*it).second->timestamps[0].rbegin() + 
+                         (*it).second->uvs_norm[0].rbegin();
+            feat.uvs_norm[0].push_back(*it_uvn);
+
+            // save 
+            feat_selected.push_back(feat); 
+
+            // found then break
+            break;
+        }
+      }
+
+      // go to next feature
+      it++;
+    }
+  }
+
+
+  /**
+   * @brief Get all features measurements that has the given timestamp
+   *
+   * @param time_given given timestamp
+   * @param feat_selected selected feature measurements for marginalization
+   * @param remove remove the selected feature measurements or not
+   * @param skip_deleted skip the marked "deleted" feature or not
+   */
+  void features_selected(double time_given, std::vector<Feature> &feat_selected, bool remove = false, bool skip_deleted = false) {
+
+    // Now lets loop through all features, and just make sure they are not
+    std::unique_lock<std::mutex> lck(mtx);
+    for (auto it = features_idlookup.begin(); it != features_idlookup.end();) {
+      // Skip if already deleted
+      if (skip_deleted && (*it).second->to_delete) {
+        it++;
+        continue;
+      }
+
+      // Boolean if it has the timestamp
+      bool has_timestamp = false;
+      for (auto const &pair : (*it).second->timestamps) {
+        // Loop through all timestamps, and see if it has it
+        for (auto &timefeat : pair.second) {
+          if (timefeat == time_given) {
+            has_timestamp = true;
+            break;
+          }
+        }
+        // Break out if we found a single timestamp that is equal to the specified time
+        if (has_timestamp) {
+          break;
+        }
+      }
+
+      // Remove this feature if it contains the specified timestamp
+      if (has_timestamp) {
+        feat_selected.push_back(*(*it).second);
+        if (remove)
+          features_idlookup.erase(it++);
+        else
+          it++;
+      } else {
+        it++;
+      }
+    }
+
+  }
+
+  /**
    * @brief Get all features measurements that has the marginalized time, but not inlcued measurements after current update time
    *
    * @param time_marg given marginalized timestamp
@@ -370,7 +524,7 @@ public:
 
         // remove measurements before time_update
         if (remove)
-          (*it).second->clean_older_measurements(time_update);
+          (*it).second->clean_older_equal_measurements(time_update);
       }
 
       it++;
@@ -445,41 +599,14 @@ public:
   }
 
   /**
-   * @brief This function will delete all feature measurements that are older then the specified timestamp
+   * @brief This function will delete all feature measurements that are older then & Equal To the specified timestamp
    */
   void cleanup_measurements(double timestamp) {
     std::unique_lock<std::mutex> lck(mtx);
     for (auto it = features_idlookup.begin(); it != features_idlookup.end();) {
 
       // Remove the older measurements
-      (*it).second->clean_older_measurements(timestamp);
-
-      // for (auto const &pair : (*it).second->timestamps) {
-
-      //   // Assert that we have all the parts of a measurement
-      //   assert((*it).second->timestamps[pair.first].size() == 
-      //     (*it).second->uvs[pair.first].size());
-      //   assert((*it).second->timestamps[pair.first].size() == 
-      //     (*it).second->uvs_norm[pair.first].size());
-
-      //   // Our iterators
-      //   auto it1 = (*it).second->timestamps[pair.first].begin();
-      //   auto it2 = (*it).second->uvs[pair.first].begin();
-      //   auto it3 = (*it).second->uvs_norm[pair.first].begin();
-
-      //   // Loop through measurement times, remove ones that are older then the specified one
-      //   while (it1 != (*it).second->timestamps[pair.first].end()) {
-      //     if (*it1 <= timestamp) {
-      //       it1 = (*it).second->timestamps[pair.first].erase(it1);
-      //       it2 = (*it).second->uvs[pair.first].erase(it2);
-      //       it3 = (*it).second->uvs_norm[pair.first].erase(it3);
-      //     } else {
-      //       ++it1;
-      //       ++it2;
-      //       ++it3;
-      //     }
-      //   }
-      // }
+      (*it).second->clean_older_equal_measurements(timestamp);
 
       // Count how many measurements
       int ct_meas = 0;
@@ -519,6 +646,66 @@ public:
       } else {
         it++;
       }
+    }
+  }
+
+  /**
+   * @brief This function will ONLY delete all feature measurements that are at the specified timestamp
+   */
+  void cleanup_marg_timestamp(double timestamp) {
+    std::unique_lock<std::mutex> lck(mtx);
+    std::vector<double> timestamps = {timestamp};
+    for (auto it = features_idlookup.begin(); it != features_idlookup.end(); it++) {
+      // Remove the older measurements
+      (*it).second->clean_invalid_measurements(timestamps);
+    }
+  }
+
+  /**
+   * @brief This function will ONLY delete given feature measurements 
+   * @details those updated measurements will be deleted
+   */
+  void cleanup_marg_measurements(const std::vector<Feature> &features) {
+    std::unique_lock<std::mutex> lck(mtx);
+
+    for(auto& feat : features) {
+      // make sure this feature must exist in the database
+      if(features_idlookup.find(feat.featid) == features_idlookup.end()) {
+        continue;
+      }
+
+      auto feat_ptr = features_idlookup[feat.featid];
+
+      // only conside mono camera
+      for(auto& given_time : feat.timestamps.at(0)) {
+        // find given timestamp in the this feature database
+        auto frame = std::find_if(feat_ptr->timestamps.at(0).begin(), feat_ptr->timestamps.at(0).end(),
+                     [&](const auto& database_time){return database_time == given_time ;});
+        if(frame != feat_ptr->timestamps.at(0).end()) {
+          // delete timestamp
+          feat_ptr->timestamps.at(0).erase(frame);
+          // delete uv
+          auto it_uv = feat_ptr->uvs.at(0).begin() + (frame - feat_ptr->timestamps.at(0).begin());
+          feat_ptr->uvs.at(0).erase(it_uv);
+          // delete uv_norm
+          auto it_uvn = feat_ptr->uvs_norm.at(0).begin() + (frame - feat_ptr->timestamps.at(0).begin());
+          feat_ptr->uvs_norm.at(0).erase(it_uvn);
+        }
+      }
+      
+    }
+  }
+
+  /**
+   * @brief This function will ONLY delete all feature measurements that outside of slide window
+   * 
+   * @param timestamp: the oldest timestamp in the silde window
+   */
+  void cleanup_out_measurements(double timestamp) {
+    std::unique_lock<std::mutex> lck(mtx);
+    for (auto it = features_idlookup.begin(); it != features_idlookup.end(); it++) {
+      // Remove the older measurements
+      (*it).second->clean_older_measurements(timestamp);
     }
   }
 
@@ -586,6 +773,22 @@ public:
     // std::cout << "feat db = " << sizebefore << " -> " << (int)features_idlookup.size() << std::endl;
   }
 
+  /**
+   * @brief Update the triangulation result and flag to the features
+   */
+  void update_new_triangulation(const std::vector<Feature> &features) {
+    std::unique_lock<std::mutex> lck(mtx);
+
+    for(const auto& feat : features) {
+      // find if each of given feature exist
+      if (features_idlookup.find(feat.featid) != features_idlookup.end()) {
+        // update: first update or overridde to the given information 
+        features_idlookup[feat.featid]->p_FinA = feat.p_FinA;
+        features_idlookup[feat.featid]->p_FinG = feat.p_FinG;
+        features_idlookup[feat.featid]->triangulated = feat.triangulated;
+      }
+    }
+  }
 
   bool checkFeatureTest(size_t id) {
     std::unique_lock<std::mutex> lck(mtx);

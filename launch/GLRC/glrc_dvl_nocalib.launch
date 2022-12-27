@@ -50,6 +50,7 @@
   <arg name="prior_yaml" default="$(find msckf_dvio)/config/GLRC/dvl_nocalib/prior.yaml"/>
   <arg name="system_yaml" default="$(find msckf_dvio)/config/GLRC/dvl_nocalib/system.yaml"/>
   <arg name="image_yaml" default="$(find msckf_dvio)/config/GLRC/dvl_nocalib/image.yaml"/>
+  <arg name="init_yaml" default="$(find msckf_dvio)/config/GLRC/dvl_nocalib/init.yaml"/>
 
   <!-- build with flag: -DCMAKE_BUILD_TYPE=Debug -->
   <!-- add to roslaunch: launch-prefix="gdb -ex run -1-args" -->
@@ -58,6 +59,7 @@
       <rosparam command="load" file="$(arg prior_yaml)"/>
       <rosparam command="load" file="$(arg system_yaml)"/>
       <rosparam command="load" file="$(arg image_yaml)"/>
+      <rosparam command="load" file="$(arg init_yaml)"/>
 
       <remap from="imu" to="/rov/sensors/ahrs/imu/data"/>
       <remap from="dvl" to="/rov/sensors/dvl/buttom_track_velocity"/>
