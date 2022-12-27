@@ -57,14 +57,17 @@ struct priorDvl {
   double sound_speed;
   // BT 3-axis veloicty measurement white noise( standard deviation )
   Eigen::Vector3d sigma_bt;
+
+  //! TODO: for initial_covariance
+  // Eigen::VectorXd sigma_init;
+};
+
+struct priorPressure {
   // the angle that the actual mounting position rotate to the standing position, 
   // used to transfer pressure measurement into DVL frame's Z
   double mount_angle;
   // noise for pressure (standard deviation)
   double sigma_pressure;
-
-  //! TODO: for initial_covariance
-  // Eigen::VectorXd sigma_init;
 };
 
 struct priorCam {
@@ -236,6 +239,8 @@ struct Params{
   priorImu prior_imu;
 
   priorDvl prior_dvl;
+
+  priorPressure prior_pressure;
 
   priorCam prior_cam;
 

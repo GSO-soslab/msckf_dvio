@@ -53,10 +53,13 @@ Params RosNode::loadParameters() {
   nh_private_.param<double>("DVL/scale",            params.prior_dvl.scale, 1.0);
   //// DVL BT velocity measurement noise
   nh_private_.getParam     ("DVL/noise_bt",         noise_bt);
+
+  // ==================== PRESSURE ==================== //
+
   //// get mount angle
-  nh_private_.param<double>("DVL/mount_angle",      params.prior_dvl.mount_angle, 0.0);
-  //// DVL pressure measurement noise 
-  nh_private_.param<double>("DVL/noise_pressure",   params.prior_dvl.sigma_pressure, 0.0);
+  nh_private_.param<double>("PRESSURE/mount_angle",      params.prior_pressure.mount_angle, 0.0);
+  //// pressure measurement noise 
+  nh_private_.param<double>("PRESSURE/noise_pressure",   params.prior_pressure.sigma_pressure, 0.0);
 
   //// convert matrix into pose 
   Eigen::Matrix4d T_I_D;

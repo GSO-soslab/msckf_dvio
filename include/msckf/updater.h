@@ -73,6 +73,8 @@ public:
 private:
   priorDvl prior_dvl_;
 
+  priorPressure prior_pressure_;
+
   priorCam prior_cam_;
 
   paramMsckf param_msckf_;

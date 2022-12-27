@@ -6,6 +6,7 @@ namespace msckf_dvio
 
 Updater::Updater(Params &params) : 
   prior_dvl_(params.prior_dvl), 
+  prior_pressure_(params.prior_pressure),
   prior_cam_(params.prior_cam), 
   param_msckf_(params.msckf), 
   count(0)
@@ -277,7 +278,7 @@ void Updater::updateDvlPressure(
   Eigen::Matrix3d R_D_P;
   R_D_P = Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()) * 
           Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY()) * 
-          Eigen::AngleAxisd(prior_dvl_.mount_angle, Eigen::Vector3d::UnitX());
+          Eigen::AngleAxisd(prior_pressure_.mount_angle, Eigen::Vector3d::UnitX());
 
   // measurement function:
   // DVL BT velocity estimation: z_D = v_D = 1/S * R_I_D^T * (R_I_G * v_G_I + [w_I]x * p_I_D) + n
@@ -324,7 +325,7 @@ void Updater::updateDvlPressure(
 
   // measurement noise(v_x,v_y,v_z,p_z)
   Eigen::Matrix<double, 4, 4> Rn = Eigen::Matrix<double, 4, 4>::Identity();
-  Rn(0,0) = pow(prior_dvl_.sigma_pressure, 2);
+  Rn(0,0) = pow(prior_pressure_.sigma_pressure, 2);
   Rn(1,1) = pow(prior_dvl_.sigma_bt(0), 2);
   Rn(2,2) = pow(prior_dvl_.sigma_bt(1), 2);
   Rn(3,3) = pow(prior_dvl_.sigma_bt(2), 2);
@@ -410,7 +411,7 @@ void Updater::updateDvlPressureSimple(
 
   // measurement noise(v_x,v_y,v_z,p_z)
   Eigen::Matrix<double, 4, 4> Rn = Eigen::Matrix<double, 4, 4>::Identity();
-  Rn(0,0) = pow(prior_dvl_.sigma_pressure, 2);
+  Rn(0,0) = pow(prior_pressure_.sigma_pressure, 2);
   Rn(1,1) = pow(prior_dvl_.sigma_bt(0), 2);
   Rn(2,2) = pow(prior_dvl_.sigma_bt(1), 2);
   Rn(3,3) = pow(prior_dvl_.sigma_bt(2), 2);
@@ -500,7 +501,7 @@ void Updater::updatePressureTest(std::shared_ptr<State> state, const double pres
   Eigen::Matrix3d R_D_P;
   R_D_P = Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()) * 
           Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY()) * 
-          Eigen::AngleAxisd(prior_dvl_.mount_angle, Eigen::Vector3d::UnitX());
+          Eigen::AngleAxisd(prior_pressure_.mount_angle, Eigen::Vector3d::UnitX());
 
   // third value selection
   Eigen::Matrix<double, 1, 3> s = {0,0,1};
@@ -542,7 +543,7 @@ void Updater::updatePressureTest(std::shared_ptr<State> state, const double pres
   // K = P * H^T * (H * P * H^T + Rn) ^-1
 
   // DVL BT measurement noise matrix
-  Eigen::Matrix<double,1,1> Rn(prior_dvl_.sigma_pressure * prior_dvl_.sigma_pressure);
+  Eigen::Matrix<double,1,1> Rn(prior_pressure_.sigma_pressure * prior_pressure_.sigma_pressure);
 
   Eigen::MatrixXd S(Rn.rows(), Rn.rows());
   // S.triangularView<Eigen::Upper>() = H * state->cov_ * H.transpose();
@@ -610,7 +611,7 @@ void Updater::updatePressureSimple(std::shared_ptr<State> state, const double pr
   /****************************** Compute Kalman Gain *****************************/
   /********************************************************************************/
   // position measurement noise
-  Eigen::Matrix<double,1,1> Rn(prior_dvl_.sigma_pressure * prior_dvl_.sigma_pressure);
+  Eigen::Matrix<double,1,1> Rn(prior_pressure_.sigma_pressure * prior_pressure_.sigma_pressure);
 
   // K = P * H^T * (H * P * H^T + Rn) ^-1
   Eigen::MatrixXd S(Rn.rows(), Rn.rows());
@@ -663,7 +664,7 @@ void Updater::updatePressure(std::shared_ptr<State> state, const double pres_beg
   Eigen::Matrix3d R_D_P;
   R_D_P = Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()) * 
           Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY()) * 
-          Eigen::AngleAxisd(prior_dvl_.mount_angle, Eigen::Vector3d::UnitX());
+          Eigen::AngleAxisd(prior_pressure_.mount_angle, Eigen::Vector3d::UnitX());
 
   Eigen::Matrix3d R_I_G;
   R_I_G <<toRotationMatrix(state->getEstimationValue(IMU,EST_QUATERNION));
@@ -692,7 +693,7 @@ void Updater::updatePressure(std::shared_ptr<State> state, const double pres_beg
   /********************************************************************************/
 
   // position measurement noise
-  Eigen::Matrix<double,1,1> Rn(prior_dvl_.sigma_pressure * prior_dvl_.sigma_pressure);
+  Eigen::Matrix<double,1,1> Rn(prior_pressure_.sigma_pressure * prior_pressure_.sigma_pressure);
   Eigen::Matrix<double,1,1> Rn1(0.1 * 0.1);
   Eigen::Matrix<double,1,1> Rn2(0.01 * 0.01);
 
