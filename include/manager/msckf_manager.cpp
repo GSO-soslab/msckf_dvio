@@ -18,16 +18,16 @@ MsckfManager::MsckfManager(Params &parameters)
 
   //// setup imu initializer
   switch(params.init.mode) {
-    case InitMode::SETTING: {
+    case InitMode::INIT_SETTING: {
       initializer = std::shared_ptr<InitSetting>(new InitSetting(params.init));
       break;
     }
 
-    case InitMode::STATIC: {
+    case InitMode::INIT_STATIC: {
       break;
     }
 
-    case InitMode::DVL_PRESSURE: {
+    case InitMode::INIT_DVL_PRESSURE: {
       initializer = std::shared_ptr<InitDvlAided>(new InitDvlAided(params.init, params.prior_imu, params.prior_dvl));
       break;
     }

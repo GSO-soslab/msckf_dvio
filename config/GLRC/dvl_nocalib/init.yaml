@@ -2,8 +2,10 @@
 ###################    System Initailization Configuration    #################
 ###############################################################################
 
-# Default: 2; (0: setting; 1:static; 2:DVL-Pressure; 3:camera)
-INIT_MODE: 0
+# Default: INIT_DVL_PRESSURE
+# Options: INIT_SETTING, INIT_STATIC, INIT_DVL_PRESSURE, INIT_CAMERA, INIT_DVL_CAMERA
+INIT_MODE: INIT_SETTING
+
 
 ###############################################################################
 INIT_SETTING:

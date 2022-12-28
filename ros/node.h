@@ -61,7 +61,13 @@ public:
 
   void process();
 
-  Params loadParameters();
+  void loadParamSystem(Params &params);
+
+  void loadParamInit(Params &params);
+
+  void loadParamPrior(Params &params);
+
+  void loadParamImage(Params &params);
 
 private:
   ros::NodeHandle nh_;

@@ -19,7 +19,15 @@ public:
 
   virtual ~Initializer(){};
 
-  inline bool isInit() { return initialized; }
+  bool isInit() {
+    return initialized; 
+  } 
+
+  // inline bool isInit() {
+  //   std::unique_lock<std::recursive_mutex> lck(buffer_mutex);
+
+  //   return initialized.load(); 
+  // }
 
   virtual void checkInit() = 0;
 

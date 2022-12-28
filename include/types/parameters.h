@@ -24,6 +24,14 @@ enum Sensor{
   CLONE_CAM0
 };
 
+enum InitMode {
+  INIT_NONE = 0,
+  INIT_SETTING,
+  INIT_STATIC,
+  INIT_DVL_PRESSURE,
+  INIT_CAMERA,
+  INIT_DVL_CAMERA
+};
 
 struct priorImu {
   /// gravity
@@ -100,14 +108,6 @@ struct paramMsckf {
 
   // the max features used for MSCKF update
   int max_msckf_update;
-};
-
-enum InitMode {
-  SETTING = 0,
-  STATIC = 1,
-  DVL_PRESSURE = 2,
-  CAMERA = 3,
-  DVL_CAMERA = 4
 };
 
 struct paramInitSetting {
