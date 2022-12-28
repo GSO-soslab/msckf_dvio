@@ -24,14 +24,6 @@ enum Sensor{
   CLONE_CAM0
 };
 
-static const char *enum_string[] =
-{ "NONE", "IMU", "DVL", "PRESSURE" , "CAM0", "CLONE_DVL", "CLONE_CAM0" };
-
-inline std::string enumToString (int val)
-{
-    std::string str(enum_string[val]);
-    return str;
-}
 
 struct priorImu {
   /// gravity
@@ -222,6 +214,13 @@ struct paramKeyframe {
   double scene_ratio;
 };
 
+struct paramSystem {
+  // Frequency for backend processing(MSCKF update), increase if more data need for processing
+  int backend_hz;
+  // sensors
+  std::vector<Sensor> sensors;
+};
+
 //! TODO: set sub-parameters as shared_ptr? 
 //!       so the paramters will updated automaticly, used for localization failed case?
 struct Params{
@@ -247,11 +246,7 @@ struct Params{
 /******************/
 /***** System *****/
 /******************/
-
-  // Frequency for backend processing(MSCKF update), increase if more data need for processing
-  int backend_hz;
-  // use this simply filter bad DVL velocity measurement
-  double dvl_v_threshold;
+  paramSystem sys;
 
   paramInit init;
 

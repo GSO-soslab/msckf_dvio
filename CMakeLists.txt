@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0.2)
 project(msckf_dvio)
 
 ## Compile as C++14, supported in ROS Kinetic and newer
-add_compile_options(-std=c++14)
+add_compile_options(-std=c++17)
 
 ## CMAKE module path
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_LIST_DIR}/cmake")
@@ -23,6 +23,8 @@ find_package(Boost REQUIRED COMPONENTS system filesystem thread date_time)
 find_package(Eigen3 REQUIRED)
 find_package(PCL REQUIRED)
 find_package(SuiteSparse REQUIRED)
+find_package(magic_enum CONFIG REQUIRED)
+
 
 # set(Open3D_DIR /home/lin/develop/3rd/Open3D/install/lib/cmake/Open3D)
 # find_package(Open3D)
@@ -88,6 +90,7 @@ list(APPEND thirdparty_libraries
   ${OpenCV_LIBRARIES}
   ${PCL_LIBRARIES}
   ${SUITESPARSE_LIBRARIES}
+  magic_enum::magic_enum
 )
 
 ##########################################
