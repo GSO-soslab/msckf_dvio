@@ -2,12 +2,13 @@
 ###################    System Initailization Configuration    #################
 ###############################################################################
 
-# Default: INIT_DVL_PRESSURE
+# This is the parameter must given
 # Options: INIT_SETTING, INIT_STATIC, INIT_DVL_PRESSURE, INIT_CAMERA, INIT_DVL_CAMERA
 INIT_MODE: INIT_SETTING
 
 
 ###############################################################################
+
 INIT_SETTING:
   # brief: the timestamp that system got initialized 
   # note: the sensor name MUST be same to the "enum Sensor"

@@ -50,6 +50,15 @@ void RosNode::loadParamSystem(Params &params){
     }
   }
 
+  // print
+  printf("\n================== System Parameters =======================\n");
+  printf("  backend_hz= %d\n", params.sys.backend_hz);
+  printf("  sensors: ");
+  for(const auto& s : params.sys.sensors) {
+    printf(" %s", enumToString(s).c_str());
+  }
+  printf("\n");
+
   // ==================== MSCKF ==================== //
   nh_private_.param<bool>("MSCKF/dvl_exterisic_R", params.msckf.do_R_I_D,    true);
   nh_private_.param<bool>("MSCKF/dvl_exterisic_p", params.msckf.do_p_I_D,    true);
@@ -65,34 +74,80 @@ void RosNode::loadParamSystem(Params &params){
   nh_private_.param<int> ("MSCKF/max_msckf_update", params.msckf.max_msckf_update, params.tracking.num_pts);
 
   nh_private_.getParam("MSCKF/marginalized_clone", params.msckf.marginalized_clone);
+
+  // print
+  printf("\n================== MSCKF Parameters =======================\n");
+
 }
 
 void RosNode::loadParamInit(Params &params) {
   // ==================== Initialization ==================== //
 
   std::string mode_str;
-  nh_private_.param<std::string> ("INIT_MODE", mode_str, "INIT_NONE");
+  nh_private_.param<std::string> ("INIT_MODE", mode_str, enumToString(InitMode::INIT_NONE));
 
   params.init.mode = stringToEnum(mode_str, InitMode::INIT_NONE);
 
   switch(params.init.mode) {
 
     case InitMode::INIT_DVL_PRESSURE: {
-      nh_private_.param<int>   ("INIT_DVL_PRESSURE/imu_window",        params.init.dvl_pressure.imu_window,        20);
-      nh_private_.param<double>("INIT_DVL_PRESSURE/imu_var",           params.init.dvl_pressure.imu_var,           0.2);
-      nh_private_.param<double>("INIT_DVL_PRESSURE/imu_delta",         params.init.dvl_pressure.imu_delta,         0.07);
-      nh_private_.param<int>   ("INIT_DVL_PRESSURE/dvl_window",        params.init.dvl_pressure.dvl_window,        4);
-      nh_private_.param<double>("INIT_DVL_PRESSURE/dvl_delta",         params.init.dvl_pressure.dvl_delta,         0.05);
-      nh_private_.param<double>("INIT_DVL_PRESSURE/dvl_init_duration", params.init.dvl_pressure.dvl_init_duration, 1.0);
+      // check if the param is set to right enum type
+      auto param_name = enumToString(InitMode::INIT_DVL_PRESSURE);
+      if (!nh_private_.hasParam(param_name)) {
+        ROS_ERROR("The yaml setup is not right, should be = %s", param_name.c_str());
+      }
+
+      nh_private_.param<int>   (param_name + "/imu_window",        params.init.dvl_pressure.imu_window,        20);
+      nh_private_.param<double>(param_name + "/imu_var",           params.init.dvl_pressure.imu_var,           0.2);
+      nh_private_.param<double>(param_name + "/imu_delta",         params.init.dvl_pressure.imu_delta,         0.07);
+      nh_private_.param<int>   (param_name + "/dvl_window",        params.init.dvl_pressure.dvl_window,        4);
+      nh_private_.param<double>(param_name + "/dvl_delta",         params.init.dvl_pressure.dvl_delta,         0.05);
+      nh_private_.param<double>(param_name + "/dvl_init_duration", params.init.dvl_pressure.dvl_init_duration, 1.0);
+
+      // print
+      printf("\n================== Init Parameters =======================\n");
+      printf("  init mode: %s\n", param_name.c_str());
+      printf("  imu_window: %d\n", params.init.dvl_pressure.imu_window);
+      printf("  imu_var: %f\n", params.init.dvl_pressure.imu_var);
+      printf("  imu_delta: %f\n", params.init.dvl_pressure.imu_delta);
+      printf("  dvl_window: %d\n", params.init.dvl_pressure.dvl_window);
+      printf("  dvl_delta: %f\n", params.init.dvl_pressure.dvl_delta);
+      printf("  dvl_init_duration: %f\n", params.init.dvl_pressure.dvl_init_duration);
+
       break;
     }
 
     case InitMode::INIT_SETTING: {
-      // --------------- time --------------- //
-      XmlRpc::XmlRpcValue rosparam_time;
-      nh_private_.getParam("INIT_SETTING/time", rosparam_time);
-      ROS_ASSERT(rosparam_time.getType() == XmlRpc::XmlRpcValue::TypeArray);
+      // check if the param is set to right enum type
+      auto param_name = enumToString(InitMode::INIT_SETTING);
+      if (!nh_private_.hasParam(param_name)) {
+        ROS_ERROR("The yaml setup is not right, should be = %s", param_name.c_str());
+      }
 
+       // load
+      XmlRpc::XmlRpcValue rosparam_time;
+      std::vector<double> orientation(4);
+      std::vector<double> position(3);
+      std::vector<double> velocity(3);
+      std::vector<double> bias_gyro(3);
+      std::vector<double> bias_acce(3);
+      XmlRpc::XmlRpcValue rosparam_temporal;
+      XmlRpc::XmlRpcValue rosparam_global;
+
+      nh_private_.getParam(param_name + "/time", rosparam_time);
+      nh_private_.getParam(param_name + "/orientation", orientation);
+      nh_private_.getParam(param_name + "/position", position);
+      nh_private_.getParam(param_name + "/velocity", velocity);
+      nh_private_.getParam(param_name + "/bias_gyro", bias_gyro);
+      nh_private_.getParam(param_name + "/bias_accel", bias_acce);
+      nh_private_.getParam(param_name + "/temporal", rosparam_temporal);
+      nh_private_.getParam(param_name + "/global", rosparam_global);
+
+      ROS_ASSERT(rosparam_time.getType() == XmlRpc::XmlRpcValue::TypeArray);
+      ROS_ASSERT(rosparam_temporal.getType() == XmlRpc::XmlRpcValue::TypeArray);
+      ROS_ASSERT(rosparam_global.getType() == XmlRpc::XmlRpcValue::TypeArray);
+
+      // --------------- time --------------- //
       for(uint32_t i = 0 ; i < rosparam_time.size() ; i++) {
           for(const auto& name : params.sys.sensors) {
               // convert sensor name enum to string
@@ -110,18 +165,6 @@ void RosNode::loadParamInit(Params &params) {
       }
 
       // --------------- 15 states --------------- //
-      // define vector to save parameters
-      std::vector<double> orientation(4);
-      std::vector<double> position(3);
-      std::vector<double> velocity(3);
-      std::vector<double> bias_gyro(3);
-      std::vector<double> bias_acce(3);
-      // load
-      nh_private_.getParam("INIT_SETTING/orientation", orientation);
-      nh_private_.getParam("INIT_SETTING/position", position);
-      nh_private_.getParam("INIT_SETTING/velocity", velocity);
-      nh_private_.getParam("INIT_SETTING/bias_gyro", bias_gyro);
-      nh_private_.getParam("INIT_SETTING/bias_accel", bias_acce);
       // convert to eigen
       params.init.setting.orientation << orientation.at(0), orientation.at(1), 
                                          orientation.at(2), orientation.at(3);
@@ -131,10 +174,6 @@ void RosNode::loadParamInit(Params &params) {
       params.init.setting.bias_acce << bias_acce.at(0), bias_acce.at(1), bias_acce.at(2);                                         
 
       // --------------- temporal --------------- //
-      XmlRpc::XmlRpcValue rosparam_temporal;
-      nh_private_.getParam("INIT_SETTING/temporal", rosparam_temporal);
-      ROS_ASSERT(rosparam_temporal.getType() == XmlRpc::XmlRpcValue::TypeArray);
-
       for(uint32_t i = 0 ; i < rosparam_temporal.size() ; i++) {
           for(const auto& name : params.sys.sensors) {
               // convert sensor name enum to string
@@ -152,10 +191,6 @@ void RosNode::loadParamInit(Params &params) {
       }
 
       // --------------- Global --------------- //
-      XmlRpc::XmlRpcValue rosparam_global;
-      nh_private_.getParam("INIT_SETTING/global", rosparam_global);
-      ROS_ASSERT(rosparam_global.getType() == XmlRpc::XmlRpcValue::TypeArray);
-
       for(uint32_t i = 0 ; i < rosparam_global.size() ; i++) {
           for(const auto& name : params.sys.sensors) {
               // convert sensor name enum to string
@@ -173,23 +208,25 @@ void RosNode::loadParamInit(Params &params) {
           }
       }
 
-      for(const auto& kv: params.init.setting.time){
-        printf("time: sensor=%s, time=%.9f\n", enumToString(kv.first).c_str(), kv.second);
+      // print
+      printf("\n================== Init Parameters =======================\n");
+      printf("  init mode: %s\n", param_name.c_str());
+      for(const auto& [key, value]: params.init.setting.time){
+        printf("  sensor=%s, time=%.9f\n", enumToString(key).c_str(), value);
+      }
+      std::cout<<"  orientation(q_x,q_y,q_z,q_w): " << params.init.setting.orientation.transpose() << std::endl;
+      std::cout<<"  position(x,y,z): " << params.init.setting.position.transpose() <<std::endl;
+      std::cout<<"  velocity(x,y,z): " << params.init.setting.velocity.transpose() <<std::endl;
+      std::cout<<"  bias_gyro(x,y,z): " << params.init.setting.bias_gyro.transpose() <<std::endl;
+      std::cout<<"  bias_acce(x,y,z): " << params.init.setting.bias_acce.transpose() <<std::endl;
+
+      for(const auto& [key, value]: params.init.setting.temporal){
+        printf("  temporal: sensor=%s, value=%.9f\n", enumToString(key).c_str(), value);
       }
 
-      std::cout<<"orientation(q_x,q_y,q_z,q_w): " << params.init.setting.orientation.transpose() << std::endl;
-      std::cout<<"position(x,y,z): " << params.init.setting.position.transpose() <<std::endl;
-      std::cout<<"velocity(x,y,z): " << params.init.setting.velocity.transpose() <<std::endl;
-      std::cout<<"bias_gyro(x,y,z): " << params.init.setting.bias_gyro.transpose() <<std::endl;
-      std::cout<<"bias_acce(x,y,z): " << params.init.setting.bias_acce.transpose() <<std::endl;
-
-      for(const auto& kv: params.init.setting.temporal){
-        printf("temporal: sensor=%s, temporal=%.9f\n", enumToString(kv.first).c_str(), kv.second);
-      }
-
-      for(const auto& kv : params.init.setting.global) {
-        for(const auto& vec : params.init.setting.global[kv.first]) {
-          printf("global: sensor=%s, value=%f\n", enumToString(kv.first).c_str(), vec);
+      for(const auto& [key, value] : params.init.setting.global) {
+        for(const auto& vec : params.init.setting.global[key]) {
+          printf("  global: sensor=%s, value=%f\n", enumToString(key).c_str(), vec);
         }
       }
 
@@ -205,75 +242,134 @@ void RosNode::loadParamInit(Params &params) {
 
 void RosNode::loadParamPrior(Params &params) {
 
-  /***************************************************************************************/
-  /******************************** Priors for each sensor *******************************/
-  /***************************************************************************************/
+  for(const auto& sensor : params.sys.sensors) {
 
-  // ==================== IMU ==================== //
-  double gravity;
-  nh_private_.param<double>("IMU/gravity",                     gravity,                   9.81);
-  nh_private_.param<double>("IMU/accelerometer_noise_density", params.prior_imu.sigma_a,  2.0000e-3);
-  nh_private_.param<double>("IMU/accelerometer_random_walk",   params.prior_imu.sigma_ab, 3.0000e-03);
-  nh_private_.param<double>("IMU/gyroscope_noise_density",     params.prior_imu.sigma_w,  1.6968e-04);
-  nh_private_.param<double>("IMU/gyroscope_random_walk",       params.prior_imu.sigma_wb, 1.9393e-05);
-  params.prior_imu.gravity << 0, 0, gravity;
+    // loop each parameters for each sensor we selected
+    switch(sensor) {
+        case Sensor::IMU: {
+          // check if the param is set to right enum type
+          auto param_name = enumToString(Sensor::IMU);
+          if (!nh_private_.hasParam(param_name)) {
+            ROS_ERROR("The yaml setup is not right, should be = %s", param_name.c_str());
+          }
 
-  // ==================== DVL ==================== //
+          double gravity;
+          nh_private_.param<double>(param_name + "/gravity",                     gravity,                   9.81);
+          nh_private_.param<double>(param_name + "/accelerometer_noise_density", params.prior_imu.sigma_a,  2.0000e-3);
+          nh_private_.param<double>(param_name + "/accelerometer_random_walk",   params.prior_imu.sigma_ab, 3.0000e-03);
+          nh_private_.param<double>(param_name + "/gyroscope_noise_density",     params.prior_imu.sigma_w,  1.6968e-04);
+          nh_private_.param<double>(param_name + "/gyroscope_random_walk",       params.prior_imu.sigma_wb, 1.9393e-05);
+          params.prior_imu.gravity << 0, 0, gravity;
 
-  XmlRpc::XmlRpcValue rosparam_dvl;
-  std::vector<double> noise_bt(3);
-  //// load parameters from yaml
-  nh_private_.getParam     ("DVL/T_I_D",            rosparam_dvl);
-  nh_private_.param<double>("DVL/timeoffset_I_D",   params.prior_dvl.timeoffset, 0.0);
-  nh_private_.param<double>("DVL/scale",            params.prior_dvl.scale, 1.0);
-  nh_private_.getParam     ("DVL/noise_bt",         noise_bt);
+          std::cout<<"\n================== Prior Parameters =======================\n";
+          std::cout<< "\n" << param_name << "\n";
+          std::cout<<"  gravity: "<< params.prior_imu.gravity.transpose() << "\n";
+          std::cout<<"  acce_noise_density: " << params.prior_imu.sigma_a << "\n";
+          std::cout<<"  acce_random_walk: " << params.prior_imu.sigma_ab << "\n";
+          std::cout<<"  gyro_noise_density: " << params.prior_imu.sigma_w << "\n";
+          std::cout<<"  gyro_random_walk: " << params.prior_imu.sigma_wb << "\n";      
+          break;
+        }
+        
+        case Sensor::DVL: {
+          // check if the param is set to right enum type
+          auto param_name = enumToString(Sensor::DVL);
+          if (!nh_private_.hasParam(param_name)) {
+            ROS_ERROR("The yaml setup is not right, should be = %s", param_name.c_str());
+          }
 
-  //// convert to parameters
-  Eigen::Matrix4d T_I_D;
-  ROS_ASSERT(rosparam_dvl.getType() == XmlRpc::XmlRpcValue::TypeArray);
-  for (int32_t i = 0; i < rosparam_dvl.size(); ++i) {
-    for(int32_t j=0; j<rosparam_dvl[i].size(); ++j) 
-      T_I_D(i,j) = static_cast<double>(rosparam_dvl[i][j]);
+          //// load parameters from yaml
+          XmlRpc::XmlRpcValue rosparam_dvl;
+          std::vector<double> noise_bt(3);
+          nh_private_.getParam     (param_name + "/T_I_D",            rosparam_dvl);
+          nh_private_.param<double>(param_name + "/timeoffset_I_D",   params.prior_dvl.timeoffset, 0.0);
+          nh_private_.param<double>(param_name + "/scale",            params.prior_dvl.scale, 1.0);
+          nh_private_.getParam     (param_name + "/noise_bt",         noise_bt);
+
+          //// convert to parameters
+          Eigen::Matrix4d T_I_D;
+          ROS_ASSERT(rosparam_dvl.getType() == XmlRpc::XmlRpcValue::TypeArray);
+          for (int32_t i = 0; i < rosparam_dvl.size(); ++i) {
+            for(int32_t j=0; j<rosparam_dvl[i].size(); ++j) 
+              T_I_D(i,j) = static_cast<double>(rosparam_dvl[i][j]);
+          }
+
+          params.prior_dvl.extrinsics.block(0, 0, 4, 1) = toQuaternion(T_I_D.block(0, 0, 3, 3));
+          params.prior_dvl.extrinsics.block(4, 0, 3, 1) = T_I_D.block(0, 3, 3, 1);
+          params.prior_dvl.sigma_bt << noise_bt.at(0), noise_bt.at(1), noise_bt.at(2);
+
+          std::cout<<"\n" << param_name << "\n";
+          std::cout<<"  T_I_D: \n" << T_I_D << "\n"; 
+          std::cout<<"  timeoffset_I_D: " << params.prior_dvl.timeoffset << "\n";
+          std::cout<<"  scale: " << params.prior_dvl.scale << "\n";
+          std::cout<<"  noise_bt: " << params.prior_dvl.sigma_bt.transpose() << "\n";
+          break;
+        }
+
+        case Sensor::PRESSURE: {
+          // check if the param is set to right enum type
+          auto param_name = enumToString(Sensor::PRESSURE);
+          if (!nh_private_.hasParam(param_name)) {
+            ROS_ERROR("The yaml setup is not right, should be = %s", param_name.c_str());
+          }
+
+          // load 
+          nh_private_.param<double>(param_name + "/mount_angle",      params.prior_pressure.mount_angle, 0.0);
+          nh_private_.param<double>(param_name + "/noise_pressure",   params.prior_pressure.sigma_pressure, 0.0);
+
+          // print
+          std::cout<<"\n" << param_name << "\n";
+          std::cout<<"  mount_angle: " << params.prior_pressure.mount_angle << "\n"; 
+          std::cout<<"  noise_pressure: " << params.prior_pressure.sigma_pressure << "\n";
+          break;
+        }
+
+        case Sensor::CAM0: {
+          // check if the param is set to right enum type
+          auto param_name = enumToString(Sensor::CAM0);
+          if (!nh_private_.hasParam(param_name)) {
+            ROS_ERROR("The yaml setup is not right, should be = %s", param_name.c_str());
+          }
+
+          // load
+          XmlRpc::XmlRpcValue rosparam_cam;
+          std::vector<double> distortion_coeffs(4);
+          std::vector<double> intrinsics(4);
+          nh_private_.getParam     (param_name + "/T_C_I",             rosparam_cam);
+          nh_private_.getParam     (param_name + "/distortion_coeffs", distortion_coeffs);
+          nh_private_.getParam     (param_name + "/intrinsics",        intrinsics);
+          nh_private_.param<double>(param_name + "/timeoffset_C_I",    params.prior_cam.timeoffset, 0.0);
+          nh_private_.param<double>(param_name + "/noise",    params.prior_cam.noise, 1.0);
+
+          //// convert matrix into pose 
+          Eigen::Matrix4d T_C_I;
+          ROS_ASSERT(rosparam_cam.getType() == XmlRpc::XmlRpcValue::TypeArray);
+          for (int32_t i = 0; i < rosparam_cam.size(); ++i) {
+            for(int32_t j=0; j<rosparam_cam[i].size(); ++j) 
+              T_C_I(i,j) = static_cast<double>(rosparam_cam[i][j]);
+          }
+
+          params.prior_cam.extrinsics.block(0, 0, 4, 1) = toQuaternion(T_C_I.block(0, 0, 3, 3));
+          params.prior_cam.extrinsics.block(4, 0, 3, 1) = T_C_I.block(0, 3, 3, 1);
+          params.prior_cam.distortion_coeffs << distortion_coeffs.at(0), distortion_coeffs.at(1), 
+                                                distortion_coeffs.at(2), distortion_coeffs.at(3);
+          params.prior_cam.intrinsics << intrinsics.at(0), intrinsics.at(1), 
+                                        intrinsics.at(2), intrinsics.at(3);
+
+          // print
+          std::cout << "\n" << param_name << "\n";
+          std::cout << "  T_C_I: \n" << T_C_I << "\n";
+          std::cout << "  distortion_coeffs: " << params.prior_cam.distortion_coeffs.transpose() << "\n";
+          std::cout << "  intrinsics: " << params.prior_cam.intrinsics.transpose() << "\n";
+          std::cout << "  timeoffset_C_I: " << params.prior_cam.timeoffset << "\n";
+          std::cout << "  noise: " << params.prior_cam.noise << "\n";
+          break;
+        }
+
+        default:
+          break;
+      }
   }
-
-  params.prior_dvl.extrinsics.block(0, 0, 4, 1) = toQuaternion(T_I_D.block(0, 0, 3, 3));
-  params.prior_dvl.extrinsics.block(4, 0, 3, 1) = T_I_D.block(0, 3, 3, 1);
-  params.prior_dvl.sigma_bt << noise_bt.at(0), noise_bt.at(1), noise_bt.at(2);
-
-  // ==================== PRESSURE ==================== //
-
-  //// get mount angle
-  nh_private_.param<double>("PRESSURE/mount_angle",      params.prior_pressure.mount_angle, 0.0);
-  //// pressure measurement noise 
-  nh_private_.param<double>("PRESSURE/noise_pressure",   params.prior_pressure.sigma_pressure, 0.0);
-
-
-  // ==================== Camera ==================== //
-  XmlRpc::XmlRpcValue rosparam_cam;
-  std::vector<double> distortion_coeffs(4);
-  std::vector<double> intrinsics(4);
-
-  nh_private_.getParam     ("CAM0/T_C_I",             rosparam_cam);
-  nh_private_.getParam     ("CAM0/distortion_coeffs", distortion_coeffs);
-  nh_private_.getParam     ("CAM0/intrinsics",        intrinsics);
-  nh_private_.param<double>("CAM0/timeoffset_C_I",    params.prior_cam.timeoffset, 0.0);
-  nh_private_.param<double>("CAM0/noise",    params.prior_cam.noise, 1.0);
-
-
-  //// convert matrix into pose 
-  Eigen::Matrix4d T_C_I;
-  ROS_ASSERT(rosparam_cam.getType() == XmlRpc::XmlRpcValue::TypeArray);
-  for (int32_t i = 0; i < rosparam_cam.size(); ++i) {
-    for(int32_t j=0; j<rosparam_cam[i].size(); ++j) 
-      T_C_I(i,j) = static_cast<double>(rosparam_cam[i][j]);
-  }
-
-  params.prior_cam.extrinsics.block(0, 0, 4, 1) = toQuaternion(T_C_I.block(0, 0, 3, 3));
-  params.prior_cam.extrinsics.block(4, 0, 3, 1) = T_C_I.block(0, 3, 3, 1);
-  params.prior_cam.distortion_coeffs << distortion_coeffs.at(0), distortion_coeffs.at(1), 
-                                        distortion_coeffs.at(2), distortion_coeffs.at(3);
-  params.prior_cam.intrinsics << intrinsics.at(0), intrinsics.at(1), 
-                                 intrinsics.at(2), intrinsics.at(3);
 }
 
 void RosNode::loadParamImage(Params &params) {
