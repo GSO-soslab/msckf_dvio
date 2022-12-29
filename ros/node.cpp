@@ -18,26 +18,58 @@ RosNode::RosNode(const ros::NodeHandle &nh,
   manager = std::make_shared<MsckfManager>(parameters);
   visualizer = std::make_shared<RosVisualizer>(nh, manager);
 
-  // ROS related
-  sub_imu = nh_.subscribe("imu", 2000, &RosNode::imuCallback, this);
-  sub_dvl = nh_.subscribe("dvl", 100, &RosNode::dvlCallback, this);
-  sub_img = nh_.subscribe("image", 200, &RosNode::imageCallback, this);
-  sub_pressure = nh_.subscribe("pressure", 100, &RosNode::pressureCallback, this);
-  sub_pointcloud = nh_.subscribe("pointcloud", 100, &RosNode::pointcloudCallback, this);
+  // ROS subscribers
+  for(const auto& sensor : parameters.sys.sensors) {
+
+    switch(sensor) {
+      case Sensor::IMU: {
+        sub_imu = nh_.subscribe(parameters.sys.topics[sensor], 2000, &RosNode::imuCallback, this);
+        break;
+      }
+
+      case Sensor::DVL: {
+        sub_dvl = nh_.subscribe(parameters.sys.topics[sensor], 100, &RosNode::dvlCallback, this);
+        break;
+      }
+
+      case Sensor::PRESSURE: {
+        sub_pressure = nh_.subscribe(parameters.sys.topics[sensor], 100, &RosNode::pressureCallback, this);
+        break;
+      }
+
+      case Sensor::CAM0: {
+        sub_img = nh_.subscribe(parameters.sys.topics[sensor], 200, &RosNode::imageCallback, this);
+        break;
+      }
+
+      case Sensor::DVL_CLOUD: {
+        sub_pointcloud = nh_.subscribe(parameters.sys.topics[sensor], 100, &RosNode::pointcloudCallback, this);
+        break;
+      }
+
+      default:
+        ROS_WARN("some unknown sensor: %s", enumToString(sensor).c_str());
+        break;
+    }
+  }
 
   service_ = nh_.advertiseService("cmd",&RosNode::srvCallback, this);
 }    
 
 void RosNode::loadParamSystem(Params &params){
-  /***************************************************************************************/
-  /********************************** System configuration *******************************/
-  /***************************************************************************************/
-
   // ==================== System ==================== //
-  std::vector<std::string> sensors;
-  nh_private_.param<int>   ("SYS/backend_hz",      params.sys.backend_hz,      20);
-  nh_private_.getParam("SYS/sensors", sensors);
 
+  // load 
+  std::vector<std::string> sensors;
+  XmlRpc::XmlRpcValue rosparam_topics;
+
+  nh_private_.param<int>("SYS/backend_hz", params.sys.backend_hz, 20);
+  nh_private_.getParam("SYS/sensors", sensors);
+  nh_private_.getParam("SYS/topics", rosparam_topics);
+
+  ROS_ASSERT(rosparam_topics.getType() == XmlRpc::XmlRpcValue::TypeArray);
+
+  // convert for sensor 
   for(const auto& name : sensors) {
     // convert
     auto sensor_enum = stringToEnum(name, Sensor::NONE);
@@ -50,33 +82,80 @@ void RosNode::loadParamSystem(Params &params){
     }
   }
 
-  // print
-  printf("\n================== System Parameters =======================\n");
-  printf("  backend_hz= %d\n", params.sys.backend_hz);
-  printf("  sensors: ");
-  for(const auto& s : params.sys.sensors) {
-    printf(" %s", enumToString(s).c_str());
+  // convert for sensor topic
+  for(uint32_t i = 0 ; i < rosparam_topics.size() ; i++) {
+      for(const auto& name : params.sys.sensors) {
+          // convert sensor name enum to string
+          auto key = enumToString(name);
+          // check if this sensor exist
+          if(rosparam_topics[i][key].getType() == XmlRpc::XmlRpcValue::TypeInvalid) {
+              continue;
+          }
+          // save to parameters
+          auto topic = static_cast<std::string>(rosparam_topics[i][key]);
+
+          params.sys.topics[name] = topic;
+          // each line only has one sensor, so found and break
+          break;
+      }
   }
-  printf("\n");
+  ROS_ASSERT(params.sys.topics.size() == params.sys.sensors.size());
+
+  // print
+  std::cout<<"\n================== System Parameters =======================\n";
+  std::cout<<"  backend_hz= " << params.sys.backend_hz << "\n";
+
+  std::cout<<"  sensors: ";
+  for(const auto& sensor : params.sys.sensors) {
+    std::cout<< enumToString(sensor) <<", ";
+  }
+  std::cout<<"\n";
+
+  std::cout<<  "  topics: \n";
+  for(const auto& [name, topic] : params.sys.topics) {
+    std::cout<<"    " << enumToString(name) <<" = " << topic << "\n";
+  }
 
   // ==================== MSCKF ==================== //
-  nh_private_.param<bool>("MSCKF/dvl_exterisic_R", params.msckf.do_R_I_D,    true);
-  nh_private_.param<bool>("MSCKF/dvl_exterisic_p", params.msckf.do_p_I_D,    true);
-  nh_private_.param<bool>("MSCKF/dvl_timeoffset",  params.msckf.do_time_I_D, true);
-  nh_private_.param<bool>("MSCKF/dvl_scale",       params.msckf.do_scale_D,  true);
-  nh_private_.param<int> ("MSCKF/dvl_clone",       params.msckf.max_clone_D, 2);
 
-  nh_private_.param<bool>("MSCKF/cam_exterisic_R", params.msckf.do_R_C_I,    true);
-  nh_private_.param<bool>("MSCKF/cam_exterisic_p", params.msckf.do_p_C_I,    true);
-  nh_private_.param<bool>("MSCKF/cam_timeoffset",  params.msckf.do_time_C_I, true);
-  nh_private_.param<int> ("MSCKF/cam_clone",       params.msckf.max_clone_C, 9);
+  // if this sensor exist 
+  // DVL:
+  // CAM0: 
 
-  nh_private_.param<int> ("MSCKF/max_msckf_update", params.msckf.max_msckf_update, params.tracking.num_pts);
+  nh_private_.param<bool>("MSCKF/dvl_exterisic_R", params.msckf.do_R_I_D,    false);
+  nh_private_.param<bool>("MSCKF/dvl_exterisic_p", params.msckf.do_p_I_D,    false);
+  nh_private_.param<bool>("MSCKF/dvl_timeoffset",  params.msckf.do_time_I_D, false);
+  nh_private_.param<bool>("MSCKF/dvl_scale",       params.msckf.do_scale_D,  false);
+  nh_private_.param<int> ("MSCKF/dvl_clone",       params.msckf.max_clone_D, 0);
+
+  nh_private_.param<bool>("MSCKF/cam_exterisic_R", params.msckf.do_R_C_I,    false);
+  nh_private_.param<bool>("MSCKF/cam_exterisic_p", params.msckf.do_p_C_I,    false);
+  nh_private_.param<bool>("MSCKF/cam_timeoffset",  params.msckf.do_time_C_I, false);
+  nh_private_.param<int> ("MSCKF/cam_clone",       params.msckf.max_clone_C, 0);
+
+  nh_private_.param<int> ("MSCKF/max_msckf_update", params.msckf.max_msckf_update, 40);
 
   nh_private_.getParam("MSCKF/marginalized_clone", params.msckf.marginalized_clone);
 
   // print
-  printf("\n================== MSCKF Parameters =======================\n");
+  std::cout<<"\n================== MSCKF Parameters =======================\n";
+  std::cout<<"  do_R_I_D= " << (params.msckf.do_R_I_D ? "True" : "False" ) << "\n";
+  std::cout<<"  do_p_I_D= " << (params.msckf.do_p_I_D ? "True" : "False" ) << "\n";
+  std::cout<<"  do_time_I_D= " << (params.msckf.do_time_I_D ? "True" : "False" ) << "\n";
+  std::cout<<"  do_scale_D= " << (params.msckf.do_scale_D ? "True" : "False" ) << "\n";
+  std::cout<<"  max_clone_D= " << params.msckf.max_clone_D << "\n\n";
+
+  std::cout<<"  do_R_C_I= " << (params.msckf.do_R_C_I ? "True" : "False" ) << "\n";
+  std::cout<<"  do_p_C_I= " << (params.msckf.do_p_C_I ? "True" : "False" ) << "\n";
+  std::cout<<"  do_time_C_I= " << (params.msckf.do_time_C_I ? "True" : "False" ) << "\n";
+  std::cout<<"  max_clone_C= " << params.msckf.max_clone_C << "\n\n";
+
+  std::cout<<"  max_msckf_update= " << params.msckf.max_msckf_update << "\n";
+  std::cout<<"  marg clone position: ";
+  for(const auto& clone : params.msckf.marginalized_clone) {
+    std::cout<< clone <<", "; 
+  }
+  std::cout<<"\n";
 
 }
 
@@ -367,6 +446,7 @@ void RosNode::loadParamPrior(Params &params) {
         }
 
         default:
+          ROS_WARN("Sensor:%s doesn't has prior parameters", enumToString(sensor).c_str());
           break;
       }
   }

@@ -21,7 +21,8 @@ enum Sensor{
   PRESSURE,
   CAM0,
   CLONE_DVL,
-  CLONE_CAM0
+  CLONE_CAM0,
+  DVL_CLOUD
 };
 
 enum InitMode {
@@ -219,6 +220,8 @@ struct paramSystem {
   int backend_hz;
   // sensors
   std::vector<Sensor> sensors;
+  // topics
+  std::map<Sensor, std::string> topics;
 };
 
 //! TODO: set sub-parameters as shared_ptr? 

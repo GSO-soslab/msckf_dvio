@@ -4,8 +4,16 @@ SYS:
   # Note: frequency for backend processing(MSCKF update), increase if more data need for processing 
   backend_hz: 100
   # sensors will be fused
-  sensors: [IMU, DVL, PRESSURE, CAM0]
-  
+  sensors: [IMU, DVL, PRESSURE, CAM0, DVL_CLOUD]
+  # rostopics used for each sensor
+  topics: 
+    - {IMU: /rov/sensors/ahrs/imu/data}
+    - {DVL: /rov/sensors/dvl/buttom_track_velocity}
+    - {PRESSURE: /rov/sensors/dvl/pressure}
+    - {CAM0: /rov_remote/sensors/stereo/left/image_decompressed}
+    - {DVL_CLOUD: /pointcloud}
+
+
 ####################################################################################
 ############################     TODO:  Pre-processing    ##########################
 ####################################################################################
@@ -55,5 +63,8 @@ MSCKF:
   # in open_vins(40), but it's occasionally update at 40
   # but here, tracking will stop so always update as 40
   max_msckf_update: 20
+
+  # max line of residual lines for update, maybe used for futures
+  # max_update_lines: 1500 
 
   ################################    Marginalization    ##################################
