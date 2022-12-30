@@ -42,6 +42,21 @@ MSCKF:
   # Max DVL clone 
   dvl_clone: 0 
 
+  # DVL:
+  #   exterisic_R: 
+  #     do: false
+  #     init_noise: 0.01
+  #   exterisic_p:
+  #     do: false
+  #     init_noise: 0.01
+  #   timeoffset:
+  #     do: false
+  #     init_noise: 0.01
+  #   scale:
+  #     do: false
+  #     init_noise: 0.01
+  #   clone: 0
+
   ################################    Camera    ##################################
 
   # enable camera exterisic rotation calibration 
@@ -49,7 +64,7 @@ MSCKF:
   # enable camera exterisic translation calibration 
   cam_exterisic_p: false
   # enable camera time offset calibration
-  cam_timeoffset: false
+  cam_timeoffset: true
   # Max camera clone
   # default: 11 for non-key-frame
   cam_clone: 10 

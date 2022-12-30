@@ -159,15 +159,6 @@ public:
     return size;
   }
 
-
-  //==================================== DVL ========================================//
-  
-  inline void setDvl(const Eigen::MatrixXd &new_value) {
-    //! TODO: 
-    //! check size with actuall size based on DVL MSCKF state setting
-    //! accroding to id to setup values
-  }
-
   //================================= CLONE ========================================//
 
   inline bool foundClone(const Sensor &sub_state_name, const std::string &clone_name) {

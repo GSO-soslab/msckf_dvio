@@ -5,176 +5,175 @@ namespace msckf_dvio {
 State::State(const Params &param) {
 
   params_msckf_ = param.msckf;
+
   /********************************************************************************/                       
   /************************************ State *************************************/
   /********************************************************************************/
   int curr_id = 0;
 
+  for(const auto& sensor : param.sys.sensors) {
 
-  /*==============================  IMU ==============================*/
-  SubState imu;
-  // rotation
-  auto rotation_I_G = std::make_shared<QuatJPL>();
-  rotation_I_G->setId(curr_id);
-  curr_id += rotation_I_G->getSize();
+    switch(sensor) {
+      case Sensor::IMU: {
 
-  // position
-  auto position_G_I = std::make_shared<Vec>(3);
-  position_G_I->setId(curr_id);
-  curr_id += position_G_I->getSize();
+        // state
 
-  // velocity
-  auto velocity_G_I = std::make_shared<Vec>(3);
-  velocity_G_I->setId(curr_id);
-  curr_id += velocity_G_I->getSize();
+        // rotation
+        auto rotation_I_G = std::make_shared<QuatJPL>();
+        rotation_I_G->setId(curr_id);
+        curr_id += rotation_I_G->getSize();
+        state_[Sensor::IMU].emplace(EST_QUATERNION, rotation_I_G);
 
-  // bias gyro
-  auto bias_gyro = std::make_shared<Vec>(3);
-  bias_gyro->setId(curr_id);
-  curr_id += bias_gyro->getSize();
+        // position
+        auto position_G_I = std::make_shared<Vec>(3);
+        position_G_I->setId(curr_id);
+        curr_id += position_G_I->getSize();
+        state_[Sensor::IMU].emplace(EST_POSITION, position_G_I);
 
-  // bias acce
-  auto bias_acce = std::make_shared<Vec>(3);
-  bias_acce->setId(curr_id);
-  curr_id += bias_acce->getSize();
+        // velocity
+        auto velocity_G_I = std::make_shared<Vec>(3);
+        velocity_G_I->setId(curr_id);
+        curr_id += velocity_G_I->getSize();
+        state_[Sensor::IMU].emplace(EST_VELOCITY, velocity_G_I);
 
-  //! TODO: state_[Sensor::IMU].emplace(EST_QUATERNION, rotation_I_G);
-  
-  imu[EST_QUATERNION] = rotation_I_G;
-  imu[EST_POSITION] = position_G_I;
-  imu[EST_VELOCITY] = velocity_G_I;
-  imu[EST_BIAS_G] = bias_gyro;
-  imu[EST_BIAS_A] = bias_acce;
-  state_[Sensor::IMU] = imu;
+        // bias gyro
+        auto bias_gyro = std::make_shared<Vec>(3);
+        bias_gyro->setId(curr_id);
+        curr_id += bias_gyro->getSize();
+        state_[Sensor::IMU].emplace(EST_BIAS_G, bias_gyro);
 
-  /*==============================  DVL ==============================*/
-  SubState dvl;
-  // extrinsic_rotation
-  if(param.msckf.do_R_I_D){
-    auto extrinsic_q_I_D = std::make_shared<QuatJPL>();
-    extrinsic_q_I_D->setId(curr_id);
-    extrinsic_q_I_D->setValue(param.prior_dvl.extrinsics.head(4));
-    curr_id += extrinsic_q_I_D->getSize();
+        // bias acce
+        auto bias_acce = std::make_shared<Vec>(3);
+        bias_acce->setId(curr_id);
+        curr_id += bias_acce->getSize();
+        state_[Sensor::IMU].emplace(EST_BIAS_A, bias_acce);
 
-    dvl[EST_QUATERNION] = extrinsic_q_I_D;
-  }
+        // covariance
+        cov_ = 1e-3 * Eigen::MatrixXd::Identity(curr_id, curr_id);
 
-  // extrinsic_position: 
-  if(param.msckf.do_p_I_D) {
-    auto extrinsic_p_I_D = std::make_shared<Vec>(3);
-    extrinsic_p_I_D->setId(curr_id);
-    extrinsic_p_I_D->setValue(param.prior_dvl.extrinsics.tail(3));
-    curr_id += extrinsic_p_I_D->getSize();
+        break;
+      }
 
-    dvl[EST_POSITION] = extrinsic_p_I_D;
-  }
+      case Sensor::DVL: {
+        // extrinsic_rotation
+        if(param.msckf.do_R_I_D){
+          // state
+          auto extrinsic_q_I_D = std::make_shared<QuatJPL>();
+          extrinsic_q_I_D->setId(curr_id);
+          extrinsic_q_I_D->setValue(param.prior_dvl.extrinsics.head(4));
+          curr_id += extrinsic_q_I_D->getSize();
+          state_[Sensor::DVL].emplace(EST_QUATERNION, extrinsic_q_I_D);
 
-  // timeoffset: t_imu = t_dvl + t_offset
-  if(param.msckf.do_time_I_D) {
-    auto timeoffset_I_D = std::make_shared<Vec>(1);
-    timeoffset_I_D->setId(curr_id);
-    timeoffset_I_D->setValue(Eigen::MatrixXd::Constant(1,1,param.prior_dvl.timeoffset));
-    curr_id += timeoffset_I_D->getSize();
+          // covariance
+          cov_.conservativeResize(curr_id,curr_id);
+          auto id = state_[Sensor::DVL].at(EST_QUATERNION)->getId();
+          cov_.block(id, id, 3, 3) = std::pow(0.01, 2) * Eigen::MatrixXd::Identity(3, 3);          
+        }
 
-    dvl[EST_TIMEOFFSET] = timeoffset_I_D;
-  }
+        // extrinsic_position: 
+        if(param.msckf.do_p_I_D) {
+          // state
+          auto extrinsic_p_I_D = std::make_shared<Vec>(3);
+          extrinsic_p_I_D->setId(curr_id);
+          extrinsic_p_I_D->setValue(param.prior_dvl.extrinsics.tail(3));
+          curr_id += extrinsic_p_I_D->getSize();
+          state_[Sensor::DVL].emplace(EST_POSITION, extrinsic_p_I_D);
 
-  // scale: "Scale"
-  if(param.msckf.do_scale_D) {
-    auto scale_D = std::make_shared<Vec>(1);
-    scale_D->setId(curr_id);
-    scale_D->setValue(Eigen::MatrixXd::Constant(1,1,param.prior_dvl.scale));
-    curr_id += scale_D->getSize();
+          // covariance
+          cov_.conservativeResize(curr_id,curr_id);
+          auto id = state_[Sensor::DVL].at(EST_POSITION)->getId();
+          cov_.block(id, id, 3, 3) = std::pow(0.01, 2) * Eigen::MatrixXd::Identity(3, 3);          
+        }
 
-    dvl[EST_SCALE] = scale_D;
-  }
+        // timeoffset: t_imu = t_dvl + t_offset
+        if(param.msckf.do_time_I_D) {
+          // state
+          auto timeoffset_I_D = std::make_shared<Vec>(1);
+          timeoffset_I_D->setId(curr_id);
+          timeoffset_I_D->setValue(Eigen::MatrixXd::Constant(1,1,param.prior_dvl.timeoffset));
+          curr_id += timeoffset_I_D->getSize();
+          state_[Sensor::DVL].emplace(EST_TIMEOFFSET, timeoffset_I_D);
 
+          // covariance
+          cov_.conservativeResize(curr_id,curr_id);
+          auto id = state_[Sensor::DVL].at(EST_TIMEOFFSET)->getId();
+          cov_(id, id) = std::pow(0.01, 2);          
+        }
 
-  state_[Sensor::DVL] = dvl;
+        // scale: "Scale"
+        if(param.msckf.do_scale_D) {
+          // state
+          auto scale_D = std::make_shared<Vec>(1);
+          scale_D->setId(curr_id);
+          scale_D->setValue(Eigen::MatrixXd::Constant(1,1,param.prior_dvl.scale));
+          curr_id += scale_D->getSize();
+          state_[Sensor::DVL].emplace(EST_SCALE, scale_D);
 
-  /* ==============================  CAM0 ============================== */
-  SubState cam0;
+          // covariance
+          cov_.conservativeResize(curr_id,curr_id);
+          auto id = state_[Sensor::DVL].at(EST_SCALE)->getId();
+          cov_(id, id) = std::pow(0.01, 2);          
+        }
 
-  // extrinsic_rotation
-  if(param.msckf.do_R_C_I) {
-    auto extrinsic_q_C_I = std::make_shared<QuatJPL>();
-    extrinsic_q_C_I->setId(curr_id);
-    extrinsic_q_C_I->setValue(param.prior_cam.extrinsics.head(4));
-    curr_id += extrinsic_q_C_I->getSize();
+        break;
+      }
 
-    cam0[EST_QUATERNION] = extrinsic_q_C_I;
-  }
+      case Sensor::PRESSURE: {
+        break;
+      }
 
-  // extrinsic_position: 
-  if(param.msckf.do_p_C_I) {
-    auto extrinsic_p_C_I = std::make_shared<Vec>(3);
-    extrinsic_p_C_I->setId(curr_id);
-    extrinsic_p_C_I->setValue(param.prior_cam.extrinsics.tail(3));
-    curr_id += extrinsic_p_C_I->getSize();
+      case Sensor::CAM0: {
+        // extrinsic_rotation
+        if(param.msckf.do_R_C_I) {
+          // state
+          auto extrinsic_q_C_I = std::make_shared<QuatJPL>();
+          extrinsic_q_C_I->setId(curr_id);
+          extrinsic_q_C_I->setValue(param.prior_cam.extrinsics.head(4));
+          curr_id += extrinsic_q_C_I->getSize();
+          state_[Sensor::CAM0].emplace(EST_QUATERNION, extrinsic_q_C_I);
 
-    cam0[EST_POSITION] = extrinsic_p_C_I;
-  }
+          // covariance
+          cov_.conservativeResize(curr_id,curr_id);
+          auto id = state_[Sensor::CAM0].at(EST_QUATERNION)->getId();
+          cov_.block(id, id, 3, 3) = std::pow(0.01, 2) * Eigen::MatrixXd::Identity(3, 3);   
+        }
 
-  // timeoffset: t_imu = t_cam + t_offset
-  if(param.msckf.do_time_C_I) {
-    auto timeoffset_C_I = std::make_shared<Vec>(1);
-    timeoffset_C_I->setId(curr_id);
-    timeoffset_C_I->setValue(Eigen::MatrixXd::Constant(1,1,param.prior_cam.timeoffset));
-    curr_id += timeoffset_C_I->getSize();
+        // extrinsic_position: 
+        if(param.msckf.do_p_C_I) {
+          // state
+          auto extrinsic_p_C_I = std::make_shared<Vec>(3);
+          extrinsic_p_C_I->setId(curr_id);
+          extrinsic_p_C_I->setValue(param.prior_cam.extrinsics.tail(3));
+          curr_id += extrinsic_p_C_I->getSize();
+          state_[Sensor::CAM0].emplace(EST_POSITION, extrinsic_p_C_I);
 
-    cam0[EST_TIMEOFFSET] = timeoffset_C_I;
-  }
+          // covariance
+          cov_.conservativeResize(curr_id,curr_id);
+          auto id = state_[Sensor::CAM0].at(EST_POSITION)->getId();
+          cov_.block(id, id, 3, 3) = std::pow(0.01, 2) * Eigen::MatrixXd::Identity(3, 3); 
+        }
 
-  state_[Sensor::CAM0] = cam0;
+        // timeoffset: t_imu = t_cam + t_offset
+        if(param.msckf.do_time_C_I) {
+          // state
+          auto timeoffset_C_I = std::make_shared<Vec>(1);
+          timeoffset_C_I->setId(curr_id);
+          timeoffset_C_I->setValue(Eigen::MatrixXd::Constant(1,1,param.prior_cam.timeoffset));
+          curr_id += timeoffset_C_I->getSize();
+          state_[Sensor::CAM0].emplace(EST_TIMEOFFSET, timeoffset_C_I);
 
+          // covariance
+          cov_.conservativeResize(curr_id,curr_id);
+          auto id = state_[Sensor::CAM0].at(EST_TIMEOFFSET)->getId();
+          cov_(id, id) = std::pow(0.01, 2);  
+        }
 
-  /********************************************************************************/                       
-  /********************************** Covariance **********************************/
-  /********************************************************************************/
+        break;
+      }
 
-  cov_ = 1e-3 * Eigen::MatrixXd::Identity(curr_id, curr_id);
-
-  /*==============================  DVL ==============================*/
-
-  //// priors for dvl imu extrinsic-rotation calibration
-  if(param.msckf.do_R_I_D){
-    cov_.block(dvl[EST_QUATERNION]->getId(), dvl[EST_QUATERNION]->getId(), 3, 3) = 
-      std::pow(0.01, 2) * Eigen::MatrixXd::Identity(3, 3);
-  }
-
-  //// priors for dvl imu extrinsic-translation calibration
-  if(param.msckf.do_p_I_D) {
-    cov_.block(dvl[EST_POSITION]->getId(), dvl[EST_POSITION]->getId(), 3, 3) =
-      std::pow(0.01, 2) * Eigen::MatrixXd::Identity(3, 3);
-  }
-  
-  //// priors for dvl imu timeoffset calibration
-  if(param.msckf.do_time_I_D) {
-    cov_(dvl[EST_TIMEOFFSET]->getId(), dvl[EST_TIMEOFFSET]->getId()) = std::pow(0.01, 2);
-  }
-
-  //// priors for dvl scale calibration
-  if(param.msckf.do_scale_D) {
-    cov_(dvl[EST_SCALE]->getId(), dvl[EST_SCALE]->getId()) = std::pow(0.01, 2);
-  }
-
-  /*==============================  CAM0 ==============================*/
-
-  //// priors for cam0 imu extrinsic-rotation calibration
-  if(param.msckf.do_R_C_I){
-    cov_.block(cam0[EST_QUATERNION]->getId(), cam0[EST_QUATERNION]->getId(), 3, 3) = 
-      std::pow(0.01, 2) * Eigen::MatrixXd::Identity(3, 3);
-  }
-
-  //// priors for cam0 imu extrinsic-translation calibration
-  if(param.msckf.do_p_C_I) {
-    cov_.block(cam0[EST_POSITION]->getId(), cam0[EST_POSITION]->getId(), 3, 3) =
-      std::pow(0.01, 2) * Eigen::MatrixXd::Identity(3, 3);
-  }
-  
-  //// priors for cam0 imu timeoffset calibration
-  if(param.msckf.do_time_C_I) {
-    cov_(cam0[EST_TIMEOFFSET]->getId(), cam0[EST_TIMEOFFSET]->getId()) = std::pow(0.01, 2);
+      default:
+        break;
+    }
   }
 
 }
