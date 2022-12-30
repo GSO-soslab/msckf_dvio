@@ -23,27 +23,37 @@ RosNode::RosNode(const ros::NodeHandle &nh,
 
     switch(sensor) {
       case Sensor::IMU: {
-        sub_imu = nh_.subscribe(parameters.sys.topics[sensor], 2000, &RosNode::imuCallback, this);
+        ros::Subscriber sub = nh_.subscribe(parameters.sys.topics[sensor], 2000, &RosNode::imuCallback, this);
+        auto sub_ptr = std::make_shared<ros::Subscriber>(sub);
+        subscribers[Sensor::IMU] = sub_ptr;
         break;
       }
 
       case Sensor::DVL: {
-        sub_dvl = nh_.subscribe(parameters.sys.topics[sensor], 100, &RosNode::dvlCallback, this);
+        ros::Subscriber sub = nh_.subscribe(parameters.sys.topics[sensor], 100, &RosNode::dvlCallback, this);
+        auto sub_ptr = std::make_shared<ros::Subscriber>(sub);
+        subscribers[Sensor::DVL] = sub_ptr;
         break;
       }
 
       case Sensor::PRESSURE: {
-        sub_pressure = nh_.subscribe(parameters.sys.topics[sensor], 100, &RosNode::pressureCallback, this);
+        ros::Subscriber sub = nh_.subscribe(parameters.sys.topics[sensor], 100, &RosNode::pressureCallback, this);
+        auto sub_ptr = std::make_shared<ros::Subscriber>(sub);
+        subscribers[Sensor::PRESSURE] = sub_ptr;
         break;
       }
 
       case Sensor::CAM0: {
-        sub_img = nh_.subscribe(parameters.sys.topics[sensor], 200, &RosNode::imageCallback, this);
+        ros::Subscriber sub = nh_.subscribe(parameters.sys.topics[sensor], 200, &RosNode::imageCallback, this);
+        auto sub_ptr = std::make_shared<ros::Subscriber>(sub);
+        subscribers[Sensor::CAM0] = sub_ptr;
         break;
       }
 
       case Sensor::DVL_CLOUD: {
-        sub_pointcloud = nh_.subscribe(parameters.sys.topics[sensor], 100, &RosNode::pointcloudCallback, this);
+        ros::Subscriber sub = nh_.subscribe(parameters.sys.topics[sensor], 100, &RosNode::pointcloudCallback, this);
+        auto sub_ptr = std::make_shared<ros::Subscriber>(sub);
+        subscribers[Sensor::DVL_CLOUD] = sub_ptr;        
         break;
       }
 

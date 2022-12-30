@@ -75,11 +75,7 @@ private:
 
   ros::ServiceServer service_;
 
-  ros::Subscriber sub_imu;
-  ros::Subscriber sub_dvl;
-  ros::Subscriber sub_img;
-  ros::Subscriber sub_pressure;
-  ros::Subscriber sub_pointcloud;
+  std::map<Sensor, std::shared_ptr<ros::Subscriber>> subscribers;
 
   double last_t_img = 0;
   double last_t_dvl = 0;
