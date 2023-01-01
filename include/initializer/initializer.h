@@ -23,12 +23,6 @@ public:
     return initialized; 
   } 
 
-  // inline bool isInit() {
-  //   std::unique_lock<std::recursive_mutex> lck(buffer_mutex);
-
-  //   return initialized.load(); 
-  // }
-
   virtual void checkInit() = 0;
 
   /**
@@ -69,12 +63,13 @@ protected:
 
   paramInit param_init;
 
+  std::vector<Sensor> sensors;
+
   std::recursive_mutex buffer_mutex;
 
   std::vector<ImuMsg> buffer_imu;
   std::vector<DvlMsg> buffer_dvl;
   std::vector<PressureMsg> buffer_pressure;
-
 };
 
 } // namespace msckf_dvio

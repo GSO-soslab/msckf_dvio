@@ -5,7 +5,7 @@
 # This is the parameter must given
 # Options: INIT_SETTING, INIT_STATIC, INIT_DVL_PRESSURE, INIT_CAMERA, INIT_DVL_CAMERA
 # the given MODE shoud match to setting below
-INIT_MODE: INIT_SETTING
+INIT_MODE: INIT_DVL_PRESSURE
 
 
 ###############################################################################

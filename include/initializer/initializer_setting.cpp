@@ -3,7 +3,14 @@
 using namespace msckf_dvio;
 
 InitSetting::InitSetting(paramInit param_init) 
-    : Initializer(param_init) {}
+    : Initializer(param_init) {
+
+  // setup the sensors used for this system initialization
+  for(const auto& [sensor, param] : param_init.setting) {
+    sensors.push_back(sensor);
+  }
+
+}
 
 void InitSetting::checkInit() {
   std::unique_lock<std::recursive_mutex> lck(buffer_mutex);
@@ -30,9 +37,7 @@ void InitSetting::checkInit() {
 }
 
 bool InitSetting::useSensor(const Sensor &sensor) {
-  // this initializer will use IMU, DVL, Pressure data
-
-  if(sensor == Sensor::IMU || sensor == Sensor::DVL || sensor == Sensor::PRESSURE) {
+  if(std::find(sensors.begin(), sensors.end(), sensor) != sensors.end()){
     return true;
   }
   else {

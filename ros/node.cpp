@@ -66,7 +66,7 @@ RosNode::RosNode(const ros::NodeHandle &nh,
   service_ = nh_.advertiseService("cmd",&RosNode::srvCallback, this);
 }    
 
-void RosNode::loadParamSystem(Params &params){
+void RosNode::loadParamSystem(Params &params) {
   // ==================== System ==================== //
 
   // load 
@@ -109,7 +109,6 @@ void RosNode::loadParamSystem(Params &params){
           break;
       }
   }
-  ROS_ASSERT(params.sys.topics.size() == params.sys.sensors.size());
 
   // print
   std::cout<<"\n================== System Parameters =======================\n";
@@ -124,6 +123,9 @@ void RosNode::loadParamSystem(Params &params){
   std::cout<<  "  topics: \n";
   for(const auto& [name, topic] : params.sys.topics) {
     std::cout<<"    " << enumToString(name) <<" = " << topic << "\n";
+  }
+  if(params.sys.topics.size() != params.sys.sensors.size()) {
+    ROS_ERROR("  not enough rostopics for the given sensors");
   }
 
   // ==================== MSCKF ==================== //
@@ -665,9 +667,14 @@ void RosNode::imuCallback(const sensor_msgs::Imu::ConstPtr &msg) {
   //! NOTE: IMU timestamp is not stable: 100hz, actually is duraction is about 0.11,0.11,0.6,0.11,0.11,0.6
 
   ImuMsg message;
+  
   message.time = msg->header.stamp.toSec();
-  message.a << msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z;
-  message.w << msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z;
+  message.a << msg->linear_acceleration.x, 
+               msg->linear_acceleration.y, 
+               msg->linear_acceleration.z;
+  message.w << msg->angular_velocity.x, 
+               msg->angular_velocity.y, 
+               msg->angular_velocity.z;
 
   manager->feedImu(message);
 }
