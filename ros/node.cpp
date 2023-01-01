@@ -229,7 +229,7 @@ void RosNode::loadParamInit(Params &params) {
 
             // check the parameter that must exist
             if (nh_private_.hasParam(sensor_param + "/time")) {
-              nh_private_.getParam(sensor_param + "/time", params.init.setting.sensor_param[Sensor::IMU].time);
+              nh_private_.getParam(sensor_param + "/time", params.init.setting[Sensor::IMU].time);
             }
             else {
               ROS_ERROR("%s: does not has timestamp", enumToString(sensor).c_str());
@@ -237,23 +237,23 @@ void RosNode::loadParamInit(Params &params) {
 
             // check the parameters may exist            
             if (nh_private_.hasParam(sensor_param + "/state")) {
-              nh_private_.getParam(sensor_param + "/state", params.init.setting.sensor_param[Sensor::IMU].state);
+              nh_private_.getParam(sensor_param + "/state", params.init.setting[Sensor::IMU].state);
             }
 
             if (nh_private_.hasParam(sensor_param + "/temporal")) {
-              nh_private_.getParam(sensor_param + "/temporal", params.init.setting.sensor_param[Sensor::IMU].temporal);
+              nh_private_.getParam(sensor_param + "/temporal", params.init.setting[Sensor::IMU].temporal);
             }
 
             if (nh_private_.hasParam(sensor_param + "/extrinsic")) {
-              nh_private_.getParam(sensor_param + "/extrinsic", params.init.setting.sensor_param[Sensor::IMU].extrinsic);
+              nh_private_.getParam(sensor_param + "/extrinsic", params.init.setting[Sensor::IMU].extrinsic);
             }
 
             if (nh_private_.hasParam(sensor_param + "/intrinsic")) {
-              nh_private_.getParam(sensor_param + "/intrinsic", params.init.setting.sensor_param[Sensor::IMU].intrinsic);
+              nh_private_.getParam(sensor_param + "/intrinsic", params.init.setting[Sensor::IMU].intrinsic);
             }
 
             if (nh_private_.hasParam(sensor_param + "/global")) {
-              nh_private_.getParam(sensor_param + "/global", params.init.setting.sensor_param[Sensor::IMU].global);
+              nh_private_.getParam(sensor_param + "/global", params.init.setting[Sensor::IMU].global);
             }
 
             break;
@@ -263,7 +263,7 @@ void RosNode::loadParamInit(Params &params) {
 
             // check the parameter that must exist
             if (nh_private_.hasParam(sensor_param + "/time")) {
-              nh_private_.getParam(sensor_param + "/time", params.init.setting.sensor_param[Sensor::DVL].time);
+              nh_private_.getParam(sensor_param + "/time", params.init.setting[Sensor::DVL].time);
             }
             else {
               ROS_ERROR("%s: does not has timestamp", enumToString(sensor).c_str());
@@ -271,23 +271,23 @@ void RosNode::loadParamInit(Params &params) {
 
             // check the parameters may exist            
             if (nh_private_.hasParam(sensor_param + "/state")) {
-              nh_private_.getParam(sensor_param + "/state", params.init.setting.sensor_param[Sensor::DVL].state);
+              nh_private_.getParam(sensor_param + "/state", params.init.setting[Sensor::DVL].state);
             }
 
             if (nh_private_.hasParam(sensor_param + "/temporal")) {
-              nh_private_.getParam(sensor_param + "/temporal", params.init.setting.sensor_param[Sensor::DVL].temporal);
+              nh_private_.getParam(sensor_param + "/temporal", params.init.setting[Sensor::DVL].temporal);
             }
 
             if (nh_private_.hasParam(sensor_param + "/extrinsic")) {
-              nh_private_.getParam(sensor_param + "/extrinsic", params.init.setting.sensor_param[Sensor::DVL].extrinsic);
+              nh_private_.getParam(sensor_param + "/extrinsic", params.init.setting[Sensor::DVL].extrinsic);
             }
 
             if (nh_private_.hasParam(sensor_param + "/intrinsic")) {
-              nh_private_.getParam(sensor_param + "/intrinsic", params.init.setting.sensor_param[Sensor::DVL].intrinsic);
+              nh_private_.getParam(sensor_param + "/intrinsic", params.init.setting[Sensor::DVL].intrinsic);
             }
 
             if (nh_private_.hasParam(sensor_param + "/global")) {
-              nh_private_.getParam(sensor_param + "/global", params.init.setting.sensor_param[Sensor::DVL].global);
+              nh_private_.getParam(sensor_param + "/global", params.init.setting[Sensor::DVL].global);
             }
 
             break;
@@ -296,7 +296,7 @@ void RosNode::loadParamInit(Params &params) {
           case Sensor::PRESSURE: {
             // check the parameter that must exist
             if (nh_private_.hasParam(sensor_param + "/time")) {
-              nh_private_.getParam(sensor_param + "/time", params.init.setting.sensor_param[Sensor::PRESSURE].time);
+              nh_private_.getParam(sensor_param + "/time", params.init.setting[Sensor::PRESSURE].time);
             }
             else {
               ROS_ERROR("%s: does not has timestamp", enumToString(sensor).c_str());
@@ -304,23 +304,23 @@ void RosNode::loadParamInit(Params &params) {
 
             // check the parameters may exist            
             if (nh_private_.hasParam(sensor_param + "/state")) {
-              nh_private_.getParam(sensor_param + "/state", params.init.setting.sensor_param[Sensor::PRESSURE].state);
+              nh_private_.getParam(sensor_param + "/state", params.init.setting[Sensor::PRESSURE].state);
             }
 
             if (nh_private_.hasParam(sensor_param + "/temporal")) {
-              nh_private_.getParam(sensor_param + "/temporal", params.init.setting.sensor_param[Sensor::PRESSURE].temporal);
+              nh_private_.getParam(sensor_param + "/temporal", params.init.setting[Sensor::PRESSURE].temporal);
             }
 
             if (nh_private_.hasParam(sensor_param + "/extrinsic")) {
-              nh_private_.getParam(sensor_param + "/extrinsic", params.init.setting.sensor_param[Sensor::PRESSURE].extrinsic);
+              nh_private_.getParam(sensor_param + "/extrinsic", params.init.setting[Sensor::PRESSURE].extrinsic);
             }
 
             if (nh_private_.hasParam(sensor_param + "/intrinsic")) {
-              nh_private_.getParam(sensor_param + "/intrinsic", params.init.setting.sensor_param[Sensor::PRESSURE].intrinsic);
+              nh_private_.getParam(sensor_param + "/intrinsic", params.init.setting[Sensor::PRESSURE].intrinsic);
             }
 
             if (nh_private_.hasParam(sensor_param + "/global")) {
-              nh_private_.getParam(sensor_param + "/global", params.init.setting.sensor_param[Sensor::PRESSURE].global);
+              nh_private_.getParam(sensor_param + "/global", params.init.setting[Sensor::PRESSURE].global);
             }
 
             break;
@@ -342,41 +342,41 @@ void RosNode::loadParamInit(Params &params) {
       //--------------------------------------//
       std::cout<<"  IMU: \n";
       std::cout<< std::fixed <<  std::setprecision(9);
-      std::cout<<"    time: " << params.init.setting.sensor_param[Sensor::IMU].time << "\n";
-      if(params.init.setting.sensor_param[Sensor::IMU].temporal.size() > 0) {
+      std::cout<<"    time: " << params.init.setting[Sensor::IMU].time << "\n";
+      if(params.init.setting[Sensor::IMU].temporal.size() > 0) {
         std::cout<<"    temporal: ";
-        for(const auto& value : params.init.setting.sensor_param[Sensor::IMU].temporal) {
+        for(const auto& value : params.init.setting[Sensor::IMU].temporal) {
           std::cout<< value <<", ";
         }
         std::cout<<"\n";
       }
       std::cout<< std::fixed <<  std::setprecision(6);
-      if(params.init.setting.sensor_param[Sensor::IMU].state.size() > 0) {
+      if(params.init.setting[Sensor::IMU].state.size() > 0) {
         std::cout<<"    state: ";
-        for(const auto& value : params.init.setting.sensor_param[Sensor::IMU].state) {
+        for(const auto& value : params.init.setting[Sensor::IMU].state) {
           std::cout<< value <<", ";
         }
         std::cout<<"\n";
       }
-      if(params.init.setting.sensor_param[Sensor::IMU].extrinsic.size() > 0) {
+      if(params.init.setting[Sensor::IMU].extrinsic.size() > 0) {
         std::cout<<"    extrinsic: ";
-        for(const auto& value : params.init.setting.sensor_param[Sensor::IMU].extrinsic) {
+        for(const auto& value : params.init.setting[Sensor::IMU].extrinsic) {
           std::cout<< value <<", ";
         }
         std::cout<<"\n";
       }
 
-      if(params.init.setting.sensor_param[Sensor::IMU].intrinsic.size() > 0) {
+      if(params.init.setting[Sensor::IMU].intrinsic.size() > 0) {
         std::cout<<"    intrinsic: ";
-        for(const auto& value : params.init.setting.sensor_param[Sensor::IMU].intrinsic) {
+        for(const auto& value : params.init.setting[Sensor::IMU].intrinsic) {
           std::cout<< value <<", ";
         }
         std::cout<<"\n";
       }
 
-      if(params.init.setting.sensor_param[Sensor::IMU].global.size() > 0) {
+      if(params.init.setting[Sensor::IMU].global.size() > 0) {
         std::cout<<"    global: ";
-        for(const auto& value : params.init.setting.sensor_param[Sensor::IMU].global) {
+        for(const auto& value : params.init.setting[Sensor::IMU].global) {
           std::cout<< value <<", ";
         }
         std::cout<<"\n";
@@ -387,42 +387,42 @@ void RosNode::loadParamInit(Params &params) {
       std::cout<<"  DVL: \n";
 
       std::cout<< std::fixed <<  std::setprecision(9);
-      std::cout<<"    time: " << params.init.setting.sensor_param[Sensor::DVL].time << "\n";
-      if(params.init.setting.sensor_param[Sensor::DVL].temporal.size() > 0) {
+      std::cout<<"    time: " << params.init.setting[Sensor::DVL].time << "\n";
+      if(params.init.setting[Sensor::DVL].temporal.size() > 0) {
         std::cout<<"    temporal: ";
-        for(const auto& value : params.init.setting.sensor_param[Sensor::DVL].temporal) {
+        for(const auto& value : params.init.setting[Sensor::DVL].temporal) {
           std::cout<< value <<", ";
         }
         std::cout<<"\n";
       }
 
       std::cout<< std::fixed <<  std::setprecision(6);
-      if(params.init.setting.sensor_param[Sensor::DVL].state.size() > 0) {
+      if(params.init.setting[Sensor::DVL].state.size() > 0) {
         std::cout<<"    state: ";
-        for(const auto& value : params.init.setting.sensor_param[Sensor::DVL].state) {
+        for(const auto& value : params.init.setting[Sensor::DVL].state) {
           std::cout<< value <<", ";
         }
         std::cout<<"\n";
       }
-      if(params.init.setting.sensor_param[Sensor::DVL].extrinsic.size() > 0) {
+      if(params.init.setting[Sensor::DVL].extrinsic.size() > 0) {
         std::cout<<"    extrinsic: ";
-        for(const auto& value : params.init.setting.sensor_param[Sensor::DVL].extrinsic) {
+        for(const auto& value : params.init.setting[Sensor::DVL].extrinsic) {
           std::cout<< value <<", ";
         }
         std::cout<<"\n";
       }
 
-      if(params.init.setting.sensor_param[Sensor::DVL].intrinsic.size() > 0) {
+      if(params.init.setting[Sensor::DVL].intrinsic.size() > 0) {
         std::cout<<"    intrinsic: ";
-        for(const auto& value : params.init.setting.sensor_param[Sensor::DVL].intrinsic) {
+        for(const auto& value : params.init.setting[Sensor::DVL].intrinsic) {
           std::cout<< value <<", ";
         }
         std::cout<<"\n";
       }
 
-      if(params.init.setting.sensor_param[Sensor::DVL].global.size() > 0) {
+      if(params.init.setting[Sensor::DVL].global.size() > 0) {
         std::cout<<"    global: ";
-        for(const auto& value : params.init.setting.sensor_param[Sensor::DVL].global) {
+        for(const auto& value : params.init.setting[Sensor::DVL].global) {
           std::cout<< value <<", ";
         }
         std::cout<<"\n";
@@ -433,42 +433,42 @@ void RosNode::loadParamInit(Params &params) {
       std::cout<<"  PRESSURE : \n";
 
       std::cout<< std::fixed <<  std::setprecision(9);
-      std::cout<<"    time: " << params.init.setting.sensor_param[Sensor::PRESSURE].time << "\n";
-      if(params.init.setting.sensor_param[Sensor::PRESSURE].temporal.size() > 0) {
+      std::cout<<"    time: " << params.init.setting[Sensor::PRESSURE].time << "\n";
+      if(params.init.setting[Sensor::PRESSURE].temporal.size() > 0) {
         std::cout<<"    temporal: ";
-        for(const auto& value : params.init.setting.sensor_param[Sensor::PRESSURE].temporal) {
+        for(const auto& value : params.init.setting[Sensor::PRESSURE].temporal) {
           std::cout<< value <<", ";
         }
         std::cout<<"\n";
       }
 
       std::cout<< std::fixed <<  std::setprecision(6);
-      if(params.init.setting.sensor_param[Sensor::PRESSURE].state.size() > 0) {
+      if(params.init.setting[Sensor::PRESSURE].state.size() > 0) {
         std::cout<<"    state: ";
-        for(const auto& value : params.init.setting.sensor_param[Sensor::PRESSURE].state) {
+        for(const auto& value : params.init.setting[Sensor::PRESSURE].state) {
           std::cout<< value <<", ";
         }
         std::cout<<"\n";
       }
-      if(params.init.setting.sensor_param[Sensor::PRESSURE].extrinsic.size() > 0) {
+      if(params.init.setting[Sensor::PRESSURE].extrinsic.size() > 0) {
         std::cout<<"    extrinsic: ";
-        for(const auto& value : params.init.setting.sensor_param[Sensor::PRESSURE].extrinsic) {
+        for(const auto& value : params.init.setting[Sensor::PRESSURE].extrinsic) {
           std::cout<< value <<", ";
         }
         std::cout<<"\n";
       }
 
-      if(params.init.setting.sensor_param[Sensor::PRESSURE].intrinsic.size() > 0) {
+      if(params.init.setting[Sensor::PRESSURE].intrinsic.size() > 0) {
         std::cout<<"    intrinsic: ";
-        for(const auto& value : params.init.setting.sensor_param[Sensor::PRESSURE].intrinsic) {
+        for(const auto& value : params.init.setting[Sensor::PRESSURE].intrinsic) {
           std::cout<< value <<", ";
         }
         std::cout<<"\n";
       }
 
-      if(params.init.setting.sensor_param[Sensor::PRESSURE].global.size() > 0) {
+      if(params.init.setting[Sensor::PRESSURE].global.size() > 0) {
         std::cout<<"    global: ";
-        for(const auto& value : params.init.setting.sensor_param[Sensor::PRESSURE].global) {
+        for(const auto& value : params.init.setting[Sensor::PRESSURE].global) {
           std::cout<< value <<", ";
         }
         std::cout<<"\n";

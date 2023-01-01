@@ -18,9 +18,9 @@ void InitSetting::checkInit() {
     return;
   }
 
-  if(buffer_imu.back().time >= param_init.setting.sensor_param[Sensor::IMU].time &&
-     buffer_dvl.back().time >= param_init.setting.sensor_param[Sensor::DVL].time &&
-     buffer_pressure.back().time >= param_init.setting.sensor_param[Sensor::PRESSURE].time) {
+  if(buffer_imu.back().time >= param_init.setting[Sensor::IMU].time &&
+     buffer_dvl.back().time >= param_init.setting[Sensor::DVL].time &&
+     buffer_pressure.back().time >= param_init.setting[Sensor::PRESSURE].time) {
 
     initialized = true;
 
@@ -49,7 +49,7 @@ void InitSetting::updateInit(std::shared_ptr<State> state,
   std::cout<<"Initialization result: \n";
 
   // loop each sensor's init parameter                             
-  for(const auto& [sensor, param] : params.init.setting.sensor_param) {
+  for(const auto& [sensor, param] : params.init.setting) {
 
     // stup for each sensor
     switch(sensor) {
@@ -110,6 +110,7 @@ void InitSetting::updateInit(std::shared_ptr<State> state,
         std::cout<<std::fixed <<std::setprecision(9);
         std::cout<<"  PRESSURE: \n";
         std::cout<<"    timestamp: "<< param.time <<"\n";
+        std::cout<<std::fixed <<std::setprecision(6);
         std::cout<<"    global: " << param.global.at(0) <<"\n";
         break;
       }
