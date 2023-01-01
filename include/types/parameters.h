@@ -111,23 +111,19 @@ struct paramMsckf {
   int max_msckf_update;
 };
 
+
+struct paramInitSensor {
+  double time;
+  std::vector<double> temporal;
+  std::vector<double> state;
+  std::vector<double> extrinsic;
+  std::vector<double> intrinsic;
+  std::vector<double> global;
+};
+
 struct paramInitSetting {
-  // initialized timestamp for each sensor 
-  std::map<Sensor, double> time; 
-  // orientation
-  Eigen::Vector4d orientation;
-  // position
-  Eigen::Vector3d position;
-  // velocity
-  Eigen::Vector3d velocity;
-  // bias_gyro
-  Eigen::Vector3d bias_gyro;
-  // bias_accel
-  Eigen::Vector3d bias_acce;
-  // temporal
-  std::map<Sensor,double> temporal;
-  // global
-  std::map<Sensor,std::vector<double>> global;
+  // based on which sensor will has initialized param
+  std::map<Sensor, paramInitSensor> sensor_param;
 };
 
 struct paramInitStatic {

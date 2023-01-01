@@ -18,10 +18,9 @@ void InitSetting::checkInit() {
     return;
   }
 
-  // check data stream is arrived after sensor initialized timestamp
-  if(buffer_imu.back().time >= param_init.setting.time[Sensor::IMU] &&
-     buffer_dvl.back().time >= param_init.setting.time[Sensor::DVL] &&
-     buffer_pressure.back().time >= param_init.setting.time[Sensor::PRESSURE]) {
+  if(buffer_imu.back().time >= param_init.setting.sensor_param[Sensor::IMU].time &&
+     buffer_dvl.back().time >= param_init.setting.sensor_param[Sensor::DVL].time &&
+     buffer_pressure.back().time >= param_init.setting.sensor_param[Sensor::PRESSURE].time) {
 
     initialized = true;
 
@@ -45,44 +44,80 @@ void InitSetting::updateInit(std::shared_ptr<State> state,
                              Params &params, 
                              std::map<Sensor, double> &data_time) {
 
-  // ====================== get init result ====================== //
 
-  Eigen::Matrix<double, 17, 1> state_imu;
-  state_imu.segment(0,1) = Eigen::Matrix<double,1,1>(params.init.setting.time[Sensor::IMU]);
-  state_imu.segment(1,4) = params.init.setting.orientation;
-  state_imu.segment(5,3) = params.init.setting.position;
-  state_imu.segment(8,3) = params.init.setting.velocity;
-  state_imu.segment(11,3) = params.init.setting.bias_gyro;
-  state_imu.segment(14,3) = params.init.setting.bias_acce;
+  std::cout<<"\n+++++++++++++++++++++++++++++++++++++++\n";                              
+  std::cout<<"Initialization result: \n";
 
-  Eigen::Matrix<double, 2, 1>  state_dvl;
-  state_dvl.segment(0,1) = Eigen::Matrix<double,1,1>(params.init.setting.time[Sensor::DVL]);
-  state_dvl.segment(1,1) = Eigen::Matrix<double,1,1>(params.init.setting.temporal[Sensor::DVL]);
+  // loop each sensor's init parameter                             
+  for(const auto& [sensor, param] : params.init.setting.sensor_param) {
 
-  // ====================== update IMU related ====================== //
+    // stup for each sensor
+    switch(sensor) {
+      case Sensor::IMU: {
 
-  state->setTimestamp(state_imu(0));
-  state->setImuValue(state_imu.tail(16));
+        // convert to Eigen form
+        assert(param.state.size() == 16);
+        Eigen::Matrix<double, 16, 1> imu_state;
+        for(size_t i = 0; i < param.state.size(); i++) {
+          imu_state.segment(i,1) = Eigen::Matrix<double,1,1>(param.state.at(i));
+        }
 
-  // ====================== update DVL related ====================== //
+        // update to state
+        state->setTimestamp(param.time);
+        state->setImuValue(imu_state);
 
-  // if do online calibration, update to state, otherwise direct update to parameters
-  if(params.msckf.do_time_I_D)
-    state->setEstimationValue(DVL, EST_TIMEOFFSET, Eigen::MatrixXd::Constant(1,1,state_dvl(1)));
-  else
-    params.prior_dvl.timeoffset = state_dvl(1);
+        // add to time
+        data_time[Sensor::IMU] = param.time;
 
-  // ====================== update Pressure related ====================== //
-  
-  state->setPressureInit(params.init.setting.global[Sensor::PRESSURE].at(0));  
+        // print
+        std::cout<<std::fixed <<std::setprecision(9);
+        std::cout<<"  IMU:\n";
+        std::cout<<"    time: "<< param.time <<"\n";
+        std::cout<<std::fixed <<std::setprecision(6);
+        std::cout<<"    state: " << imu_state.transpose() << "\n";
+        break;
+      }
 
-  // ====================== return data time to clean buffer ====================== //
+      case Sensor::DVL: {
 
-  data_time[Sensor::IMU] = params.init.setting.time[Sensor::IMU];
-  data_time[Sensor::DVL] = params.init.setting.time[Sensor::DVL];
-  data_time[Sensor::PRESSURE] = params.init.setting.time[Sensor::PRESSURE];
+        // update: 
+        // if do online calibration, update to state, otherwise direct update to parameters
+        if(params.msckf.do_time_I_D)
+          state->setEstimationValue(DVL, EST_TIMEOFFSET, Eigen::MatrixXd::Constant(1,1,param.temporal.at(0)));
+        else
+          params.prior_dvl.timeoffset = param.temporal.at(0);
 
-  printf("\nInitializer(Setting): done !\n");
+        // add to time
+        data_time[Sensor::DVL] = param.time;
+
+        // print
+        std::cout<<std::fixed <<std::setprecision(9);
+        std::cout<<"  DVL: \n";
+        std::cout<<"    timestamp: "<< param.time <<"\n";
+        std::cout<<"    temporal: "<< param.temporal.at(0) <<"\n";
+        break;
+      }
+
+      case Sensor::PRESSURE: {
+
+        // update: pressure global right now only has 1 parameter
+        state->setPressureInit(param.global.at(0));  
+
+        // add to time
+        data_time[Sensor::PRESSURE] = param.time;
+
+        // print
+        std::cout<<std::fixed <<std::setprecision(9);
+        std::cout<<"  PRESSURE: \n";
+        std::cout<<"    timestamp: "<< param.time <<"\n";
+        std::cout<<"    global: " << param.global.at(0) <<"\n";
+        break;
+      }
+
+      default:
+        break;
+    }
+  }
 }
 
 void InitSetting::cleanBuffer() {
