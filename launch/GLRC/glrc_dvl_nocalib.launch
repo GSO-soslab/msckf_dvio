@@ -2,9 +2,14 @@
 <launch>
   <param name="/use_sim_time" value="true"/>
 
-  <!-- play the dataset -->
+  <!-- ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+  <!-- ++++++++++++++++++++++++++++++++++++++ Helpers +++++++++++++++++++++++++++++++++++++++++++++++++ -->
+  <!-- ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+  <!-- ======================================== play the dataset ====================================== -->
   <arg name="bag_start" default="0" /> 
-  <arg name="bag" default="/home/lin/develop/data/underIce/GLRC/day_3_13/40m_servo60_noLED_noAR_LowFeq10m/data_dvlCorrect.bag" />
+  <arg name="bag" 
+       default="/home/lin/develop/data/underIce/GLRC/day_3_13/40m_servo60_noLED_noAR_LowFeq10m/data_dvlCorrect.bag" />
   <node pkg="rosbag" type="play" name="rosbag" args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)" required="true"/>
 
   <!-- DVL Helper: convert DVL raw data to navigation data type -->
@@ -47,19 +52,19 @@
   <!-- ================================================================================================ -->
 
   <!-- Parmaters: DVL update without online calibration -->
-  <arg name="prior_yaml" default="$(find msckf_dvio)/config/GLRC/dvl_nocalib/prior.yaml"/>
   <arg name="system_yaml" default="$(find msckf_dvio)/config/GLRC/dvl_nocalib/system.yaml"/>
-  <arg name="image_yaml" default="$(find msckf_dvio)/config/GLRC/dvl_nocalib/image.yaml"/>
+  <arg name="prior_yaml" default="$(find msckf_dvio)/config/GLRC/dvl_nocalib/prior.yaml"/>
   <arg name="init_yaml" default="$(find msckf_dvio)/config/GLRC/dvl_nocalib/init.yaml"/>
+  <arg name="image_yaml" default="$(find msckf_dvio)/config/GLRC/dvl_nocalib/image.yaml"/>
 
   <!-- build with flag: -DCMAKE_BUILD_TYPE=Debug -->
   <!-- add to roslaunch: launch-prefix="gdb -ex run -1-args" -->
   <!-- type: bt -->
   <node name="dvio_node" pkg="msckf_dvio" type="dvio_node" output="screen">
-      <rosparam command="load" file="$(arg prior_yaml)"/>
       <rosparam command="load" file="$(arg system_yaml)"/>
-      <rosparam command="load" file="$(arg image_yaml)"/>
+      <rosparam command="load" file="$(arg prior_yaml)"/>
       <rosparam command="load" file="$(arg init_yaml)"/>
+      <rosparam command="load" file="$(arg image_yaml)"/>
 
       <remap from="odom" to="/msckf/odom"/>
       <remap from="path" to="/msckf/path"/>

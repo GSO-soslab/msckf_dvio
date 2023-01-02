@@ -121,11 +121,6 @@ struct paramInitSensor {
   std::vector<double> global;
 };
 
-// struct paramInitSetting {
-//   // based on which sensor will has initialized param
-//   std::map<Sensor, paramInitSensor> sensor_param;
-// };
-
 struct paramInitStatic {
   double todo;
 };
@@ -155,7 +150,6 @@ struct paramInitDvlCamera {
 
 struct paramInit {
   InitMode mode;
-  // paramInitSetting setting;
   std::map<Sensor, paramInitSensor> setting;
   paramInitStatic stationary;
   paramInitDvlPressure dvl_pressure;
