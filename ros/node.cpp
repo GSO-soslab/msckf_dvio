@@ -14,6 +14,7 @@ RosNode::RosNode(const ros::NodeHandle &nh,
   loadParamInit(parameters);
   loadParamPrior(parameters);
   loadParamImage(parameters);
+  parameters.printParam();
 
   manager = std::make_shared<MsckfManager>(parameters);
   visualizer = std::make_shared<RosVisualizer>(nh, manager);
@@ -110,22 +111,8 @@ void RosNode::loadParamSystem(Params &params) {
       }
   }
 
-  // print
-  std::cout<<"\n================== System Parameters =======================\n";
-  std::cout<<"  backend_hz= " << params.sys.backend_hz << "\n";
-
-  std::cout<<"  sensors: ";
-  for(const auto& sensor : params.sys.sensors) {
-    std::cout<< enumToString(sensor) <<", ";
-  }
-  std::cout<<"\n";
-
-  std::cout<<  "  topics: \n";
-  for(const auto& [name, topic] : params.sys.topics) {
-    std::cout<<"    " << enumToString(name) <<" = " << topic << "\n";
-  }
   if(params.sys.topics.size() != params.sys.sensors.size()) {
-    ROS_ERROR("  not enough rostopics for the given sensors");
+    ROS_ERROR("not enough rostopics for the given sensors");
   }
 
   // ==================== MSCKF ==================== //
@@ -148,27 +135,6 @@ void RosNode::loadParamSystem(Params &params) {
   nh_private_.param<int> ("MSCKF/max_msckf_update", params.msckf.max_msckf_update, 40);
 
   nh_private_.getParam("MSCKF/marginalized_clone", params.msckf.marginalized_clone);
-
-  // print
-  std::cout<<"\n================== MSCKF Parameters =======================\n";
-  std::cout<<"  do_R_I_D= " << (params.msckf.do_R_I_D ? "True" : "False" ) << "\n";
-  std::cout<<"  do_p_I_D= " << (params.msckf.do_p_I_D ? "True" : "False" ) << "\n";
-  std::cout<<"  do_time_I_D= " << (params.msckf.do_time_I_D ? "True" : "False" ) << "\n";
-  std::cout<<"  do_scale_D= " << (params.msckf.do_scale_D ? "True" : "False" ) << "\n";
-  std::cout<<"  max_clone_D= " << params.msckf.max_clone_D << "\n\n";
-
-  std::cout<<"  do_R_C_I= " << (params.msckf.do_R_C_I ? "True" : "False" ) << "\n";
-  std::cout<<"  do_p_C_I= " << (params.msckf.do_p_C_I ? "True" : "False" ) << "\n";
-  std::cout<<"  do_time_C_I= " << (params.msckf.do_time_C_I ? "True" : "False" ) << "\n";
-  std::cout<<"  max_clone_C= " << params.msckf.max_clone_C << "\n\n";
-
-  std::cout<<"  max_msckf_update= " << params.msckf.max_msckf_update << "\n";
-  std::cout<<"  marg clone position: ";
-  for(const auto& clone : params.msckf.marginalized_clone) {
-    std::cout<< clone <<", "; 
-  }
-  std::cout<<"\n";
-
 }
 
 void RosNode::loadParamInit(Params &params) {
@@ -195,17 +161,6 @@ void RosNode::loadParamInit(Params &params) {
       nh_private_.param<int>   (param_name + "/dvl_window",        params.init.dvl_pressure.dvl_window,        4);
       nh_private_.param<double>(param_name + "/dvl_delta",         params.init.dvl_pressure.dvl_delta,         0.05);
       nh_private_.param<double>(param_name + "/dvl_init_duration", params.init.dvl_pressure.dvl_init_duration, 1.0);
-
-      // print
-      printf("\n================== Init Parameters =======================\n");
-      printf("  init mode: %s\n", param_name.c_str());
-      printf("  imu_window: %d\n", params.init.dvl_pressure.imu_window);
-      printf("  imu_var: %f\n", params.init.dvl_pressure.imu_var);
-      printf("  imu_delta: %f\n", params.init.dvl_pressure.imu_delta);
-      printf("  dvl_window: %d\n", params.init.dvl_pressure.dvl_window);
-      printf("  dvl_delta: %f\n", params.init.dvl_pressure.dvl_delta);
-      printf("  dvl_init_duration: %f\n", params.init.dvl_pressure.dvl_init_duration);
-
       break;
     }
 
@@ -338,144 +293,6 @@ void RosNode::loadParamInit(Params &params) {
 
       }
 
-      std::cout<<"\n================== Init Parameters =======================\n";
-      std::cout<<"  init mode: " << param_name.c_str() <<"\n";
-
-      //--------------------------------------//
-      std::cout<<"  IMU: \n";
-      std::cout<< std::fixed <<  std::setprecision(9);
-      std::cout<<"    time: " << params.init.setting[Sensor::IMU].time << "\n";
-      if(params.init.setting[Sensor::IMU].temporal.size() > 0) {
-        std::cout<<"    temporal: ";
-        for(const auto& value : params.init.setting[Sensor::IMU].temporal) {
-          std::cout<< value <<", ";
-        }
-        std::cout<<"\n";
-      }
-      std::cout<< std::fixed <<  std::setprecision(6);
-      if(params.init.setting[Sensor::IMU].state.size() > 0) {
-        std::cout<<"    state: ";
-        for(const auto& value : params.init.setting[Sensor::IMU].state) {
-          std::cout<< value <<", ";
-        }
-        std::cout<<"\n";
-      }
-      if(params.init.setting[Sensor::IMU].extrinsic.size() > 0) {
-        std::cout<<"    extrinsic: ";
-        for(const auto& value : params.init.setting[Sensor::IMU].extrinsic) {
-          std::cout<< value <<", ";
-        }
-        std::cout<<"\n";
-      }
-
-      if(params.init.setting[Sensor::IMU].intrinsic.size() > 0) {
-        std::cout<<"    intrinsic: ";
-        for(const auto& value : params.init.setting[Sensor::IMU].intrinsic) {
-          std::cout<< value <<", ";
-        }
-        std::cout<<"\n";
-      }
-
-      if(params.init.setting[Sensor::IMU].global.size() > 0) {
-        std::cout<<"    global: ";
-        for(const auto& value : params.init.setting[Sensor::IMU].global) {
-          std::cout<< value <<", ";
-        }
-        std::cout<<"\n";
-      }
-
-      //--------------------------------------//
-
-      std::cout<<"  DVL: \n";
-
-      std::cout<< std::fixed <<  std::setprecision(9);
-      std::cout<<"    time: " << params.init.setting[Sensor::DVL].time << "\n";
-      if(params.init.setting[Sensor::DVL].temporal.size() > 0) {
-        std::cout<<"    temporal: ";
-        for(const auto& value : params.init.setting[Sensor::DVL].temporal) {
-          std::cout<< value <<", ";
-        }
-        std::cout<<"\n";
-      }
-
-      std::cout<< std::fixed <<  std::setprecision(6);
-      if(params.init.setting[Sensor::DVL].state.size() > 0) {
-        std::cout<<"    state: ";
-        for(const auto& value : params.init.setting[Sensor::DVL].state) {
-          std::cout<< value <<", ";
-        }
-        std::cout<<"\n";
-      }
-      if(params.init.setting[Sensor::DVL].extrinsic.size() > 0) {
-        std::cout<<"    extrinsic: ";
-        for(const auto& value : params.init.setting[Sensor::DVL].extrinsic) {
-          std::cout<< value <<", ";
-        }
-        std::cout<<"\n";
-      }
-
-      if(params.init.setting[Sensor::DVL].intrinsic.size() > 0) {
-        std::cout<<"    intrinsic: ";
-        for(const auto& value : params.init.setting[Sensor::DVL].intrinsic) {
-          std::cout<< value <<", ";
-        }
-        std::cout<<"\n";
-      }
-
-      if(params.init.setting[Sensor::DVL].global.size() > 0) {
-        std::cout<<"    global: ";
-        for(const auto& value : params.init.setting[Sensor::DVL].global) {
-          std::cout<< value <<", ";
-        }
-        std::cout<<"\n";
-      }
-
-      //--------------------------------------//
-
-      std::cout<<"  PRESSURE : \n";
-
-      std::cout<< std::fixed <<  std::setprecision(9);
-      std::cout<<"    time: " << params.init.setting[Sensor::PRESSURE].time << "\n";
-      if(params.init.setting[Sensor::PRESSURE].temporal.size() > 0) {
-        std::cout<<"    temporal: ";
-        for(const auto& value : params.init.setting[Sensor::PRESSURE].temporal) {
-          std::cout<< value <<", ";
-        }
-        std::cout<<"\n";
-      }
-
-      std::cout<< std::fixed <<  std::setprecision(6);
-      if(params.init.setting[Sensor::PRESSURE].state.size() > 0) {
-        std::cout<<"    state: ";
-        for(const auto& value : params.init.setting[Sensor::PRESSURE].state) {
-          std::cout<< value <<", ";
-        }
-        std::cout<<"\n";
-      }
-      if(params.init.setting[Sensor::PRESSURE].extrinsic.size() > 0) {
-        std::cout<<"    extrinsic: ";
-        for(const auto& value : params.init.setting[Sensor::PRESSURE].extrinsic) {
-          std::cout<< value <<", ";
-        }
-        std::cout<<"\n";
-      }
-
-      if(params.init.setting[Sensor::PRESSURE].intrinsic.size() > 0) {
-        std::cout<<"    intrinsic: ";
-        for(const auto& value : params.init.setting[Sensor::PRESSURE].intrinsic) {
-          std::cout<< value <<", ";
-        }
-        std::cout<<"\n";
-      }
-
-      if(params.init.setting[Sensor::PRESSURE].global.size() > 0) {
-        std::cout<<"    global: ";
-        for(const auto& value : params.init.setting[Sensor::PRESSURE].global) {
-          std::cout<< value <<", ";
-        }
-        std::cout<<"\n";
-      }
-
       break;
     }  
 
@@ -505,15 +322,8 @@ void RosNode::loadParamPrior(Params &params) {
           nh_private_.param<double>(param_name + "/accelerometer_random_walk",   params.prior_imu.sigma_ab, 3.0000e-03);
           nh_private_.param<double>(param_name + "/gyroscope_noise_density",     params.prior_imu.sigma_w,  1.6968e-04);
           nh_private_.param<double>(param_name + "/gyroscope_random_walk",       params.prior_imu.sigma_wb, 1.9393e-05);
-          params.prior_imu.gravity << 0, 0, gravity;
-
-          std::cout<<"\n================== Prior Parameters =======================\n";
-          std::cout<< "\n" << param_name << "\n";
-          std::cout<<"  gravity: "<< params.prior_imu.gravity.transpose() << "\n";
-          std::cout<<"  acce_noise_density: " << params.prior_imu.sigma_a << "\n";
-          std::cout<<"  acce_random_walk: " << params.prior_imu.sigma_ab << "\n";
-          std::cout<<"  gyro_noise_density: " << params.prior_imu.sigma_w << "\n";
-          std::cout<<"  gyro_random_walk: " << params.prior_imu.sigma_wb << "\n";      
+          params.prior_imu.gravity << 0, 0, gravity;      
+          
           break;
         }
         
@@ -544,11 +354,6 @@ void RosNode::loadParamPrior(Params &params) {
           params.prior_dvl.extrinsics.block(4, 0, 3, 1) = T_I_D.block(0, 3, 3, 1);
           params.prior_dvl.sigma_bt << noise_bt.at(0), noise_bt.at(1), noise_bt.at(2);
 
-          std::cout<<"\n" << param_name << "\n";
-          std::cout<<"  T_I_D: \n" << T_I_D << "\n"; 
-          std::cout<<"  timeoffset_I_D: " << params.prior_dvl.timeoffset << "\n";
-          std::cout<<"  scale: " << params.prior_dvl.scale << "\n";
-          std::cout<<"  noise_bt: " << params.prior_dvl.sigma_bt.transpose() << "\n";
           break;
         }
 
@@ -562,11 +367,6 @@ void RosNode::loadParamPrior(Params &params) {
           // load 
           nh_private_.param<double>(param_name + "/mount_angle",      params.prior_pressure.mount_angle, 0.0);
           nh_private_.param<double>(param_name + "/noise_pressure",   params.prior_pressure.sigma_pressure, 0.0);
-
-          // print
-          std::cout<<"\n" << param_name << "\n";
-          std::cout<<"  mount_angle: " << params.prior_pressure.mount_angle << "\n"; 
-          std::cout<<"  noise_pressure: " << params.prior_pressure.sigma_pressure << "\n";
           break;
         }
 
@@ -602,13 +402,6 @@ void RosNode::loadParamPrior(Params &params) {
           params.prior_cam.intrinsics << intrinsics.at(0), intrinsics.at(1), 
                                         intrinsics.at(2), intrinsics.at(3);
 
-          // print
-          std::cout << "\n" << param_name << "\n";
-          std::cout << "  T_C_I: \n" << T_C_I << "\n";
-          std::cout << "  distortion_coeffs: " << params.prior_cam.distortion_coeffs.transpose() << "\n";
-          std::cout << "  intrinsics: " << params.prior_cam.intrinsics.transpose() << "\n";
-          std::cout << "  timeoffset_C_I: " << params.prior_cam.timeoffset << "\n";
-          std::cout << "  noise: " << params.prior_cam.noise << "\n";
           break;
         }
 

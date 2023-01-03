@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<launch>
+  <param name="/use_sim_time" value="true"/>
+
+  <!-- ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+  <!-- ++++++++++++++++++++++++++++++++++++++ Helpers +++++++++++++++++++++++++++++++++++++++++++++++++ -->
+  <!-- ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+  <!-- ======================================== play the dataset ====================================== -->
+
+  <!-- ========== MH_03_medium ==========  -->
+  <arg name="bag_start" default="17.5"/> 
+  <arg name="config_path" default="$(find msckf_dvio)/config/euroc/MH_03_medium"/>
+  <arg name="bag" default="/home/lin/develop/data/euroc/MH_03_medium/MH_03_medium.bag"/>
+
+  <node pkg="rosbag" type="play" name="rosbag" required="true" 
+        args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)"/>
+
+
+  <!-- ================================================================================================ -->
+  <!-- ====================================== Main MSCKF Section ====================================== -->
+  <!-- ================================================================================================ -->
+
+  <arg name="system_yaml" default="$(arg config_path)/system.yaml"/>
+  <arg name="prior_yaml" default="$(arg config_path)/prior.yaml"/>
+  <arg name="init_yaml" default="$(arg config_path)/init.yaml"/>
+  <arg name="image_yaml" default="$(arg config_path)/image.yaml"/>
+
+  <!-- build with flag: -DCMAKE_BUILD_TYPE=Debug -->
+  <!-- add to roslaunch: launch-prefix="gdb -ex run -1-args" -->
+  <!-- type: bt -->
+  <node name="dvio_node" pkg="msckf_dvio" type="dvio_node" output="screen">
+      <rosparam command="load" file="$(arg system_yaml)"/>
+      <rosparam command="load" file="$(arg prior_yaml)"/>
+      <rosparam command="load" file="$(arg init_yaml)"/>
+      <rosparam command="load" file="$(arg image_yaml)"/>
+
+      <remap from="odom" to="/msckf/odom"/>
+      <remap from="path" to="/msckf/path"/>
+  </node>
+
+
+
+  <node name="rviz" pkg="rviz" type="rviz"  
+        args="--opengl 300 -d $(find msckf_dvio)/launch/euroc/rviz.rviz" /> 
+
+</launch>

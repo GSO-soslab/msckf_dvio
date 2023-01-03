@@ -7,25 +7,11 @@ SYS:
   # Note: frequency for backend processing(MSCKF update), increase if more data need for processing 
   backend_hz: 100
   # sensors will be fused
-  sensors: [IMU, DVL, PRESSURE, CAM0, DVL_CLOUD]
+  sensors: [IMU, CAM0]
   # rostopics used for each sensor
   topics: 
-    - {IMU: /rov/sensors/ahrs/imu/data}
-    - {DVL: /rov/sensors/dvl/buttom_track_velocity}
-    - {PRESSURE: /rov/sensors/dvl/pressure}
-    - {CAM0: /rov_remote/sensors/stereo/left/image_decompressed}
-    - {DVL_CLOUD: /pointcloud}
-
-
-####################################################################################
-############################     TODO:  Pre-processing    ##########################
-####################################################################################
-
-# PRE_PROCESS:
-#   # Default: 2.0
-#   # Note: use this simply filter bad DVL velocity measurement
-#   dvl_v_threshold: 2.0 
-
+    - {IMU: /imu0}
+    - {CAM0: /cam0/image_raw}
 
 ####################################################################################
 ############################    MSCKF estimation setup    ##########################
@@ -34,31 +20,16 @@ SYS:
 MSCKF:
   ##################################    DVL    ###################################
 
-  # enable DVL exterisic rotation calibration 
-  dvl_exterisic_R: false
-  # enable DVL exterisic translation calibration 
-  dvl_exterisic_p: false
-  # enable DVL time offset calibration
-  dvl_timeoffset: false
-  # enable DVL scale calibration
-  dvl_scale: false
-  # Max DVL clone 
-  dvl_clone: 0 
-
-  # DVL:
-  #   exterisic_R: 
-  #     do: false
-  #     init_noise: 0.01
-  #   exterisic_p:
-  #     do: false
-  #     init_noise: 0.01
-  #   timeoffset:
-  #     do: false
-  #     init_noise: 0.01
-  #   scale:
-  #     do: false
-  #     init_noise: 0.01
-  #   clone: 0
+  # # enable DVL exterisic rotation calibration 
+  # dvl_exterisic_R: false
+  # # enable DVL exterisic translation calibration 
+  # dvl_exterisic_p: false
+  # # enable DVL time offset calibration
+  # dvl_timeoffset: false
+  # # enable DVL scale calibration
+  # dvl_scale: false
+  # # Max DVL clone 
+  # dvl_clone: 0 
 
   ################################    Camera    ##################################
 
@@ -69,15 +40,14 @@ MSCKF:
   # enable camera time offset calibration
   cam_timeoffset: false
   # Max camera clone
-  # default: 11 for non-key-frame
-  cam_clone: 10 
+  cam_clone: 20 
 
   ################################    Update    ##################################
 
   # Index of clone need to marginalize 
   # example: we have 10 clones [0,1,2,3,4,5,6,7,8,9]
   #          the marg clone measurements: oldest, second latest [0,8]
-  marginalized_clone: [0, 8]
+  marginalized_clone: [0, 18]
   
   # in open_vins(40), but it's occasionally update at 40
   # but here, tracking will stop so always update as 40

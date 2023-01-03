@@ -1,6 +1,10 @@
 #ifndef MSCKF_TYPE_PARAMETERS_H_
 #define MSCKF_TYPE_PARAMETERS_H_
 
+#include <iostream>
+#include <iomanip>
+#include "utils/utils.h"
+
 namespace msckf_dvio
 {
 //! Single Estimation State name for each Sub State
@@ -246,8 +250,187 @@ struct Params{
 
   paramMsckf msckf;
 
+  void printParam();
+
 };
 
+inline void Params::printParam() {
+  /****************************************************************************/  
+  /*********************************  System  *********************************/
+  /****************************************************************************/  
+
+  std::cout<<"\n================== System Parameters =======================\n";
+  std::cout<<"  backend_hz= " << sys.backend_hz << "\n";
+
+  std::cout<<"  sensors: ";
+  for(const auto& sensor : sys.sensors) {
+    std::cout<< enumToString(sensor) <<", ";
+  }
+  std::cout<<"\n";
+
+  std::cout<<  "  topics: \n";
+  for(const auto& [name, topic] : sys.topics) {
+    std::cout<<"    " << enumToString(name) <<" = " << topic << "\n";
+  }
+
+  std::cout<<"\n================== MSCKF Parameters =======================\n";
+  std::cout<<"  do_R_I_D= " << (msckf.do_R_I_D ? "True" : "False" ) << "\n";
+  std::cout<<"  do_p_I_D= " << (msckf.do_p_I_D ? "True" : "False" ) << "\n";
+  std::cout<<"  do_time_I_D= " << (msckf.do_time_I_D ? "True" : "False" ) << "\n";
+  std::cout<<"  do_scale_D= " << (msckf.do_scale_D ? "True" : "False" ) << "\n";
+  std::cout<<"  max_clone_D= " << msckf.max_clone_D << "\n\n";
+
+  std::cout<<"  do_R_C_I= " << (msckf.do_R_C_I ? "True" : "False" ) << "\n";
+  std::cout<<"  do_p_C_I= " << (msckf.do_p_C_I ? "True" : "False" ) << "\n";
+  std::cout<<"  do_time_C_I= " << (msckf.do_time_C_I ? "True" : "False" ) << "\n";
+  std::cout<<"  max_clone_C= " << msckf.max_clone_C << "\n\n";
+
+  std::cout<<"  max_msckf_update= " << msckf.max_msckf_update << "\n";
+  std::cout<<"  marg clone position: ";
+  for(const auto& clone : msckf.marginalized_clone) {
+    std::cout<< clone <<", "; 
+  }
+  std::cout<<"\n";
+
+  /****************************************************************************/  
+  /*********************************  Prior   *********************************/
+  /****************************************************************************/ 
+  std::cout<<"\n================== Prior Parameters =======================\n";
+
+  for(const auto& sensor : sys.sensors) {
+    switch(sensor) {
+      case Sensor::IMU: {
+        std::cout<< "\n" << enumToString(sensor) << "\n";
+        std::cout<<"  gravity: "<< prior_imu.gravity.transpose() << "\n";
+        std::cout<<"  acce_noise_density: " << prior_imu.sigma_a << "\n";
+        std::cout<<"  acce_random_walk: " << prior_imu.sigma_ab << "\n";
+        std::cout<<"  gyro_noise_density: " << prior_imu.sigma_w << "\n";
+        std::cout<<"  gyro_random_walk: " << prior_imu.sigma_wb << "\n";  
+        break;
+      }
+
+      case Sensor::DVL: {
+        std::cout<<"\n" << enumToString(sensor) << "\n";
+        Eigen::Matrix4d T_I_D;
+        T_I_D.block(0, 0, 3, 3) = prior_dvl.extrinsics.block(0, 0, 4, 1);
+        T_I_D.block(0, 3, 3, 1) = prior_dvl.extrinsics.block(4, 0, 3, 1);
+        std::cout<<"  T_I_D: \n" << T_I_D << "\n"; 
+        std::cout<<"  timeoffset_I_D: " << prior_dvl.timeoffset << "\n";
+        std::cout<<"  scale: " << prior_dvl.scale << "\n";
+        std::cout<<"  noise_bt: " << prior_dvl.sigma_bt.transpose() << "\n";
+        break;
+      }
+
+      case Sensor::PRESSURE: {
+        std::cout<<"\n" << enumToString(sensor) << "\n";
+        std::cout<<"  mount_angle: " << prior_pressure.mount_angle << "\n"; 
+        std::cout<<"  noise_pressure: " << prior_pressure.sigma_pressure << "\n";        
+        break;
+      }
+
+      case Sensor::CAM0: {
+        std::cout<<"\n" << enumToString(sensor) << "\n";
+        Eigen::Matrix4d T_C_I;
+        T_C_I.block(0, 0, 3, 3) = prior_cam.extrinsics.block(0, 0, 4, 1);
+        T_C_I.block(0, 3, 3, 1) = prior_cam.extrinsics.block(4, 0, 3, 1);        
+        std::cout << "  T_C_I: \n" << T_C_I << "\n";
+        std::cout << "  distortion_coeffs: " << prior_cam.distortion_coeffs.transpose() << "\n";
+        std::cout << "  intrinsics: " << prior_cam.intrinsics.transpose() << "\n";
+        std::cout << "  timeoffset_C_I: " << prior_cam.timeoffset << "\n";
+        std::cout << "  noise: " << prior_cam.noise << "\n";        
+        break;
+      }
+
+      default:
+        break;
+    }
+  }
+
+  /****************************************************************************/  
+  /*********************************   Init   *********************************/
+  /****************************************************************************/ 
+
+  switch(init.mode) {
+    case InitMode::INIT_DVL_PRESSURE: {
+        std::cout<<"\n================== Init Parameters =======================\n";
+        std::cout<<"  init mode: \n" << enumToString(InitMode::INIT_DVL_PRESSURE) <<"\n";
+        std::cout<<"  imu_window: \n" << init.dvl_pressure.imu_window;
+        std::cout<<"  imu_var: \n" << init.dvl_pressure.imu_var;
+        std::cout<<"  imu_delta: \n" << init.dvl_pressure.imu_delta;
+        std::cout<<"  dvl_window: \n" <<  init.dvl_pressure.dvl_window;
+        std::cout<<"  dvl_delta: \n" << init.dvl_pressure.dvl_delta;
+        std::cout<<"  dvl_init_duration: \n" << init.dvl_pressure.dvl_init_duration;      
+      break;
+    }
+
+    case InitMode::INIT_SETTING: {
+      std::cout<<"\n================== Init Parameters =======================\n";
+      std::cout<<"  init mode: " << enumToString(InitMode::INIT_SETTING) <<"\n";
+
+      // print each sensor initialization result
+      for(const auto& [sensor, param] : init.setting) {
+        // sensor name
+        std::cout<< "  " << enumToString(sensor) << "\n";
+
+        std::cout<< std::fixed <<  std::setprecision(9);
+        // time
+        std::cout<<"    time: " << init.setting[sensor].time << "\n";
+        // temporal
+        if(init.setting[sensor].temporal.size() > 0) {
+          std::cout<<"    temporal: ";
+          for(const auto& value : init.setting[sensor].temporal) {
+            std::cout<< value <<", ";
+          }
+          std::cout<<"\n";
+        }
+
+        std::cout<< std::fixed <<  std::setprecision(6);
+        // state
+        if(init.setting[sensor].state.size() > 0) {
+          std::cout<<"    state: ";
+          for(const auto& value : init.setting[sensor].state) {
+            std::cout<< value <<", ";
+          }
+          std::cout<<"\n";
+        }
+        // extrinsic
+        if(init.setting[sensor].extrinsic.size() > 0) {
+          std::cout<<"    extrinsic: ";
+          for(const auto& value : init.setting[sensor].extrinsic) {
+            std::cout<< value <<", ";
+          }
+          std::cout<<"\n";
+        }
+        // intrinsic
+        if(init.setting[sensor].intrinsic.size() > 0) {
+          std::cout<<"    intrinsic: ";
+          for(const auto& value : init.setting[sensor].intrinsic) {
+            std::cout<< value <<", ";
+          }
+          std::cout<<"\n";
+        }
+        //
+        if(init.setting[sensor].global.size() > 0) {
+          std::cout<<"    global: ";
+          for(const auto& value : init.setting[sensor].global) {
+            std::cout<< value <<", ";
+          }
+          std::cout<<"\n";
+        }
+      }
+
+      break;
+    }
+
+    default:
+      break;
+  }
+
+  /****************************************************************************/  
+  /*********************************  Image   *********************************/
+  /****************************************************************************/ 
+  //! TODO:
+}
 
 
 

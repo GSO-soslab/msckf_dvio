@@ -8,6 +8,7 @@
 
   <!-- ======================================== play the dataset ====================================== -->
   <arg name="bag_start" default="0" /> 
+  <arg name="config_path" default="$(find msckf_dvio)/config/GLRC/dvl_nocalib" />
   <arg name="bag" 
        default="/home/lin/develop/data/underIce/GLRC/day_3_13/40m_servo60_noLED_noAR_LowFeq10m/data_dvlCorrect.bag" />
   <node pkg="rosbag" type="play" name="rosbag" args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)" required="true"/>
@@ -52,10 +53,10 @@
   <!-- ================================================================================================ -->
 
   <!-- Parmaters: DVL update without online calibration -->
-  <arg name="system_yaml" default="$(find msckf_dvio)/config/GLRC/dvl_nocalib/system.yaml"/>
-  <arg name="prior_yaml" default="$(find msckf_dvio)/config/GLRC/dvl_nocalib/prior.yaml"/>
-  <arg name="init_yaml" default="$(find msckf_dvio)/config/GLRC/dvl_nocalib/init.yaml"/>
-  <arg name="image_yaml" default="$(find msckf_dvio)/config/GLRC/dvl_nocalib/image.yaml"/>
+  <arg name="system_yaml" default="$(arg config_path)/system.yaml"/>
+  <arg name="prior_yaml" default="$(arg config_path)/prior.yaml"/>
+  <arg name="init_yaml" default="$(arg config_path)/init.yaml"/>
+  <arg name="image_yaml" default="$(arg config_path)/image.yaml"/>
 
   <!-- build with flag: -DCMAKE_BUILD_TYPE=Debug -->
   <!-- add to roslaunch: launch-prefix="gdb -ex run -1-args" -->

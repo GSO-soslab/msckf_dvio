@@ -12,30 +12,6 @@ InitSetting::InitSetting(paramInit param_init)
 
 }
 
-void InitSetting::checkInit() {
-  std::unique_lock<std::recursive_mutex> lck(buffer_mutex);
-
-  //! TODO: use switch(Sensor::name) to check last buffer element timestamp 
-
-  // check if all buffer has data
-  if(buffer_imu.size() == 0 ||
-     buffer_dvl.size() == 0 ||
-     buffer_pressure.size() == 0) {
-
-    return;
-  }
-
-  if(buffer_imu.back().time >= param_init.setting[Sensor::IMU].time &&
-     buffer_dvl.back().time >= param_init.setting[Sensor::DVL].time &&
-     buffer_pressure.back().time >= param_init.setting[Sensor::PRESSURE].time) {
-
-    initialized = true;
-
-    cleanBuffer();
-  }
-
-}
-
 bool InitSetting::useSensor(const Sensor &sensor) {
   if(std::find(sensors.begin(), sensors.end(), sensor) != sensors.end()){
     return true;
@@ -43,6 +19,53 @@ bool InitSetting::useSensor(const Sensor &sensor) {
   else {
     return false;
   }
+}
+
+void InitSetting::checkInit() {
+  std::unique_lock<std::recursive_mutex> lck(buffer_mutex);
+
+  int count = 0;
+
+  for(const auto& sensor : sensors) {
+    // check all data buffer are available
+    switch (sensor)
+    {
+      case Sensor::IMU: {
+        if(buffer_imu.size() > 0 && 
+           buffer_imu.back().time >= param_init.setting[Sensor::IMU].time) {
+          count ++;
+        }
+        break;
+      }
+
+      case Sensor::DVL: {
+        if(buffer_dvl.size() > 0 && 
+           buffer_dvl.back().time >= param_init.setting[Sensor::DVL].time) {
+          count ++;
+        }
+        break;
+      }
+
+      case Sensor::PRESSURE: {
+        if(buffer_pressure.size() > 0 && 
+           buffer_pressure.back().time >= param_init.setting[Sensor::PRESSURE].time) {
+          count ++;
+        }
+        break;        
+      }
+
+      default:
+        break;
+    }
+  }
+
+  // check if all the sensors are available
+  if(count == sensors.size()) {
+    initialized = true;
+
+    cleanBuffer();    
+  }
+
 }
 
 void InitSetting::updateInit(std::shared_ptr<State> state, 
