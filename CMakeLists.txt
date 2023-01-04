@@ -126,6 +126,9 @@ target_link_libraries(dvio_node dvio_lib ${thirdparty_libraries})
 add_executable(dvl_helper_node ros/helper/dvl_helper.cpp)
 target_link_libraries(dvl_helper_node ${thirdparty_libraries})
 
+add_executable(truth_helper_node ros/helper/truth_helper.cpp)
+target_link_libraries(truth_helper_node ${thirdparty_libraries})
+
 ##########################################
 ############### build test ###############
 ##########################################

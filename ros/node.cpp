@@ -135,6 +135,12 @@ void RosNode::loadParamSystem(Params &params) {
   nh_private_.param<int> ("MSCKF/max_msckf_update", params.msckf.max_msckf_update, 40);
 
   nh_private_.getParam("MSCKF/marginalized_clone", params.msckf.marginalized_clone);
+
+  for(const auto& clone : params.msckf.marginalized_clone) {
+    if(clone > params.msckf.max_clone_C -1) {
+      ROS_ERROR("marginalized_clone: given marg clone index out of clone window");
+    }
+  }
 }
 
 void RosNode::loadParamInit(Params &params) {

@@ -13,9 +13,16 @@
   <arg name="config_path" default="$(find msckf_dvio)/config/euroc/MH_03_medium"/>
   <arg name="bag" default="/home/lin/develop/data/euroc/MH_03_medium/MH_03_medium.bag"/>
 
+  <!-- ========== MH_01_easy ==========  -->
+  <!-- <arg name="bag_start" default="40"/> 
+  <arg name="config_path" default="$(find msckf_dvio)/config/euroc/MH_01_easy"/>
+  <arg name="bag" default="/home/lin/develop/data/euroc/MH_01_easy/MH_01_easy.bag"/> -->
+
   <node pkg="rosbag" type="play" name="rosbag" required="true" 
         args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)"/>
 
+  <node name="truth_helper_node" pkg="msckf_dvio" type="truth_helper_node" output="screen">
+  </node>
 
   <!-- ================================================================================================ -->
   <!-- ====================================== Main MSCKF Section ====================================== -->
