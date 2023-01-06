@@ -7,27 +7,19 @@
   <!-- ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
 
   <!-- ======================================== play the dataset ====================================== -->
-  <!-- ========== MH_01_easy ==========  -->
-  <!-- <arg name="bag_start" default="40"/> 
-  <arg name="config_path" default="$(find msckf_dvio)/config/euroc/MH_01_easy"/>
-  <arg name="bag" default="/home/lin/develop/data/euroc/MH_01_easy/MH_01_easy.bag"/> -->
 
-   <!-- ========== MH_02_easy ==========  -->
-  <arg name="bag_start" default="38.4"/> 
-  <arg name="config_path" default="$(find msckf_dvio)/config/euroc/MH_02_easy"/>
-  <arg name="bag" default="/home/lin/develop/data/euroc/MH_02_easy/MH_02_easy.bag"/>
-
-  <!-- ========== MH_03_medium ==========  -->
-  <!-- <arg name="bag_start" default="17.5"/> 
-  <arg name="config_path" default="$(find msckf_dvio)/config/euroc/MH_03_medium"/>
-  <arg name="bag" default="/home/lin/develop/data/euroc/MH_03_medium/MH_03_medium.bag"/> -->
+   <!-- ========== udel_gore_truth ==========  -->
+  <arg name="bag_start" default="0"/> 
+  <arg name="config_path" default="$(find msckf_dvio)/config/sim/udel_gore_truth"/>
+  <!-- <arg name="bag" default="/home/lin/develop/data/sim/udel_gore/truth_imu_vel.bag"/> -->
+  <arg name="bag" default="/home/lin/develop/data/sim/udel_gore/imuIdeal_dvlIdeal_groundtruth.bag"/>
 
   <node pkg="rosbag" type="play" name="rosbag" required="true" 
         args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)"/>
 
   <node name="truth_helper_node" pkg="msckf_dvio" type="truth_helper_node" output="screen">
       <param name="frame_id" type="str" value="odom"/>
-      <param name="truth_topic_point" type="str" value="/leica/position"/>
+      <param name="truth_topic_pose" type="str" value="/ov_msckf/groundtruth_sim"/>
   </node>
 
   <!-- ================================================================================================ -->
@@ -55,6 +47,6 @@
 
 
   <node name="rviz" pkg="rviz" type="rviz"  
-        args="--opengl 300 -d $(find msckf_dvio)/launch/euroc/rviz.rviz" /> 
+        args="--opengl 300 -d $(find msckf_dvio)/launch/sim/rviz.rviz" /> 
 
 </launch>

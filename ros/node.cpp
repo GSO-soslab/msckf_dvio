@@ -136,9 +136,25 @@ void RosNode::loadParamSystem(Params &params) {
 
   nh_private_.getParam("MSCKF/marginalized_clone", params.msckf.marginalized_clone);
 
-  for(const auto& clone : params.msckf.marginalized_clone) {
-    if(clone > params.msckf.max_clone_C -1) {
-      ROS_ERROR("marginalized_clone: given marg clone index out of clone window");
+  // check if given index outside of slide window size
+  // for(const auto& clone : params.msckf.marginalized_clone) {
+  //   if(clone > params.msckf.max_clone_C -1) {
+  //     ROS_ERROR("marginalized_clone: given marg clone index out of clone window");
+  //   }
+  // }
+
+  if(params.msckf.marginalized_clone.size() == 0) {
+    // if no indexs given, assumming use the entire slide window
+    for(int i =0; i < params.msckf.max_clone_C; i++){
+      params.msckf.marginalized_clone.push_back(i);
+    }
+  }
+  else {
+    // check if given index outside of slide window size
+    for(const auto& clone : params.msckf.marginalized_clone) {
+      if(clone > params.msckf.max_clone_C -1) {
+        ROS_ERROR("marginalized_clone: given marg clone index out of clone window");
+      }
     }
   }
 }
@@ -201,6 +217,9 @@ void RosNode::loadParamInit(Params &params) {
             // check the parameters may exist            
             if (nh_private_.hasParam(sensor_param + "/state")) {
               nh_private_.getParam(sensor_param + "/state", params.init.setting[Sensor::IMU].state);
+              if(params.init.setting[Sensor::IMU].state.size() != 16) {
+                ROS_ERROR("parameter init: bad size for IMU state");
+              }
             }
 
             if (nh_private_.hasParam(sensor_param + "/temporal")) {

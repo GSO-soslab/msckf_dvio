@@ -286,7 +286,7 @@ inline void Params::printParam() {
   std::cout<<"  max_clone_C= " << msckf.max_clone_C << "\n\n";
 
   std::cout<<"  max_msckf_update= " << msckf.max_msckf_update << "\n";
-  std::cout<<"  marg clone position: ";
+  std::cout<<"  marginalized_clone= ";
   for(const auto& clone : msckf.marginalized_clone) {
     std::cout<< clone <<", "; 
   }
@@ -311,8 +311,8 @@ inline void Params::printParam() {
 
       case Sensor::DVL: {
         std::cout<<"\n" << enumToString(sensor) << "\n";
-        Eigen::Matrix4d T_I_D;
-        T_I_D.block(0, 0, 3, 3) = prior_dvl.extrinsics.block(0, 0, 4, 1);
+        Eigen::Matrix4d T_I_D = Eigen::Matrix4d::Identity();
+        T_I_D.block(0, 0, 3, 3) = toRotationMatrix(prior_dvl.extrinsics.block(0, 0, 4, 1));
         T_I_D.block(0, 3, 3, 1) = prior_dvl.extrinsics.block(4, 0, 3, 1);
         std::cout<<"  T_I_D: \n" << T_I_D << "\n"; 
         std::cout<<"  timeoffset_I_D: " << prior_dvl.timeoffset << "\n";
@@ -330,10 +330,10 @@ inline void Params::printParam() {
 
       case Sensor::CAM0: {
         std::cout<<"\n" << enumToString(sensor) << "\n";
-        Eigen::Matrix4d T_C_I;
-        T_C_I.block(0, 0, 3, 3) = prior_cam.extrinsics.block(0, 0, 4, 1);
+        Eigen::Matrix4d T_C_I = Eigen::Matrix4d::Identity();
+        T_C_I.block(0, 0, 3, 3) = toRotationMatrix(prior_cam.extrinsics.block(0, 0, 4, 1));
         T_C_I.block(0, 3, 3, 1) = prior_cam.extrinsics.block(4, 0, 3, 1);        
-        std::cout << "  T_C_I: \n" << T_C_I << "\n";
+        std::cout << "  T_C_I: \n" <<T_C_I << "\n";
         std::cout << "  distortion_coeffs: " << prior_cam.distortion_coeffs.transpose() << "\n";
         std::cout << "  intrinsics: " << prior_cam.intrinsics.transpose() << "\n";
         std::cout << "  timeoffset_C_I: " << prior_cam.timeoffset << "\n";

@@ -1,0 +1,15 @@
+#### Camera feature tracking parameters
+
+KLT:
+  num_aruco: 1024
+  num_pts: 250
+  fast_threshold: 15
+  grid_x: 5
+  grid_y: 3
+  min_px_dist: 8
+  downsize_aruco: false
+  use_stereo: false
+  max_camera: 2
+  pyram: 3
+  cam_id: 0
+  downsample_ratio: 1.0

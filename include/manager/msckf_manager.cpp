@@ -463,14 +463,16 @@ void MsckfManager::doCameraKeyframe() {
 
     // Marginalization
 
-    // remove marginalized feature measurements, lost feature measurements alrady remove when we select
+    // remove feature measurements:
+    //   lost feature measurements: alrady remove when we select
+    //   marg feature measurements: delete right now with those used in the update
     tracker->get_feature_database()->cleanup_marg_measurements(feature_marg);
 
     // remove oldest clone state and covaraince
     auto marg_index_0 = params.msckf.marginalized_clone.at(0);
     updater->marginalize(state, CLONE_CAM0, marg_index_0);
 
-    // remove feature measurements only older then oldest clone timestamp 
+    // remove anomalous feature measurements: only older then oldest clone timestamp 
     auto oldest_time = state->getCloneTime(CLONE_CAM0, 0);
     tracker->get_feature_database()->cleanup_out_measurements(oldest_time);
 
@@ -1330,35 +1332,12 @@ void MsckfManager::selectFeaturesKeyFrame(
   //    2) grab whole the measurements for each feature that contain the given timestamp
   //    3) not delete
   if(state->getEstimationNum(CLONE_CAM0) == params.msckf.max_clone_C) {
-    // Grab marg feature 0 
+    // Grab marg index 0 of slide window
     // get oldest clone time
-    auto index = params.msckf.marginalized_clone.at(0);
+    auto index = 0;
     auto time_oldest = state->getCloneTime(CLONE_CAM0, index);
     // get feature contain this marg time
     tracker->get_feature_database()->features_selected(time_oldest, feat_marg, false, true);
-
-    // // Grab marg feature 1
-    // // get second latest clone time
-    // index = params.msckf.marginalized_clone.at(1);
-    // auto time_second_latest = state->getCloneTime(CLONE_CAM0, index);
-    // // get feature contain this marg time
-    // std::vector<Feature> feat_marg_1;
-    // tracker->get_feature_database()->features_selected(time_second_latest, feat_marg_1, false, true);
-
-    // // Combine both marg features
-    // // get marg feature 0
-    // feat_marg = feat_marg_0;
-    // // get marg feature 1
-    // for(const auto& feat_1 : feat_marg_1) {
-    //   // check if feat_1 exist in feat_0 list
-    //   auto exist = std::find_if(feat_marg_0.begin(), feat_marg_0.end(),
-    //               [&](const auto& feat_0){return feat_0.featid == feat_1.featid ;});
-    //   // if not exist, then add it
-    //   if(exist == feat_marg_0.end()) {
-    //     feat_marg.emplace_back(feat_1);
-    //   }
-    // }
-
   }
 
 }

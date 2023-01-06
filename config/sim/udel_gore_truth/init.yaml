@@ -9,7 +9,6 @@ INIT_MODE: INIT_SETTING
 
 
 ###############################################################################
-
 INIT_SETTING:
   # # Example:
   # SENSOR:
@@ -25,14 +24,12 @@ INIT_SETTING:
   #   intrinsic: [1.0, 2.0, 3.0]
   #   # initialized global transfomration for this sensor: Pressure, Magnetometer, GPS and so on may have this 
   #   global: [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]
-  
 
-  # start at 17.5 second
   IMU:
-    time: 1403637148.798319101
+    time: 1521753106.831427336
     # brief: orientation in quaterion form
-    state: [-0.7916, -0.0762, -0.5978, 0.1009, 
+    state: [ 0.7497, -0.2141, -0.1667, 0.6036, 
+             0.2620, -1.1057, 0.1599, 
+             -0.2493, -1.1452, 0.0836, 
              0.0000, 0.0000, 0.0000, 
-             0.0000, 0.0000, 0.0000, 
-             0.0033, 0.0177, 0.0764, 
-            -0.0521, 0.0037, 0.0143] 
+             0.0000, 0.0000, 0.0000] 
