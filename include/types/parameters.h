@@ -26,7 +26,8 @@ enum Sensor{
   CAM0,
   CLONE_DVL,
   CLONE_CAM0,
-  DVL_CLOUD
+  DVL_CLOUD,
+  CAM0_FEATURE
 };
 
 enum InitMode {
@@ -36,6 +37,13 @@ enum InitMode {
   INIT_DVL_PRESSURE,
   INIT_CAMERA,
   INIT_DVL_CAMERA
+};
+
+enum TrackMode {
+  TRACK_NONE = 0,
+  TRACK_FEATURE,
+  TRACK_KLT,
+  TRACK_DESCRIPTOR
 };
 
 struct priorImu {
@@ -82,6 +90,8 @@ struct priorCam {
   Eigen::Matrix<double, 4, 1> intrinsics;
   // distortion coeffs for camera
   Eigen::Matrix<double, 4, 1> distortion_coeffs;
+  // width and height of image
+  std::pair<int, int> image_wh;
   // timeoffset between Camera and IMU
   double timeoffset;
   // measurement white noise( standard deviation ) in pixel
@@ -161,19 +171,41 @@ struct paramInit {
   paramInitDvlCamera dvl_camera;
 };
 
-struct paramTrack {
-  int num_aruco;
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+struct paramTrackFeature {
+  int todo;
+};
+
+struct paramTrackKlt {
   int num_pts;
   int fast_threshold;
   int grid_x;
   int grid_y;
   int min_px_dist;
+  int pyram;
+};
+
+struct paramTrackDescriptor {
+  int todo;
+};
+
+struct paramTrackBasic {
+  TrackMode mode;
+  int num_aruco;
   bool downsize_aruco;
   bool use_stereo;
   int max_camera;
-  int pyram;
   int cam_id;
-  double downsample_ratio;
+  double downsample_ratio;  
+};
+
+struct paramTrack {
+  paramTrackBasic basic;
+  paramTrackFeature feature;
+  paramTrackKlt klt;
+  paramTrackDescriptor descriptor;
 };
 
 struct paramTriangulation {
@@ -300,7 +332,7 @@ inline void Params::printParam() {
   for(const auto& sensor : sys.sensors) {
     switch(sensor) {
       case Sensor::IMU: {
-        std::cout<< "\n" << enumToString(sensor) << "\n";
+        std::cout<< "\n" << enumToString(Sensor::IMU) << "\n";
         std::cout<<"  gravity: "<< prior_imu.gravity.transpose() << "\n";
         std::cout<<"  acce_noise_density: " << prior_imu.sigma_a << "\n";
         std::cout<<"  acce_random_walk: " << prior_imu.sigma_ab << "\n";
@@ -310,7 +342,7 @@ inline void Params::printParam() {
       }
 
       case Sensor::DVL: {
-        std::cout<<"\n" << enumToString(sensor) << "\n";
+        std::cout<<"\n" << enumToString(Sensor::DVL) << "\n";
         Eigen::Matrix4d T_I_D = Eigen::Matrix4d::Identity();
         T_I_D.block(0, 0, 3, 3) = toRotationMatrix(prior_dvl.extrinsics.block(0, 0, 4, 1));
         T_I_D.block(0, 3, 3, 1) = prior_dvl.extrinsics.block(4, 0, 3, 1);
@@ -322,20 +354,22 @@ inline void Params::printParam() {
       }
 
       case Sensor::PRESSURE: {
-        std::cout<<"\n" << enumToString(sensor) << "\n";
+        std::cout<<"\n" << enumToString(Sensor::PRESSURE) << "\n";
         std::cout<<"  mount_angle: " << prior_pressure.mount_angle << "\n"; 
         std::cout<<"  noise_pressure: " << prior_pressure.sigma_pressure << "\n";        
         break;
       }
 
-      case Sensor::CAM0: {
-        std::cout<<"\n" << enumToString(sensor) << "\n";
+      case Sensor::CAM0: 
+      case Sensor::CAM0_FEATURE: {
+        std::cout<<"\n" << enumToString(Sensor::CAM0) << "\n";
         Eigen::Matrix4d T_C_I = Eigen::Matrix4d::Identity();
         T_C_I.block(0, 0, 3, 3) = toRotationMatrix(prior_cam.extrinsics.block(0, 0, 4, 1));
         T_C_I.block(0, 3, 3, 1) = prior_cam.extrinsics.block(4, 0, 3, 1);        
         std::cout << "  T_C_I: \n" <<T_C_I << "\n";
         std::cout << "  distortion_coeffs: " << prior_cam.distortion_coeffs.transpose() << "\n";
         std::cout << "  intrinsics: " << prior_cam.intrinsics.transpose() << "\n";
+        std::cout << "  resolution(W x H): " << prior_cam.image_wh.first << " x " << prior_cam.image_wh.second << "\n";
         std::cout << "  timeoffset_C_I: " << prior_cam.timeoffset << "\n";
         std::cout << "  noise: " << prior_cam.noise << "\n";        
         break;
@@ -352,14 +386,14 @@ inline void Params::printParam() {
 
   switch(init.mode) {
     case InitMode::INIT_DVL_PRESSURE: {
-        std::cout<<"\n================== Init Parameters =======================\n";
-        std::cout<<"  init mode: \n" << enumToString(InitMode::INIT_DVL_PRESSURE) <<"\n";
-        std::cout<<"  imu_window: \n" << init.dvl_pressure.imu_window;
-        std::cout<<"  imu_var: \n" << init.dvl_pressure.imu_var;
-        std::cout<<"  imu_delta: \n" << init.dvl_pressure.imu_delta;
-        std::cout<<"  dvl_window: \n" <<  init.dvl_pressure.dvl_window;
-        std::cout<<"  dvl_delta: \n" << init.dvl_pressure.dvl_delta;
-        std::cout<<"  dvl_init_duration: \n" << init.dvl_pressure.dvl_init_duration;      
+      std::cout<<"\n================== Init Parameters =======================\n";
+      std::cout<<"  init mode: " << enumToString(InitMode::INIT_DVL_PRESSURE) <<"\n";
+      std::cout<<"  imu_window: " << init.dvl_pressure.imu_window << "\n";
+      std::cout<<"  imu_var: " << init.dvl_pressure.imu_var << "\n";
+      std::cout<<"  imu_delta: " << init.dvl_pressure.imu_delta << "\n";
+      std::cout<<"  dvl_window: " <<  init.dvl_pressure.dvl_window << "\n";
+      std::cout<<"  dvl_delta: " << init.dvl_pressure.dvl_delta << "\n";
+      std::cout<<"  dvl_init_duration: " << init.dvl_pressure.dvl_init_duration << "\n";       
       break;
     }
 
@@ -429,7 +463,61 @@ inline void Params::printParam() {
   /****************************************************************************/  
   /*********************************  Image   *********************************/
   /****************************************************************************/ 
-  //! TODO:
+
+  // ---------------------- Tracking ---------------------- //
+
+  // basic
+  std::cout<<"\n================== Track basic: =======================\n";
+  std::cout<<"  Track mode: " << enumToString(tracking.basic.mode) <<"\n";
+  std::cout<<"  num_aruco: " << tracking.basic.num_aruco <<"\n";      
+  std::cout<<"  downsize_aruco: " << (tracking.basic.downsize_aruco ? "True" : "False") <<"\n";      
+  std::cout<<"  use_stereo: " << (tracking.basic.use_stereo ? "True" : "False") <<"\n";      
+  std::cout<<"  max_camera: " << tracking.basic.max_camera <<"\n";      
+  std::cout<<"  cam_id: " << tracking.basic.cam_id <<"\n";      
+  std::cout<<"  downsample_ratio: " << tracking.basic.downsample_ratio <<"\n";      
+
+  switch(tracking.basic.mode) {
+    case TrackMode::TRACK_KLT: {
+      std::cout<<"\n---------------- KLT ----------------\n";
+      std::cout<<"  num_pts: " << tracking.klt.num_pts <<"\n";      
+      std::cout<<"  fast_threshold: " << tracking.klt.fast_threshold <<"\n";      
+      std::cout<<"  grid_x: " << tracking.klt.grid_x <<"\n";      
+      std::cout<<"  grid_y: " << tracking.klt.grid_y <<"\n";      
+      std::cout<<"  min_px_dist: " << tracking.klt.min_px_dist <<"\n";      
+      std::cout<<"  pyram: " << tracking.klt.pyram <<"\n";      
+      break;
+    }
+
+    case TrackMode::TRACK_FEATURE: {
+      std::cout<<"\n---------------- Feature ----------------\n";
+      std::cout<<"  todo: " << tracking.feature.todo <<"\n";      
+
+      break;
+    }
+
+    default:
+      break;
+  }
+
+  // ---------------------- Triangulation ---------------------- //
+  std::cout<<"\n================== Triangulation Parameters =======================\n";
+  std::cout<<"  max_cond_number: " << triangualtion.max_cond_number <<"\n";   
+  std::cout<<"  min_dist: " << triangualtion.min_dist <<"\n";   
+  std::cout<<"  max_dist: " << triangualtion.max_dist <<"\n";   
+  std::cout<<"  lam_mult: " << triangualtion.lam_mult <<"\n";   
+  std::cout<<"  max_runs: " << triangualtion.max_runs <<"\n";   
+  std::cout<<"  max_lamda: " << triangualtion.max_lamda <<"\n";   
+  std::cout<<"  min_dx: " << triangualtion.min_dx <<"\n";   
+  std::cout<<"  min_dcost: " << triangualtion.min_dcost <<"\n";   
+  std::cout<<"  max_baseline: " << triangualtion.max_baseline <<"\n";   
+
+  // ---------------------- Keyframe ---------------------- //
+  std::cout<<"\n================== Keyframe Parameters =======================\n";
+  std::cout<<"  frame_count: " << keyframe.frame_count <<"\n";   
+  std::cout<<"  frame_motion: " << keyframe.frame_motion <<"\n";   
+  std::cout<<"  motion_space: " << keyframe.motion_space <<"\n";   
+  std::cout<<"  min_tracked: " << keyframe.min_tracked <<"\n";   
+  std::cout<<"  scene_ratio: " << keyframe.scene_ratio <<"\n";   
 }
 
 

@@ -70,7 +70,7 @@ MSCKF:
   cam_timeoffset: false
   # Max camera clone
   # default: 11 for non-key-frame
-  cam_clone: 10 
+  cam_clone: 11 
 
   ################################    Update    ##################################
 

@@ -43,22 +43,50 @@ MsckfManager::MsckfManager(Params &parameters)
   updater = std::make_shared<Updater>(params);
 
   //// setup tracker
-  tracker = std::shared_ptr<TrackBase>(new TrackKLT (
-    params.tracking.num_pts, params.tracking.num_aruco, params.tracking.fast_threshold,
-    params.tracking.grid_x, params.tracking.grid_y, params.tracking.min_px_dist, params.tracking.pyram));
+
+  // get params
+  std::map<size_t, bool> camera_fisheye;
+  std::map<size_t, Eigen::VectorXd> camera_calibration;
+  std::map<size_t, std::pair<int, int>> camera_wh;
 
   Eigen::Matrix<double, 8, 1> cam0_calib;
-  cam0_calib << params.prior_cam.intrinsics(0) * params.tracking.downsample_ratio, 
-                params.prior_cam.intrinsics(1) * params.tracking.downsample_ratio, 
-                params.prior_cam.intrinsics(2) * params.tracking.downsample_ratio, 
-                params.prior_cam.intrinsics(3) * params.tracking.downsample_ratio,
+  cam0_calib << params.prior_cam.intrinsics(0) * params.tracking.basic.downsample_ratio, 
+                params.prior_cam.intrinsics(1) * params.tracking.basic.downsample_ratio, 
+                params.prior_cam.intrinsics(2) * params.tracking.basic.downsample_ratio, 
+                params.prior_cam.intrinsics(3) * params.tracking.basic.downsample_ratio,
                 params.prior_cam.distortion_coeffs(0), params.prior_cam.distortion_coeffs(1), 
                 params.prior_cam.distortion_coeffs(2), params.prior_cam.distortion_coeffs(3);
-  if(params.tracking.cam_id == 0){
+  if(params.tracking.basic.cam_id == 0){
     camera_fisheye.insert({0, false});
     camera_calibration.insert({0, cam0_calib});
+    camera_wh.insert({0, params.prior_cam.image_wh});
   }
-  tracker->set_calibration(camera_calibration, camera_fisheye);
+
+  // start tracker
+  switch(params.tracking.basic.mode) {
+    case TrackMode::TRACK_KLT: {
+      tracker = std::shared_ptr<TrackBase>(new TrackKLT (
+        params.tracking.klt.num_pts, params.tracking.basic.num_aruco, 
+        params.tracking.klt.fast_threshold, params.tracking.klt.grid_x, 
+        params.tracking.klt.grid_y, params.tracking.klt.min_px_dist, params.tracking.klt.pyram));
+
+      tracker->set_calibration(camera_calibration, camera_fisheye);
+
+      break;
+    }
+
+    case TrackMode::TRACK_FEATURE: {
+      tracker = std::shared_ptr<TrackBase>(new TrackFeature (
+        params.tracking.basic.num_aruco, camera_wh));
+
+      tracker->set_calibration(camera_calibration, camera_fisheye);
+
+      break;
+    }
+
+    default:
+      break;
+  }
 
   recorder = std::make_shared<Recorder>("/home/lin/Desktop/features.txt");
 
@@ -119,8 +147,24 @@ void MsckfManager::feedPressure(const PressureMsg &data) {
   }
 }
 
+void MsckfManager::feedFeature(FeatureMsg &data) {
+
+  if(!initializer->isInit())
+    return;
+
+  tracker->feed_features(data);
+
+  std::unique_lock<std::mutex> lck(mtx);
+
+  buffer_time_img.emplace(data.time);
+  if(buffer_time_img.size() > 1000) {
+    buffer_time_img.pop();
+    printf("warning: feature time msg buffer overflow !\n");
+  }
+
+}
+
 void MsckfManager::feedCamera(ImageMsg &data) {
-  // check if system is initialized 
   // std::unique_lock<std::mutex> lck(mtx);
 
   //! TODO: need to store image if this not used initialization
@@ -135,6 +179,9 @@ void MsckfManager::feedCamera(ImageMsg &data) {
 
   // append new tracking result
   mtx.lock();
+
+  //! TODO: add update timestamp in the tracker
+  //! TODO: no need another buffer to store the image time
 
   // append sensor timestamp to buffer
   buffer_time_img.emplace(data.time);
@@ -198,6 +245,9 @@ void MsckfManager::backend() {
     initializer->updateInit(state, params, timelines);
 
     // clean those used in initialization in global buffer
+
+    //! TODO: some sensor not used for initialization, 
+    //!       may also clean buffer before the initialization timestamp 
     for (const auto& kv : timelines) {
       switch(kv.first) {
         case Sensor::IMU: {
@@ -1129,6 +1179,7 @@ void MsckfManager::doDVL() {
     // We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d)
     assert(!state->foundSPD("dvl_propagate"));
 
+    //! TEST: just for pure IMU 
     if(do_velocity){
 
       // Last angular velocity and linear velocity

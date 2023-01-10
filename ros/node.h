@@ -13,6 +13,7 @@
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/FluidPressure.h>  
 #include <sensor_msgs/PointCloud2.h>  
+#include <sensor_msgs/PointCloud.h>
 #include <nortek_dvl/ButtomTrack.h>
 #include <geometry_msgs/Vector3Stamped.h>
 #include <geometry_msgs/PoseStamped.h>
@@ -52,6 +53,8 @@ public:
   void dvlCallback(const geometry_msgs::TwistWithCovarianceStamped::ConstPtr &msg);
 
   void imageCallback(const sensor_msgs::Image::ConstPtr &msg);
+
+  void featureCallback(const sensor_msgs::PointCloud::ConstPtr &msg);
 
   void pressureCallback(const sensor_msgs::FluidPressure::ConstPtr &msg);
 

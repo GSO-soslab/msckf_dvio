@@ -66,9 +66,9 @@ CAM0:
   # f_x, f_y, c_x, c_y
   intrinsics: [1845.542490218492,1846.046949112978,825.6913274592704,605.8504151895138]  
   resolution: [1616, 1240]
-  camera_model: pinhole
-  distortion_model: radtan
   # Default:-0.09398272330912658, from kalibr
   timeoffset_C_I: 0
   # unit in pixel
   noise: 1
+  camera_model: pinhole
+  distortion_model: radtan  

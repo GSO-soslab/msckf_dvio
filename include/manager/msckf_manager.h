@@ -27,7 +27,7 @@
 #include "initializer/initializer_setting.h"
 
 #include "tracker/TrackKLT.h"
-
+#include "tracker/TrackFeature.h"
 
 namespace msckf_dvio
 {
@@ -42,6 +42,8 @@ public:
   void feedDvl(const DvlMsg &data);
 
   void feedCamera(ImageMsg &data);
+
+  void feedFeature(FeatureMsg &data);
 
   void feedPressure(const PressureMsg &data);
 
@@ -134,8 +136,6 @@ private:
   std::shared_ptr<Updater> updater;
 
   std::shared_ptr<TrackBase> tracker;
-  std::map<size_t, bool> camera_fisheye;
-  std::map<size_t, Eigen::VectorXd> camera_calibration;
 
   Params params;
 

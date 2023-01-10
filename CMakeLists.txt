@@ -112,6 +112,7 @@ add_library(dvio_lib SHARED
 
   include/tracker/TrackBase.cpp
   include/tracker/TrackKLT.cpp
+  include/tracker/TrackFeature.cpp
 )
 target_link_libraries(dvio_lib ${thirdparty_libraries})
 

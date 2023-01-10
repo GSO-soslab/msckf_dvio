@@ -26,35 +26,42 @@ RosNode::RosNode(const ros::NodeHandle &nh,
       case Sensor::IMU: {
         ros::Subscriber sub = nh_.subscribe(parameters.sys.topics[sensor], 2000, &RosNode::imuCallback, this);
         auto sub_ptr = std::make_shared<ros::Subscriber>(sub);
-        subscribers[Sensor::IMU] = sub_ptr;
+        subscribers[sensor] = sub_ptr;
         break;
       }
 
       case Sensor::DVL: {
         ros::Subscriber sub = nh_.subscribe(parameters.sys.topics[sensor], 100, &RosNode::dvlCallback, this);
         auto sub_ptr = std::make_shared<ros::Subscriber>(sub);
-        subscribers[Sensor::DVL] = sub_ptr;
+        subscribers[sensor] = sub_ptr;
         break;
       }
 
       case Sensor::PRESSURE: {
         ros::Subscriber sub = nh_.subscribe(parameters.sys.topics[sensor], 100, &RosNode::pressureCallback, this);
         auto sub_ptr = std::make_shared<ros::Subscriber>(sub);
-        subscribers[Sensor::PRESSURE] = sub_ptr;
+        subscribers[sensor] = sub_ptr;
         break;
       }
 
       case Sensor::CAM0: {
         ros::Subscriber sub = nh_.subscribe(parameters.sys.topics[sensor], 200, &RosNode::imageCallback, this);
         auto sub_ptr = std::make_shared<ros::Subscriber>(sub);
-        subscribers[Sensor::CAM0] = sub_ptr;
+        subscribers[sensor] = sub_ptr;
         break;
       }
 
       case Sensor::DVL_CLOUD: {
         ros::Subscriber sub = nh_.subscribe(parameters.sys.topics[sensor], 100, &RosNode::pointcloudCallback, this);
         auto sub_ptr = std::make_shared<ros::Subscriber>(sub);
-        subscribers[Sensor::DVL_CLOUD] = sub_ptr;        
+        subscribers[sensor] = sub_ptr;        
+        break;
+      }
+
+      case Sensor::CAM0_FEATURE: {
+        ros::Subscriber sub = nh_.subscribe(parameters.sys.topics[sensor], 100, &RosNode::featureCallback, this);
+        auto sub_ptr = std::make_shared<ros::Subscriber>(sub);
+        subscribers[sensor] = sub_ptr;        
         break;
       }
 
@@ -395,7 +402,9 @@ void RosNode::loadParamPrior(Params &params) {
           break;
         }
 
-        case Sensor::CAM0: {
+        case Sensor::CAM0: 
+        case Sensor::CAM0_FEATURE: 
+        {
           // check if the param is set to right enum type
           auto param_name = enumToString(Sensor::CAM0);
           if (!nh_private_.hasParam(param_name)) {
@@ -406,9 +415,11 @@ void RosNode::loadParamPrior(Params &params) {
           XmlRpc::XmlRpcValue rosparam_cam;
           std::vector<double> distortion_coeffs(4);
           std::vector<double> intrinsics(4);
+          std::vector<double> resolution(2);
           nh_private_.getParam     (param_name + "/T_C_I",             rosparam_cam);
           nh_private_.getParam     (param_name + "/distortion_coeffs", distortion_coeffs);
           nh_private_.getParam     (param_name + "/intrinsics",        intrinsics);
+          nh_private_.getParam     (param_name + "/resolution",        resolution);
           nh_private_.param<double>(param_name + "/timeoffset_C_I",    params.prior_cam.timeoffset, 0.0);
           nh_private_.param<double>(param_name + "/noise",    params.prior_cam.noise, 1.0);
 
@@ -426,7 +437,8 @@ void RosNode::loadParamPrior(Params &params) {
                                                 distortion_coeffs.at(2), distortion_coeffs.at(3);
           params.prior_cam.intrinsics << intrinsics.at(0), intrinsics.at(1), 
                                         intrinsics.at(2), intrinsics.at(3);
-
+          params.prior_cam.image_wh = std::make_pair(resolution.at(0), resolution.at(1));
+          
           break;
         }
 
@@ -439,24 +451,63 @@ void RosNode::loadParamPrior(Params &params) {
 
 void RosNode::loadParamImage(Params &params) {
 
-  /***************************************************************************************/
-  /********************************** Front-end *******************************/
-  /***************************************************************************************/
+  // ==================== Tracking ==================== //
+  std::string mode_str;
+  nh_private_.param<std::string> ("TRACK/mode", mode_str, enumToString(TrackMode::TRACK_NONE));
+  params.tracking.basic.mode = stringToEnum(mode_str, TrackMode::TRACK_NONE);
 
-  // ==================== Image frontend ==================== //
-  nh_private_.param<int>   ("KLT/num_aruco",        params.tracking.num_aruco,        1024);
-  nh_private_.param<int>   ("KLT/num_pts",          params.tracking.num_pts,          250);
-  nh_private_.param<int>   ("KLT/fast_threshold",   params.tracking.fast_threshold,   15);
-  nh_private_.param<int>   ("KLT/grid_x",           params.tracking.grid_x,           5);
-  nh_private_.param<int>   ("KLT/grid_y",           params.tracking.grid_y,           3);
-  nh_private_.param<int>   ("KLT/min_px_dist",      params.tracking.min_px_dist,      8);
-  nh_private_.param<bool>  ("KLT/downsize_aruco",   params.tracking.downsize_aruco,   false);
-  nh_private_.param<bool>  ("KLT/use_stereo",       params.tracking.use_stereo,       false);
-  nh_private_.param<int>   ("KLT/max_camera",       params.tracking.max_camera,       2);
-  nh_private_.param<int>   ("KLT/pyram",            params.tracking.pyram,            3);
-  nh_private_.param<int>   ("KLT/cam_id",           params.tracking.cam_id,           0);
-  nh_private_.param<double>("KLT/downsample_ratio", params.tracking.downsample_ratio, 1.0);
+  // load basic
+  nh_private_.param<int>   ("TRACK/num_aruco",        params.tracking.basic.num_aruco,        1024);
+  nh_private_.param<bool>  ("TRACK/downsize_aruco",   params.tracking.basic.downsize_aruco,   false);
+  nh_private_.param<bool>  ("TRACK/use_stereo",       params.tracking.basic.use_stereo,       false);
+  nh_private_.param<int>   ("TRACK/max_camera",       params.tracking.basic.max_camera,       1);
+  nh_private_.param<int>   ("TRACK/cam_id",           params.tracking.basic.cam_id,           0);
+  nh_private_.param<double>("TRACK/downsample_ratio", params.tracking.basic.downsample_ratio, 1.0);
+
+  // load specific tracking parameters
+  switch(params.tracking.basic.mode) {
+
+    case TrackMode::TRACK_FEATURE: {
+      // check if the param is set to right enum type
+      auto param_name = enumToString(TrackMode::TRACK_FEATURE);
+      if (!nh_private_.hasParam(param_name)) {
+        ROS_ERROR("The yaml setup is not right, should be = %s", param_name.c_str());
+      }      
+
+      // load
+      nh_private_.param<int>("TRACK/" + param_name + "/todo", params.tracking.feature.todo, 1);
+      break;
+    }
+
+    case TrackMode::TRACK_KLT: {
+      // check if the param is set to right enum type
+      auto param_name = enumToString(TrackMode::TRACK_KLT);
+      if (!nh_private_.hasParam(param_name)) {
+        ROS_ERROR("The yaml setup is not right, should be = %s", param_name.c_str());
+      }
+      
+      // load
+      nh_private_.param<int>("TRACK/" + param_name + "/num_pts",        params.tracking.klt.num_pts,        250);
+      nh_private_.param<int>("TRACK/" + param_name + "/fast_threshold", params.tracking.klt.fast_threshold, 15);
+      nh_private_.param<int>("TRACK/" + param_name + "/grid_x",         params.tracking.klt.grid_x,         5);
+      nh_private_.param<int>("TRACK/" + param_name + "/grid_y",         params.tracking.klt.grid_y,         3);
+      nh_private_.param<int>("TRACK/" + param_name + "/min_px_dist",    params.tracking.klt.min_px_dist,    8);
+      nh_private_.param<int>("TRACK/" + param_name + "/pyram",          params.tracking.klt.pyram,          3);
+      break;
+    }
+
+    case TrackMode::TRACK_DESCRIPTOR: {
+      break;
+    }
+
+    case TrackMode::TRACK_NONE:
+    default:
+      ROS_ERROR("Track Mode name=%s can't be parsed !!!", mode_str.c_str());
+      break;    
+  }
   
+  // ==================== Triangualtion ==================== //
+
   nh_private_.param<double>("Feature/max_cond_number",  params.triangualtion.max_cond_number, 10000);
   nh_private_.param<double>("Feature/min_dist",         params.triangualtion.min_dist,        0.10);
   nh_private_.param<double>("Feature/max_dist",         params.triangualtion.max_dist,        60);
@@ -466,6 +517,8 @@ void RosNode::loadParamImage(Params &params) {
   nh_private_.param<double>("Feature/min_dx",           params.triangualtion.min_dx,          1e-6);
   nh_private_.param<double>("Feature/min_dcost",        params.triangualtion.min_dcost,       1e-6);
   nh_private_.param<double>("Feature/max_baseline",     params.triangualtion.max_baseline,    40);
+
+  // ==================== Keyframe ==================== //
 
   nh_private_.param<int>   ("Keyframe/frame_count",  params.keyframe.frame_count,  5);
   nh_private_.param<double>("Keyframe/frame_motion", params.keyframe.frame_motion, 0.1);
@@ -528,6 +581,22 @@ void RosNode::dvlCallback(const geometry_msgs::TwistWithCovarianceStamped::Const
 
 }
 
+void RosNode::featureCallback(const sensor_msgs::PointCloud::ConstPtr &msg) {
+
+  FeatureMsg feature_msg;
+
+  // get time
+  feature_msg.time = msg->header.stamp.toSec();
+  // get u,v,id
+  for (size_t i = 0; i < msg->points.size(); i++) {
+    feature_msg.u.push_back(static_cast<float>(msg->points[i].x));
+    feature_msg.v.push_back(static_cast<float>(msg->points[i].y));
+    feature_msg.id.push_back(static_cast<unsigned int>(msg->channels[0].values[i]));
+  }
+
+  manager->feedFeature(feature_msg);
+}
+
 // TODO: check if feature tracking in image callback will effect IMU callback(overflow, bad imu-image align)
 void RosNode::imageCallback(const sensor_msgs::Image::ConstPtr &msg) {
 
@@ -541,16 +610,16 @@ void RosNode::imageCallback(const sensor_msgs::Image::ConstPtr &msg) {
   }
 
   // downsampling
-  cv::Mat img;
-  int width = cv_ptr->image.cols * parameters.tracking.downsample_ratio;
-  int height = cv_ptr->image.rows * parameters.tracking.downsample_ratio;
-  cv::resize(cv_ptr->image, img, cv::Size(width, height));
   //! TODO: cv::resize vs. cv::pyrDown
+  cv::Mat img;
+  int width = cv_ptr->image.cols * parameters.tracking.basic.downsample_ratio;
+  int height = cv_ptr->image.rows * parameters.tracking.basic.downsample_ratio;
+  cv::resize(cv_ptr->image, img, cv::Size(width, height));
 
   // feed img
   ImageMsg message;
   message.image = img;
-  message.time = msg->header.stamp.toSec();;
+  message.time = msg->header.stamp.toSec();
 
   // simple fliter to remove bad time image
   if(message.time > last_t_img){

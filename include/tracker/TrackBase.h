@@ -43,6 +43,8 @@
 #include "utils/colors.h"
 #include "utils/lambda_body.h"
 
+#include "types/msgs.h"
+
 namespace msckf_dvio {
 
 /**
@@ -221,6 +223,12 @@ public:
    * @param cam_id_right second image camera id
    */
   virtual void feed_stereo(double timestamp, cv::Mat &img_left, cv::Mat &img_right, size_t cam_id_left, size_t cam_id_right) = 0;
+
+  /**
+   * @brief Feed function for given tracked features (either from simulation or another tracker)
+   * @param data time, features that each one has u,v,id 
+   */
+  virtual void feed_features(FeatureMsg &data) = 0;
 
   /**
    * @brief Shows features extracted in the last image

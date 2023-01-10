@@ -76,6 +76,11 @@ public:
    */
   void feed_stereo(double timestamp, cv::Mat &img_left, cv::Mat &img_right, size_t cam_id_left, size_t cam_id_right) override;
 
+  void feed_features(FeatureMsg &data) override {
+    printf("[TrackKLT]: THIS feed_features SHOULD NEVER HAPPEN!\n");
+    std::exit(EXIT_FAILURE);
+  }
+
 protected:
   /**
    * @brief Detects new features in the current image

@@ -4,23 +4,17 @@
 
 # option: TRACK_FEATURE, TRACK_KLT, TRACK_DESCRIPTOR
 TRACK:
-  mode: TRACK_KLT
+  mode: TRACK_FEATURE
   num_aruco: 1024
   downsize_aruco: false
   use_stereo: false
   max_camera: 1
   cam_id: 0
-  downsample_ratio: 0.5
+  downsample_ratio: 1.0
 
-TRACK_KLT:
-  num_pts: 200
-  fast_threshold: 15
-  grid_x: 5
-  grid_y: 3
-  min_px_dist: 8
-  pyram: 3
-
-
+TRACK_FEATURE:
+  todo: 1
+  
 ############################################
 #### Camera feature triangulation parameters ####
 ############################################
@@ -51,10 +45,10 @@ Keyframe:
   # option 1: frame count
   frame_count: 2 
   # option 2: relative motion constraint
-  frame_motion: 0.1
+  frame_motion: 0.0
   # 2: 2D space constraint, for up-looking ice surface, 3: 3D space constraint
-  motion_space: 2
+  motion_space: 3
   # option 3: minimum tracked features
   min_tracked: 50
   # option 4: ratio = tracked feature num from last keyframe / total features at current frame
-  scene_ratio: 0.8
+  scene_ratio: 1.0  
