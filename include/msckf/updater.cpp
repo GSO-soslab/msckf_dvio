@@ -1000,6 +1000,8 @@ void Updater::cameraMeasurementKeyFrame(
     for(const auto& f : feat_marg) {
       add2 += f.timestamps.at(0).size();
     }
+
+    printf("\n");
     printf("  Marg feat size=%ld, total meas=%d\n", feat_marg.size(), add2);
   }
 }

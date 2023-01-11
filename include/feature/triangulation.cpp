@@ -137,7 +137,7 @@ bool FeatureTriangulation::single_gaussnewton(
   double rho = 1 / feature->p_FinA(2);
 
   // Optimization parameters
-  double lam = 1e-3;  /// Init lambda for Levenberg-Marquardt optimization
+  double lam = param_trig_.init_lamda;
   double eps = 10000;
   int runs = 0;
 

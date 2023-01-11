@@ -466,7 +466,7 @@ void MsckfManager::doCameraKeyframe() {
     // clone IMU pose, augment covariance
     predictor->augment(CAM0, CLONE_CAM0, state, time_curr_sensor, w_I);
 
-    printf("[TEST]: new clone:%d\n", state->getEstimationNum(CLONE_CAM0));
+    // printf("[TEST]: new clone:%d\n", state->getEstimationNum(CLONE_CAM0));
   }
 
   // [2] select tracked features
@@ -474,6 +474,27 @@ void MsckfManager::doCameraKeyframe() {
   std::vector<Feature> feature_marg;
   // selectFeaturesSlideWindow(time_curr_sensor, feature_lost, feature_marg);
   selectFeaturesKeyFrame(time_curr_sensor, feature_lost, feature_marg);
+
+  //! TEST: save data
+  file.open(file_path, std::ios_base::app);//std::ios_base::app
+  file<<std::endl;
+
+  file<<std::fixed<<std::setprecision(9);
+  file<<"time: "<< time_curr_sensor <<std::endl;
+
+  // lost feature id:
+  file<<std::fixed<<std::setprecision(4);
+  file<<"Lost: "<<feature_lost.size()<<" [ ";
+  for(const auto& f : feature_lost) {
+    file<<f.featid <<" ";
+  }
+  file<<" ]"<<std::endl;
+  // marg feature is:
+  file<<"Marg: "<<feature_marg.size()<<" [ ";
+  for(const auto& f : feature_marg) {
+    file<<f.featid <<" ";
+  }
+  file<<" ]"<<std::endl;
 
   // [3] Camera Feature Update: feature triangulation, feature update 
 
@@ -488,10 +509,12 @@ void MsckfManager::doCameraKeyframe() {
   //     add += f.timestamps.at(0).size();
   //   }
 
-  //   file.open(file_path, std::ios_base::app);//std::ios_base::app
-  //   file<<std::setprecision(17)<<time_curr_sensor<<","<<add<<std::endl;
-  //   file.close();
-  // }
+  //! TEST: save data
+  for (auto const &feat : feature_msckf) {
+    file<<"["<<feat.featid<<" "<<feat.p_FinG(0) << " " << feat.p_FinG(1) <<" " <<feat.p_FinG(2) <<"] ";
+  }
+  file<<std::endl;
+  file.close();
 
   //! TEST: manual set the depth of features
   // for(auto& feat : feature_msckf) {
@@ -526,7 +549,7 @@ void MsckfManager::doCameraKeyframe() {
     auto oldest_time = state->getCloneTime(CLONE_CAM0, 0);
     tracker->get_feature_database()->cleanup_out_measurements(oldest_time);
 
-    printf("[TEST]: aft clean:%d\n", state->getEstimationNum(CLONE_CAM0));
+    // printf("[TEST]: aft clean:%d\n", state->getEstimationNum(CLONE_CAM0));
   }
 
 }

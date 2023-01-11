@@ -512,6 +512,7 @@ void RosNode::loadParamImage(Params &params) {
   nh_private_.param<double>("Feature/min_dist",         params.triangualtion.min_dist,        0.10);
   nh_private_.param<double>("Feature/max_dist",         params.triangualtion.max_dist,        60);
   nh_private_.param<double>("Feature/lam_mult",         params.triangualtion.lam_mult,        10);
+  nh_private_.param<double>("Feature/init_lamda",       params.triangualtion.init_lamda,      0.001);
   nh_private_.param<int>   ("Feature/max_runs",         params.triangualtion.max_runs,        5);
   nh_private_.param<double>("Feature/max_lamda",        params.triangualtion.max_lamda,       1e10);
   nh_private_.param<double>("Feature/min_dx",           params.triangualtion.min_dx,          1e-6);

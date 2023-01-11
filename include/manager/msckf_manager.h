@@ -140,8 +140,7 @@ private:
   Params params;
 
   //! TEST: 
-  
-  const char *file_path="/home/lin/Desktop/msckf.txt";
+  const char *file_path="/home/lin/Desktop/msckf_manager.txt";
   std::ofstream file;
 
   // get triangulated feature position

@@ -22,11 +22,13 @@ Feature:
   # Max condition number of linear triangulation matrix accept triangulated features
   max_cond_number: 10000
   # Minimum distance to accept triangulated features
-  min_dist: 0.5
+  min_dist: 0.1
   # Minimum distance to accept triangulated features
-  max_dist: 5
+  max_dist: 60
   # Multiplier to increase/decrease lambda
   lam_mult: 10 
+  # Init lambda for Levenberg-Marquardt optimization
+  init_lamda: 0.001
   # Max runs for Levenberg-Marquardt
   max_runs: 5
   # Max lambda for Levenberg-Marquardt optimization

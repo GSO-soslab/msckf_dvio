@@ -217,6 +217,8 @@ struct paramTriangulation {
   double max_dist;
   /// Multiplier to increase/decrease lambda
   double lam_mult; 
+  /// Init lambda for Levenberg-Marquardt optimization
+  double init_lamda;  
   /// Max runs for Levenberg-Marquardt
   int max_runs; 
   /// Max lambda for Levenberg-Marquardt optimization
@@ -505,6 +507,7 @@ inline void Params::printParam() {
   std::cout<<"  min_dist: " << triangualtion.min_dist <<"\n";   
   std::cout<<"  max_dist: " << triangualtion.max_dist <<"\n";   
   std::cout<<"  lam_mult: " << triangualtion.lam_mult <<"\n";   
+  std::cout<<"  init_lamda: " << triangualtion.init_lamda <<"\n";   
   std::cout<<"  max_runs: " << triangualtion.max_runs <<"\n";   
   std::cout<<"  max_lamda: " << triangualtion.max_lamda <<"\n";   
   std::cout<<"  min_dx: " << triangualtion.min_dx <<"\n";   
