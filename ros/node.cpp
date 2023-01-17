@@ -72,6 +72,9 @@ RosNode::RosNode(const ros::NodeHandle &nh,
   }
 
   service_ = nh_.advertiseService("cmd",&RosNode::srvCallback, this);
+
+  // load some test data if need
+  loadCSV();
 }    
 
 void RosNode::loadParamSystem(Params &params) {
@@ -84,6 +87,7 @@ void RosNode::loadParamSystem(Params &params) {
   nh_private_.param<int>("SYS/backend_hz", params.sys.backend_hz, 20);
   nh_private_.getParam("SYS/sensors", sensors);
   nh_private_.getParam("SYS/topics", rosparam_topics);
+  nh_private_.param<std::string>("SYS/csv", params.sys.csv, "test.csv");
 
   ROS_ASSERT(rosparam_topics.getType() == XmlRpc::XmlRpcValue::TypeArray);
 
@@ -526,6 +530,37 @@ void RosNode::loadParamImage(Params &params) {
   nh_private_.param<int>   ("Keyframe/motion_space", params.keyframe.motion_space, 3);
   nh_private_.param<int>   ("Keyframe/min_tracked",  params.keyframe.min_tracked,  50);
   nh_private_.param<double>("Keyframe/scene_ratio",  params.keyframe.scene_ratio,  0.8);  
+}
+
+void RosNode::loadCSV() {
+  // check if we are actulally loading this test file  
+  std::filesystem::path filepath = parameters.sys.csv;
+  bool exist = std::filesystem::is_directory(filepath.parent_path());
+  if(!exist) {
+    printf("csv path not exist, no test file given\n");
+    return ;
+  }
+
+  // load the csv file
+  rapidcsv::Document doc(parameters.sys.csv);
+  std::vector<size_t> col_id = doc.GetColumn<size_t>("ID");
+  std::vector<float> col_fx = doc.GetColumn<float>("p_fx");
+  std::vector<float> col_fy = doc.GetColumn<float>("p_fy");
+  std::vector<float> col_fz = doc.GetColumn<float>("p_fz");
+  assert(col_id.size() == col_fx.size());
+  assert(col_fx.size() == col_fy.size());
+  assert(col_fy.size() == col_fz.size());
+  printf("\n Load test data size: %ld\n", col_id.size());
+
+  // save
+  std::unordered_map<size_t, Eigen::Vector3d> truth_feature;
+  for(size_t i = 0; i < col_id.size(); i++ ) {
+    truth_feature.insert({col_id.at(i), 
+                          Eigen::Vector3d(col_fx.at(i), col_fy.at(i), col_fz.at(i))});
+  } 
+
+  // pass to the system manager
+  manager->setupTest(truth_feature);
 }
 
 bool RosNode::srvCallback(std_srvs::Trigger::Request  &req, std_srvs::Trigger::Response &res) {

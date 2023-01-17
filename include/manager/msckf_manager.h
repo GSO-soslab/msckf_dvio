@@ -69,6 +69,10 @@ public:
 
   void updateImgHistory();
 
+  void setupTest(std::unordered_map<size_t, Eigen::Vector3d> &test_data) {
+    truth_feature = test_data;
+  }
+
 private:
 
   void doDVL();
@@ -142,6 +146,8 @@ private:
   //! TEST: 
   const char *file_path="/home/lin/Desktop/msckf_manager.txt";
   std::ofstream file;
+
+  std::unordered_map<size_t, Eigen::Vector3d> truth_feature;
 
   // get triangulated feature position
   std::atomic<bool> is_feat;

@@ -6,6 +6,8 @@
 #include <atomic>
 #include <mutex>
 #include <chrono>
+#include <filesystem>
+#include <unordered_map>
 
 // ros
 #include <ros/ros.h>
@@ -36,6 +38,7 @@
 #include "types/type_all.h"
 
 #include "visualizer.h"
+#include "utils/rapidcsv.h"
 
 namespace msckf_dvio
 {
@@ -72,6 +75,8 @@ public:
 
   void loadParamImage(Params &params);
 
+  void loadCSV();
+
 private:
   ros::NodeHandle nh_;
   ros::NodeHandle nh_private_;
@@ -90,7 +95,7 @@ private:
   std::shared_ptr<RosVisualizer> visualizer;
 
   Params parameters;
-
+  
 }; // end of class   
 
 } // namespace msckf_dvio

@@ -251,6 +251,8 @@ struct paramSystem {
   std::vector<Sensor> sensors;
   // topics
   std::map<Sensor, std::string> topics;
+  // test file path
+  std::string csv;
 };
 
 //! TODO: set sub-parameters as shared_ptr? 
@@ -295,6 +297,7 @@ inline void Params::printParam() {
 
   std::cout<<"\n================== System Parameters =======================\n";
   std::cout<<"  backend_hz= " << sys.backend_hz << "\n";
+  std::cout<<"  csv= " << sys.csv << "\n";
 
   std::cout<<"  sensors: ";
   for(const auto& sensor : sys.sensors) {

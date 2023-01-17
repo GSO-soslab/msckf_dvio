@@ -4,6 +4,7 @@ Panels:
     Name: Displays
     Property Tree Widget:
       Expanded:
+        - /Grid1
         - /Path1
       Splitter Ratio: 0.5
     Tree Height: 342
@@ -33,7 +34,7 @@ Visualization Manager:
   Class: ""
   Displays:
     - Alpha: 0.5
-      Cell Size: 1
+      Cell Size: 0.5
       Class: rviz/Grid
       Color: 160; 160; 164
       Enabled: true
@@ -47,7 +48,7 @@ Visualization Manager:
         Y: 0
         Z: 0
       Plane: XY
-      Plane Cell Count: 10
+      Plane Cell Count: 25
       Reference Frame: <Fixed Frame>
       Value: true
     - Alpha: 1
@@ -230,8 +231,8 @@ Visualization Manager:
   Value: true
   Views:
     Current:
-      Class: rviz/Orbit
-      Distance: 32.52419662475586
+      Class: rviz/XYOrbit
+      Distance: 44.699310302734375
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -239,17 +240,17 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: -1.9006980657577515
-        Y: -4.268581390380859
-        Z: 0.0473819300532341
+        X: 1.491776943206787
+        Y: -0.2208876609802246
+        Z: -1.920739407523797e-07
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.7597960233688354
+      Pitch: 0.08020328730344772
       Target Frame: <Fixed Frame>
-      Yaw: 1.4650312662124634
+      Yaw: 4.61039924621582
     Saved: ~
 Window Geometry:
   Displays:

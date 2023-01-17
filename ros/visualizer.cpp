@@ -76,6 +76,10 @@ void RosVisualizer::publishState() {
   T_O_I.setOrigin( tf2::Vector3(imu_value(4), imu_value(5), imu_value(6)) );
   T_O_I.setRotation( tf2::Quaternion(imu_value(0),imu_value(1),imu_value(2),imu_value(3)) );
 
+  // printf("\ntime = %.9f\n",imu_time);
+  // printf("q: %f,%f,%f,%f\n",imu_value(0),imu_value(1),imu_value(2),imu_value(3));
+  // printf("p: %f,%f,%f\n",imu_value(4),imu_value(5),imu_value(6));
+
   //// get tf: Odometry ~ Base_link
   tf2::Transform T_O_B = T_O_I * T_B_I.inverse();
 

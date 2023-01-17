@@ -337,7 +337,7 @@ void Predictor::augment(Sensor sensor_name,
 
   // augment covariance for clone
   auto id_imu = state->getEstimationId(IMU, EST_QUATERNION);
-  state->cov_.block(id_curr, id_curr, size_clone, size_clone) = state->cov_.block(0, id_imu, size_clone, size_clone);
+  state->cov_.block(id_curr, id_curr, size_clone, size_clone) = state->cov_.block(id_imu, id_imu, size_clone, size_clone);
   state->cov_.block(0, id_curr, size_old, size_clone) = state->cov_.block(0, id_imu, size_old, size_clone);
   state->cov_.block(id_curr, 0, size_clone, size_old) = state->cov_.block(id_imu, 0, size_clone, size_old);
 

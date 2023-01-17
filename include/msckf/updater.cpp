@@ -926,11 +926,24 @@ void Updater::cameraMeasurementKeyFrame(
     success_tri = triangulater->single_triangulation(&*it0, cam_poses);
     success_refine = triangulater->single_gaussnewton(&*it0, cam_poses);
 
+    // if(it0->featid == 1210) {
+    //   for(size_t i=0; i<it0->timestamps.at(0).size(); i++) {
+    //     printf("\nmeas time: %.9f\n", it0->timestamps.at(0).at(i));
+    //     printf("i=%ld, uvs_norm: u=%f,v=%f\n", i, it0->uvs_norm.at(0).at(i)(0),it0->uvs_norm.at(0).at(i)(1));
+    //     printf("i=%ld, uvs: u=%f,v=%f\n", i, it0->uvs.at(0).at(i)(0),it0->uvs.at(0).at(i)(1));
+    //     std::cout<<"R_C_G: \n"<<cam_poses.at(it0->timestamps.at(0).at(i)).block(0,0,3,3).transpose();
+    //     std::cout<<"\np_G_C: \n"<<cam_poses.at(it0->timestamps.at(0).at(i)).block(0,3,3,1)<<std::endl;
+    //   }
+
+    //   printf("\n[%ld,%f,%f,%f]\n",it0->featid, it0->p_FinG(0),it0->p_FinG(1),it0->p_FinG(2));
+    // } 
+
+
     // [3] Remove the feature if triangulation failed
     if (!success_tri || !success_refine) {
       it0 = feat_lost.erase(it0);
     }
-    else {
+    else {     
       it0++;
     }
   }
@@ -983,8 +996,8 @@ void Updater::cameraMeasurementKeyFrame(
   }
 
   // [2] Combine lost and marg feature measurements for update
-  feat_msckf.insert(feat_msckf.end(), feat_marg.begin(), feat_marg.end());
   feat_msckf.insert(feat_msckf.end(), feat_lost.begin(), feat_lost.end());
+  // feat_msckf.insert(feat_msckf.end(), feat_marg.begin(), feat_marg.end());
 
   auto add1 = 0;
   if(feat_lost.size() > 0) {
@@ -992,7 +1005,7 @@ void Updater::cameraMeasurementKeyFrame(
       add1 += f.timestamps.at(0).size();
     }
 
-    printf("  Lost feat size=%ld, total meas=%d\n", feat_lost.size(), add1);
+    // printf("  Lost feat size=%ld, total meas=%d\n", feat_lost.size(), add1);
   }
 
   auto add2 = 0;
@@ -1001,8 +1014,7 @@ void Updater::cameraMeasurementKeyFrame(
       add2 += f.timestamps.at(0).size();
     }
 
-    printf("\n");
-    printf("  Marg feat size=%ld, total meas=%d\n", feat_marg.size(), add2);
+    // printf("  Marg feat size=%ld, total meas=%d\n", feat_marg.size(), add2);
   }
 }
 
@@ -1137,8 +1149,8 @@ void Updater::updateCam(
     featureJacobian(state, *it2, H_xj, H_fj, r_j);
 
     // nullspace projection to remove global feature related
-    nullspace_project(H_fj, H_xj, r_j);
-    // nullspace_project_inplace(H_fj, H_xj, r_j);
+    // nullspace_project(H_fj, H_xj, r_j);
+    nullspace_project_inplace(H_fj, H_xj, r_j);
 
     // Mahalanobis gating test
     // Eq.(16) Mingyang Li et al. ConsistentVIO_2013_IJRR
@@ -1184,8 +1196,8 @@ void Updater::updateCam(
   }
 
   // [3] compress
-  compress(H_x, residual);
-  // compress_inplace(H_x, residual);
+  // compress(H_x, residual);
+  compress_inplace(H_x, residual);
 
   // -------------------- Update EKF:Compute Kalman Gain -------------------- //
 
@@ -1230,7 +1242,7 @@ void Updater::featureJacobian(std::shared_ptr<State> state, const Feature &featu
                               Eigen::MatrixXd &H_x, Eigen::MatrixXd &H_f, 
                               Eigen::VectorXd & res) {
 
-  // total number of measurements for this feature
+  // total number of measurements for single feature
   int size_measurement = 0;
   for (auto const &pair : feature.timestamps) {
     size_measurement += 2 * (int)pair.second.size();
@@ -1261,7 +1273,7 @@ void Updater::featureJacobian(std::shared_ptr<State> state, const Feature &featu
 
     for (size_t m = 0; m < feature.timestamps.at(pair.first).size(); m++) {
       
-      // clone IMU pose at clone time
+      // get clone IMU pose at clone time
       auto EST_CLONE_TIME = toCloneStamp(feature.timestamps.at(pair.first).at(m));
       auto clone_pose = state->getEstimationValue(CLONE_CAM0,EST_CLONE_TIME);
       R_Ik_G = toRotationMatrix(clone_pose.block(0,0,4,1));
@@ -1270,15 +1282,15 @@ void Updater::featureJacobian(std::shared_ptr<State> state, const Feature &featu
       // get feature on current camera frame
       Eigen::Vector3d p_C_F = R_C_I * R_Ik_G * (feature.p_FinG - p_G_Ik) + p_C_I;
 
-      // H = [H_calib H_clone H_f]
+      // H = [H_imu H_calib H_clone H_f]
 
       /*-------------------- Jacobian related to feature in camera frame --------------------*/
 
       Eigen::Matrix<double, 2, 3> dhp_dp_C_F = Eigen::Matrix<double, 2, 3>::Zero();
       dhp_dp_C_F(0, 0) = 1 / p_C_F(2);
       dhp_dp_C_F(1, 1) = 1 / p_C_F(2);
-      dhp_dp_C_F(0, 2) = - p_C_F(0) / p_C_F(2) * p_C_F(2);
-      dhp_dp_C_F(1, 2) = - p_C_F(1) / p_C_F(2) * p_C_F(2);
+      dhp_dp_C_F(0, 2) = - p_C_F(0) / (p_C_F(2) * p_C_F(2));
+      dhp_dp_C_F(1, 2) = - p_C_F(1) / (p_C_F(2) * p_C_F(2));
 
       /*-------------------- Jacobian related to Camera calibration --------------------*/
       if(param_msckf_.do_R_C_I) {

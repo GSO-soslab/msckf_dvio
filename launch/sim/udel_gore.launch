@@ -12,7 +12,7 @@
   <arg name="bag_start" default="0"/> 
   <arg name="config_path" default="$(find msckf_dvio)/config/sim/udel_gore"/>
   <!-- <arg name="bag" default="/home/lin/develop/data/sim/udel_gore/imuIdeal_dvlIdeal_groundtruth.bag"/> -->
-  <arg name="bag" default="/home/lin/develop/data/sim/udel_gore/sim_NoCalibNoise.bag"/>
+  <arg name="bag" default="/home/lin/develop/data/sim/udel_gore/sim_NoCalibNoise_4.bag"/>
 
   <node pkg="rosbag" type="play" name="rosbag" required="true" 
         args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)"/>

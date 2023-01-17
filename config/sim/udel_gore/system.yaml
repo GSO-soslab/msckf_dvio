@@ -14,6 +14,8 @@ SYS:
     - {IMU: /ov_msckf/imu_sim}
     # - {DVL: /ov_msckf/dvl_sim}
     - {CAM0_FEATURE: /ov_msckf/feature_sim}
+  # load some test files
+  # csv: /home/lin/develop/data/sim/udel_gore/sim_NoCalibNoise_4_feat_position.txt
 
 
 ####################################################################################

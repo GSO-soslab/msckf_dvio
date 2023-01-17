@@ -88,7 +88,7 @@ MsckfManager::MsckfManager(Params &parameters)
       break;
   }
 
-  recorder = std::make_shared<Recorder>("/home/lin/Desktop/features.txt");
+  // recorder = std::make_shared<Recorder>("/home/lin/Desktop/features.txt");
 
   frame_count = params.keyframe.frame_count;
   frame_distance = 0;
@@ -453,6 +453,8 @@ void MsckfManager::doCameraKeyframe() {
   predictor->propagate(state, selected_imu);
   assert(!state->foundSPD("cam_propagate"));
 
+  // printf("cam t: %.9f\n",time_curr_sensor);
+
   //// [1] State Augmentation: 
   Eigen::Vector3d w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
 
@@ -476,25 +478,26 @@ void MsckfManager::doCameraKeyframe() {
   selectFeaturesKeyFrame(time_curr_sensor, feature_lost, feature_marg);
 
   //! TEST: save data
-  file.open(file_path, std::ios_base::app);//std::ios_base::app
-  file<<std::endl;
+  // file.open(file_path, std::ios_base::app);//std::ios_base::app
+  // file<<std::endl;
 
-  file<<std::fixed<<std::setprecision(9);
-  file<<"time: "<< time_curr_sensor <<std::endl;
+  // file<<std::fixed<<std::setprecision(9);
+  // file<<"Time: "<< time_curr_sensor <<std::endl;
+  // file.close();
 
-  // lost feature id:
-  file<<std::fixed<<std::setprecision(4);
-  file<<"Lost: "<<feature_lost.size()<<" [ ";
-  for(const auto& f : feature_lost) {
-    file<<f.featid <<" ";
-  }
-  file<<" ]"<<std::endl;
-  // marg feature is:
-  file<<"Marg: "<<feature_marg.size()<<" [ ";
-  for(const auto& f : feature_marg) {
-    file<<f.featid <<" ";
-  }
-  file<<" ]"<<std::endl;
+  // // lost feature id:
+  // file<<std::fixed<<std::setprecision(4);
+  // file<<"Lost: "<<feature_lost.size()<<" [ ";
+  // for(const auto& f : feature_lost) {
+  //   file<<f.featid <<" ";
+  // }
+  // file<<" ]"<<std::endl;
+  // // marg feature is:
+  // file<<"Marg: "<<feature_marg.size()<<" [ ";
+  // for(const auto& f : feature_marg) {
+  //   file<<f.featid <<" ";
+  // }
+  // file<<" ]"<<std::endl;
 
   // [3] Camera Feature Update: feature triangulation, feature update 
 
@@ -502,19 +505,22 @@ void MsckfManager::doCameraKeyframe() {
   std::vector<Feature> feature_msckf;
   updater->cameraMeasurementKeyFrame(state, feature_lost, feature_marg, feature_msckf);
 
-  //! TEST: check feature update analysis 
-  // if(feature_msckf.size()>0) {
-  //   auto add = 0;
-  //   for(const auto& f : feature_msckf) {
-  //     add += f.timestamps.at(0).size();
+  //! TEST: manual set the feature position as truth
+  // if(truth_feature.size()>0) {
+  //   for(auto& f : feature_msckf) {
+  //     // convert feature database if back to original tracking id
+  //     auto id = f.featid - params.tracking.basic.num_aruco - 1;
+  //     if(truth_feature.find(id) != truth_feature.end()) {
+  //       printf("trig: %f,%f,%f\n", f.p_FinG(0),f.p_FinG(1),f.p_FinG(2));
+  //       f.p_FinG = truth_feature.at(id);
+  //       printf("truth: %f,%f,%f\n", f.p_FinG(0),f.p_FinG(1),f.p_FinG(2));
+  //     }
+  //     else {
+  //       printf("\nerror find feat id\n");
+  //     }
   //   }
+  // }
 
-  //! TEST: save data
-  for (auto const &feat : feature_msckf) {
-    file<<"["<<feat.featid<<" "<<feat.p_FinG(0) << " " << feat.p_FinG(1) <<" " <<feat.p_FinG(2) <<"] ";
-  }
-  file<<std::endl;
-  file.close();
 
   //! TEST: manual set the depth of features
   // for(auto& feat : feature_msckf) {
