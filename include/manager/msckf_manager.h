@@ -146,6 +146,8 @@ private:
   //! TEST: 
   const char *file_path="/home/lin/Desktop/msckf_manager.txt";
   std::ofstream file;
+  // file.open(file_path, std::ios_base::app);//std::ios_base::app
+  // file.close();
 
   std::unordered_map<size_t, Eigen::Vector3d> truth_feature;
 

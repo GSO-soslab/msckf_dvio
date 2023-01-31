@@ -56,7 +56,7 @@ CAM0:
   resolution: [752,480]
   timeoffset_I_C: 0
   # unit in pixel
-  noise: 1
+  noise: 0.0035
   camera_model: pinhole
   distortion_model: radtan
 

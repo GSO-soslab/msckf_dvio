@@ -10,6 +10,8 @@ INIT_MODE: INIT_SETTING
 
 ###############################################################################
 
+# brief: only select the sensor given by system.yaml
+
 INIT_SETTING:
   # # Example:
   # SENSOR:

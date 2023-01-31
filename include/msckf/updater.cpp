@@ -997,7 +997,7 @@ void Updater::cameraMeasurementKeyFrame(
 
   // [2] Combine lost and marg feature measurements for update
   feat_msckf.insert(feat_msckf.end(), feat_lost.begin(), feat_lost.end());
-  // feat_msckf.insert(feat_msckf.end(), feat_marg.begin(), feat_marg.end());
+  feat_msckf.insert(feat_msckf.end(), feat_marg.begin(), feat_marg.end());
 
   auto add1 = 0;
   if(feat_lost.size() > 0) {
@@ -1109,10 +1109,7 @@ void Updater::cameraMeasurement(
 
 }
 
-void Updater::updateCam(
-    std::shared_ptr<State> state, 
-    std::vector<Feature> &features) {
-
+void Updater::updateCam(std::shared_ptr<State> state, std::vector<Feature> &features) {
   if(features.empty()) {
     return;
   }
@@ -1149,8 +1146,8 @@ void Updater::updateCam(
     featureJacobian(state, *it2, H_xj, H_fj, r_j);
 
     // nullspace projection to remove global feature related
-    // nullspace_project(H_fj, H_xj, r_j);
-    nullspace_project_inplace(H_fj, H_xj, r_j);
+    nullspace_project(H_fj, H_xj, r_j);
+    // nullspace_project_inplace(H_fj, H_xj, r_j);
 
     // Mahalanobis gating test
     // Eq.(16) Mingyang Li et al. ConsistentVIO_2013_IJRR
@@ -1196,8 +1193,8 @@ void Updater::updateCam(
   }
 
   // [3] compress
-  // compress(H_x, residual);
-  compress_inplace(H_x, residual);
+  compress(H_x, residual);
+  // compress_inplace(H_x, residual);  
 
   // -------------------- Update EKF:Compute Kalman Gain -------------------- //
 
@@ -1210,7 +1207,8 @@ void Updater::updateCam(
   S = H_x * state->cov_ * H_x.transpose() + Rn;
 
   Eigen::MatrixXd K_transpose = S.ldlt().solve(H_x * state->cov_);
-  Eigen::MatrixXd K = K_transpose.transpose();
+  Eigen::MatrixXd K = K_transpose.transpose(); 
+
 
   // -------------------- Update EKF: state and covariance -------------------- //
 
@@ -1233,10 +1231,227 @@ void Updater::updateCam(
 
   // check
   assert(!state->foundSPD("cam_update"));
-
 }
 
+void Updater::updateCamPart(
+    std::shared_ptr<State> state, 
+    std::vector<Feature> &features) {
 
+  if(features.empty()) {
+    return;
+  }
+
+  // -------------------- Update Equation -------------------- //
+
+  // [0] create the initial H and r matirx 
+
+  // calculate the max possible measurement size
+  int max_measurements = 0;
+  for(const auto& feat : features) {
+    for(const auto& pair : feat.timestamps) {
+      max_measurements += 2 * pair.second.size();
+    }
+  }
+  assert(max_measurements > 2);
+
+  // calculate max possible state size, covariance size
+  int max_state = state->getCovCols();
+
+  Eigen::MatrixXd H_x = Eigen::MatrixXd::Zero(max_measurements, max_state);
+  Eigen::VectorXd residual = Eigen::VectorXd::Zero(max_measurements);
+  std::unordered_map<std::shared_ptr<Type>, size_t> Hx_mapping;
+  std::vector<std::shared_ptr<Type>> Hx_order_big;
+  int ct_jacob = 0;
+  int ct_meas = 0;
+
+  // [1] stack all the each feature jacobian 
+  auto it2 = features.begin();
+  while (it2 != features.end()) {
+  // for(const auto& feat : features) {
+    Eigen::MatrixXd H_xj;
+    Eigen::MatrixXd H_fj;
+    Eigen::VectorXd r_j;
+    std::vector<std::shared_ptr<Type>> Hx_order;
+
+    // stack on all the measurements for single feature
+    // featureJacobian(state, *it2, H_xj, H_fj, r_j);
+    featureJacobianPart(state, *it2, H_xj, H_fj, r_j, Hx_order);
+    // std::cout<<"H_jx: \n"<< H_xj <<std::endl;
+
+    // nullspace projection to remove global feature related
+    // nullspace_project(H_fj, H_xj, r_j);
+    nullspace_project_inplace(H_fj, H_xj, r_j);
+
+    // Mahalanobis gating test to filter bad measurement
+    if(!chiSquareTest(state, H_xj, r_j, Hx_order)) {
+      printf("chi2 failed: id:%ld \n", (*it2).featid);
+      it2 = features.erase(it2);
+      continue;
+    }
+
+    // stack one feature's measurements
+    // This big H matrix only has state involved in the Jacobian derivative
+    // This order is not same as the order of state vector
+    size_t ct_hx = 0;
+    for (const auto &var : Hx_order) {
+
+      // Ensure that this variable is in our Jacobian
+      if (Hx_mapping.find(var) == Hx_mapping.end()) {
+        Hx_mapping.insert({var, ct_jacob});
+        Hx_order_big.push_back(var);
+        ct_jacob += var->getSize();
+      }
+
+      // Append to our large Jacobian
+      H_x.block(ct_meas, Hx_mapping[var], H_xj.rows(), var->getSize()) = 
+        H_xj.block(0, ct_hx, H_xj.rows(), var->getSize());
+      ct_hx += var->getSize();
+    }    
+
+    residual.block(ct_meas, 0, r_j.rows(), 1) = r_j;
+    ct_meas += r_j.rows();
+
+    it2++;
+  }
+
+  // [2] resize the matirx to the actual(dimension reduced by nullspace project, gating test filter)
+  if (ct_meas < 1) {
+    printf("ct_meas<1, return\n");
+    return;
+  }
+
+  assert(ct_meas <= max_measurements);
+  assert(ct_jacob <= max_state);
+  H_x.conservativeResize(ct_meas, ct_jacob);
+  residual.conservativeResize(ct_meas, 1);
+  if(ct_meas > 1500) {
+    printf("warning: large size of measurement jacobian = %d", ct_meas);
+  }
+
+  // [3] compress
+  // compress(H_x, residual);
+  compress_inplace(H_x, residual);
+  if (H_x.rows() < 1) {
+    printf("cam update: H_x.rows()<1, return\n");
+    return;
+  }
+
+
+ // [4] update
+  Eigen::MatrixXd Rn = prior_cam_.noise * prior_cam_.noise * 
+    Eigen::MatrixXd::Identity(residual.rows(), residual.rows());
+
+  update(state, Hx_order_big, H_x, residual, Rn);
+}
+
+void Updater::featureJacobianPart(
+  std::shared_ptr<State> state, const Feature &feature, 
+  Eigen::MatrixXd &H_x, Eigen::MatrixXd &H_f, 
+  Eigen::VectorXd & res, std::vector<std::shared_ptr<Type>> &x_order) {
+
+  /***************************************************************************/
+  /*                      Select the state variable involved                 */
+  /***************************************************************************/
+
+  // total number of measurements for single feature
+  int size_measurement = 0;
+  for (auto const &pair : feature.timestamps) {
+    size_measurement += 2 * (int)pair.second.size();
+  }
+
+  // select the states involved with this feature
+  int total_hx = 0;
+  std::unordered_map<std::shared_ptr<Type>, size_t> map_hx;
+  for(auto const &pair : feature.timestamps) {
+
+    //! TODO: set calibration extrinsics as PoseJPL
+
+    for (size_t m = 0; m < feature.timestamps.at(pair.first).size(); m++) {
+      // Add this clone if it is not added already
+      auto EST_CLONE_TIME = toCloneStamp(feature.timestamps.at(pair.first).at(m));
+      auto clone_Ii = state->getEstimation(CLONE_CAM0,EST_CLONE_TIME);
+
+      if (map_hx.find(clone_Ii) == map_hx.end()) {
+        map_hx.insert({clone_Ii, total_hx});
+        x_order.push_back(clone_Ii);
+        total_hx += clone_Ii->getSize();
+      }
+    }
+  }
+
+  /***************************************************************************/
+  /*                     Allocate our residual and Jacobians                 */
+  /***************************************************************************/
+
+  // setup matrix size
+  H_x = Eigen::MatrixXd::Zero(size_measurement, total_hx);
+  H_f = Eigen::MatrixXd::Zero(size_measurement, 3);
+  res = Eigen::VectorXd::Zero(size_measurement);
+  int count = 0;
+
+  for(auto const &pair : feature.timestamps) {
+    // get information
+    Eigen::Matrix3d R_C_I = param_msckf_.do_R_C_I ?
+      toRotationMatrix(state->getEstimationValue(CAM0,EST_QUATERNION)) :
+      toRotationMatrix(prior_cam_.extrinsics.head(4)); 
+
+    Eigen::Vector3d p_C_I = param_msckf_.do_p_C_I ? 
+      state->getEstimationValue(CAM0,EST_POSITION) : 
+      prior_cam_.extrinsics.tail(3);
+
+    Eigen::Matrix3d R_Ik_G;
+    Eigen::Vector3d p_G_Ik;
+
+    //
+    for (size_t m = 0; m < feature.timestamps.at(pair.first).size(); m++) {
+      // get clone IMU pose at clone time
+      auto EST_CLONE_TIME = toCloneStamp(feature.timestamps.at(pair.first).at(m));
+      auto clone_Ii = state->getEstimation(CLONE_CAM0,EST_CLONE_TIME);
+
+      R_Ik_G = toRotationMatrix(clone_Ii->getValue().block(0,0,4,1));
+      p_G_Ik = clone_Ii->getValue().block(4,0,3,1);
+
+      // get feature on current camera frame
+      Eigen::Vector3d p_C_F = R_C_I * R_Ik_G * (feature.p_FinG - p_G_Ik) + p_C_I;
+
+      /*-------------------- Jacobian related to feature in camera frame --------------------*/
+
+      Eigen::Matrix<double, 2, 3> dhp_dp_C_F = Eigen::Matrix<double, 2, 3>::Zero();
+      dhp_dp_C_F(0, 0) = 1 / p_C_F(2);
+      dhp_dp_C_F(1, 1) = 1 / p_C_F(2);
+      dhp_dp_C_F(0, 2) = - p_C_F(0) / (p_C_F(2) * p_C_F(2));
+      dhp_dp_C_F(1, 2) = - p_C_F(1) / (p_C_F(2) * p_C_F(2));
+
+      /*-------------------- Jacobian related to IMU clone --------------------*/
+      // dh()/d(R_Ik_G)
+      Eigen::Matrix3d dht_dR_Ik_G = R_C_I * toSkewSymmetric(R_Ik_G * (feature.p_FinG - p_G_Ik));
+      // dh()/d(p_G_Ik)
+      Eigen::Matrix3d dht_dp_G_Ik = - R_C_I * R_Ik_G;
+      // stack one for clone pose
+      Eigen::Matrix<double, 2, 6> dht_dclone = Eigen::Matrix<double, 2, 6>::Zero();
+      dht_dclone.block(0, 0, 2, 3) = dhp_dp_C_F * dht_dR_Ik_G;
+      dht_dclone.block(0, 3, 2, 3) = dhp_dp_C_F * dht_dp_G_Ik;
+      // stack jacobian matrix
+      H_x.block(2 * count, map_hx[clone_Ii], 2, clone_Ii->getSize()).noalias() = dht_dclone;
+
+      /*-------------------- Jacobian related to features in global frame --------------------*/
+      // dh()/d(p_G_F)
+      Eigen::Matrix3d dht_dp_G_F = R_C_I * R_Ik_G;
+      // stack jacobian
+      H_f.block(2 * count, 0, 2, H_f.cols()).noalias() = dhp_dp_C_F * dht_dp_G_F;
+
+      /*-------------------- residual --------------------*/
+      // residual = measurement - estimation
+      res.block(2 * count, 0, 2, 1).noalias() = 
+          Eigen::Vector2d(feature.uvs_norm.at(pair.first).at(m)(0), 
+                          feature.uvs_norm.at(pair.first).at(m)(1)) - 
+          Eigen::Vector2d(p_C_F(0)/p_C_F(2), p_C_F(1)/p_C_F(2));
+
+      // add for each measurement
+      count++;
+    }
+  }
+}
 
 void Updater::featureJacobian(std::shared_ptr<State> state, const Feature &feature, 
                               Eigen::MatrixXd &H_x, Eigen::MatrixXd &H_f, 
@@ -1386,6 +1601,49 @@ void Updater::nullspace_project_inplace(Eigen::MatrixXd &H_f, Eigen::MatrixXd &H
   assert(H_x.rows() == res.rows());
 }
 
+bool Updater::chiSquareTest(
+  std::shared_ptr<State> state, const Eigen::MatrixXd &H_x, 
+  const Eigen::VectorXd &r, std::vector<std::shared_ptr<Type>> x_order) {
+
+  // Mahalanobis gating test
+  // Eq.(16) Mingyang Li et al. ConsistentVIO_2013_IJRR
+
+  // // use entire H_x matrix including the IMU state
+  // Eigen::MatrixXd S = H_x * state->getCov() * H_x.transpose();
+  // S.diagonal() += prior_cam_.noise * prior_cam_.noise * Eigen::VectorXd::Ones(S.rows());
+  // double gamma = r.dot(S.llt().solve(r));
+
+  // use only involved states
+  Eigen::MatrixXd P_involved = state->getPartCov(x_order);
+  Eigen::MatrixXd S = H_x * P_involved * H_x.transpose();
+  S.diagonal() += prior_cam_.noise * prior_cam_.noise * Eigen::VectorXd::Ones(S.rows());
+  double gamma = r.dot(S.llt().solve(r));
+
+  // std::cout<<"P_involved: \n"<< P_involved<<std::endl;
+  // std::cout<<"H_x: \n" << H_x <<std::endl;
+  // std::cout<<"r: \n" << r <<std::endl;
+
+  // std::exit(EXIT_FAILURE);
+
+  // 95% chi^2 table threshold
+  double chi2_check;
+  if (r.rows() < 500) {
+    chi2_check = chi_squared_table[r.rows()];
+  } else {
+    boost::math::chi_squared chi_squared_dist(r.rows());
+    chi2_check = boost::math::quantile(chi_squared_dist, 0.95);
+    printf("Warning: chi2_check over the residual limit - %d\n", (int)r.rows());
+  }
+
+  // Check if we should delete or not
+  if (gamma > chi2_check) {
+    return false;
+  }
+  else {
+    return true;
+  }
+}
+
 // from: msckf_vio
 void Updater::compress(Eigen::MatrixXd &H_x, Eigen::VectorXd &res) {
   // Eq.(27) Anastasios Mourikis et al. MSCKF_ICRA_2007
@@ -1448,6 +1706,86 @@ void Updater::compress_inplace(Eigen::MatrixXd &H_x, Eigen::VectorXd &res) {
   assert(r <= H_x.rows());
   H_x.conservativeResize(r, H_x.cols());
   res.conservativeResize(r, res.cols());
+}
+
+void Updater::update(
+    std::shared_ptr<State> state, const std::vector<std::shared_ptr<Type>> &H_order,
+    const Eigen::MatrixXd &H, const Eigen::VectorXd &res, const Eigen::MatrixXd &R) {
+
+  assert(res.rows() == R.rows());
+  assert(H.rows() == res.rows());
+
+  /***************************************************************************/
+  /*                         Kalman Gain Calculation                         */
+  /***************************************************************************/
+  // K = (P * H^T) * (H * P * H^T + Rn) ^{-1}
+  //        |                |
+  // K =    M      *         S^{-1}
+
+
+  /* ---------- Get the M part ---------- */
+
+  Eigen::MatrixXd M_a = Eigen::MatrixXd::Zero(state->getCovRows(), res.rows());
+
+  // Get the location in small jacobian for each measuring variable
+  int current_it = 0;
+  std::vector<int> H_id;
+  for (const auto &meas_var : H_order) {
+    H_id.push_back(current_it);
+    current_it += meas_var->getSize();
+  }
+
+  // Get estimation variable from the state vector
+  std::vector<std::shared_ptr<Type>> full_states;
+  for(const auto& [sensor_name, sensor_state] : state->state_) {
+    for(const auto& [est_name, est_state] : sensor_state) {
+      full_states.push_back(est_state);
+    }
+  }
+
+  // For each active variable find its M = P*H^T
+  for (const auto& var : full_states) {
+    // Sum up effect of each subjacobian = K_i= \sum_m (P_im Hm^T)
+    Eigen::MatrixXd M_i = Eigen::MatrixXd::Zero(var->getSize(), res.rows());
+    for (size_t i = 0; i < H_order.size(); i++) {
+      std::shared_ptr<Type> meas_var = H_order[i];
+      M_i.noalias() += state->cov_.block(var->getId(), meas_var->getId(), var->getSize(), meas_var->getSize()) *
+                       H.block(0, H_id[i], H.rows(), meas_var->getSize()).transpose();
+    }
+    M_a.block(var->getId(), 0, var->getSize(), res.rows()) = M_i;
+  }
+
+  /* ---------- Get the S part ---------- */
+
+  // Get covariance of the involved terms
+  Eigen::MatrixXd P_small = state->getPartCov(H_order);
+
+  Eigen::MatrixXd S(R.rows(), R.rows());
+  S.triangularView<Eigen::Upper>() = H * P_small * H.transpose();
+  S.triangularView<Eigen::Upper>() += R;
+
+  // Invert our S 
+  Eigen::MatrixXd Sinv = Eigen::MatrixXd::Identity(R.rows(), R.rows());
+  S.selfadjointView<Eigen::Upper>().llt().solveInPlace(Sinv);
+
+  /* ---------- Get the Kalman Gain ---------- */
+  Eigen::MatrixXd K = M_a * Sinv.selfadjointView<Eigen::Upper>();
+
+  /***************************************************************************/
+  /*                               EKF Update                                */
+  /***************************************************************************/
+
+  // update state
+  // d_x = K * r
+  Eigen::VectorXd delta_X = K * res;
+  state->updateState(delta_X);
+
+  // update covariance
+  // P_k = P_k-1 - K * H * P_k-1
+  state->cov_.triangularView<Eigen::Upper>() -= K * M_a.transpose();
+  state->cov_ = state->cov_.selfadjointView<Eigen::Upper>();
+
+  assert(!state->foundSPD("cam_update"));
 }
 
 } // namespace msckf_dvio

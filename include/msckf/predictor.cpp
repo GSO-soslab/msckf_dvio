@@ -63,7 +63,7 @@ void Predictor::propagateCovariance(std::shared_ptr<State> state,
   P_II.noalias() += 
     Phi * state->cov_.block(id_imu_start, id_imu_start, size_imu, size_imu) * Phi.transpose();
 
-  state->cov_.block(id_imu_start, id_imu_start, size_imu,   size_imu)   = P_II;
+  state->cov_.block(id_imu_start, id_imu_start, size_imu, size_imu) = P_II;
 
   // Phi*Covariance_ImuOthers, in case only IMU state exist
   if(size_other != 0) {
@@ -71,8 +71,8 @@ void Predictor::propagateCovariance(std::shared_ptr<State> state,
     P_IOthers.noalias() +=
       Phi * state->cov_.block(id_imu_start, id_imu_after, size_imu, size_other);
 
-    state->cov_.block(id_imu_start, id_imu_after, size_imu,   size_other) = P_IOthers;
-    state->cov_.block(id_imu_after, id_imu_start, size_other, size_imu)   = P_IOthers.transpose();
+    state->cov_.block(id_imu_start, id_imu_after, size_imu, size_other) = P_IOthers;
+    state->cov_.block(id_imu_after, id_imu_start, size_other, size_imu) = P_IOthers.transpose();
   }
 
 }
@@ -92,10 +92,14 @@ void Predictor::propagateState(std::shared_ptr<State> state,
   // assert(data_end.time>data_beg.time);
 
   // Corrected imu measurements
-  Eigen::Matrix<double, 3, 1> w_hat  = data_beg.w - state->getEstimationValue(IMU, EST_BIAS_G);
-  Eigen::Matrix<double, 3, 1> a_hat  = data_beg.a - state->getEstimationValue(IMU, EST_BIAS_A);
-  Eigen::Matrix<double, 3, 1> w_hat2 = data_end.w - state->getEstimationValue(IMU, EST_BIAS_G);
-  Eigen::Matrix<double, 3, 1> a_hat2 = data_end.a - state->getEstimationValue(IMU, EST_BIAS_A);
+  Eigen::Matrix<double, 3, 1> w_hat  = 
+      data_beg.w - state->getEstimationValue(IMU, EST_BIAS_G);
+  Eigen::Matrix<double, 3, 1> a_hat  = 
+      data_beg.a - state->getEstimationValue(IMU, EST_BIAS_A);
+  Eigen::Matrix<double, 3, 1> w_hat2 = 
+      data_end.w - state->getEstimationValue(IMU, EST_BIAS_G);
+  Eigen::Matrix<double, 3, 1> a_hat2 = 
+      data_end.a - state->getEstimationValue(IMU, EST_BIAS_A);
 
   // Compute the new state mean value
   Eigen::Vector4d new_q;

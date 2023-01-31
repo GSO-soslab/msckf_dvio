@@ -74,7 +74,7 @@ RosNode::RosNode(const ros::NodeHandle &nh,
   service_ = nh_.advertiseService("cmd",&RosNode::srvCallback, this);
 
   // load some test data if need
-  loadCSV();
+  // loadCSV();
 }    
 
 void RosNode::loadParamSystem(Params &params) {
@@ -87,7 +87,7 @@ void RosNode::loadParamSystem(Params &params) {
   nh_private_.param<int>("SYS/backend_hz", params.sys.backend_hz, 20);
   nh_private_.getParam("SYS/sensors", sensors);
   nh_private_.getParam("SYS/topics", rosparam_topics);
-  nh_private_.param<std::string>("SYS/csv", params.sys.csv, "test.csv");
+  nh_private_.param<std::string>("SYS/csv", params.sys.csv, "not_set.csv");
 
   ROS_ASSERT(rosparam_topics.getType() == XmlRpc::XmlRpcValue::TypeArray);
 
@@ -319,6 +319,7 @@ void RosNode::loadParamInit(Params &params) {
             break;
           }
 
+          case Sensor::CAM0_FEATURE: 
           case Sensor::CAM0: {
             break;
           }
@@ -479,7 +480,7 @@ void RosNode::loadParamImage(Params &params) {
       }      
 
       // load
-      nh_private_.param<int>("TRACK/" + param_name + "/todo", params.tracking.feature.todo, 1);
+      nh_private_.param<int>(param_name + "/todo", params.tracking.feature.todo, 1);
       break;
     }
 
@@ -491,12 +492,12 @@ void RosNode::loadParamImage(Params &params) {
       }
       
       // load
-      nh_private_.param<int>("TRACK/" + param_name + "/num_pts",        params.tracking.klt.num_pts,        250);
-      nh_private_.param<int>("TRACK/" + param_name + "/fast_threshold", params.tracking.klt.fast_threshold, 15);
-      nh_private_.param<int>("TRACK/" + param_name + "/grid_x",         params.tracking.klt.grid_x,         5);
-      nh_private_.param<int>("TRACK/" + param_name + "/grid_y",         params.tracking.klt.grid_y,         3);
-      nh_private_.param<int>("TRACK/" + param_name + "/min_px_dist",    params.tracking.klt.min_px_dist,    8);
-      nh_private_.param<int>("TRACK/" + param_name + "/pyram",          params.tracking.klt.pyram,          3);
+      nh_private_.param<int>(param_name + "/num_pts",        params.tracking.klt.num_pts,        250);
+      nh_private_.param<int>(param_name + "/fast_threshold", params.tracking.klt.fast_threshold, 15);
+      nh_private_.param<int>(param_name + "/grid_x",         params.tracking.klt.grid_x,         5);
+      nh_private_.param<int>(param_name + "/grid_y",         params.tracking.klt.grid_y,         3);
+      nh_private_.param<int>(param_name + "/min_px_dist",    params.tracking.klt.min_px_dist,    8);
+      nh_private_.param<int>(param_name + "/pyram",          params.tracking.klt.pyram,          3);
       break;
     }
 

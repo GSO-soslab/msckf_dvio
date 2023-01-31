@@ -291,7 +291,7 @@ bool FeatureTriangulation::single_gaussnewton(
   }
 
   feature->p_FinG = R_A_G.transpose() * feature->p_FinA + p_G_A;
-  feature->triangulated = true;
+  // feature->triangulated = true;
 
 
   //! TEST: save data

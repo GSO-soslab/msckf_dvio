@@ -172,6 +172,9 @@ target_link_libraries(test_cpp ${thirdparty_libraries})
 add_executable(test_timecost test/cpp/test_timecost.cpp)
 target_link_libraries(test_timecost ${thirdparty_libraries})
 
+add_executable(test_sim_feat test/cpp/test_sim_feat.cpp)
+target_link_libraries(test_sim_feat ${thirdparty_libraries})
+
 # add_executable(test_video_stream test/cpp/view_video_stream.cpp)
 # target_link_libraries(test_video_stream ${thirdparty_libraries})
 

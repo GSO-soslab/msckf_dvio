@@ -122,6 +122,7 @@ State::State(const Params &param) {
         break;
       }
 
+      case Sensor::CAM0_FEATURE: 
       case Sensor::CAM0: {
         // extrinsic_rotation
         if(param.msckf.do_R_C_I) {
@@ -204,6 +205,35 @@ Eigen::VectorXd State::getClonePose(const Sensor sub_state_name, int index) {
 
   // select clone pose (vectorXd type)
   return iter->second->getValue();
+}
+
+Eigen::MatrixXd State::getPartCov(const std::vector<std::shared_ptr<Type>> &state_order) {
+
+  // Calculate the part covariance size we need to make our matrix
+  int cov_size = 0;
+  for (size_t i = 0; i < state_order.size(); i++) {
+    cov_size += state_order[i]->getSize();
+  }
+
+  // Construct our return covariance
+  Eigen::MatrixXd part_cov = Eigen::MatrixXd::Zero(cov_size, cov_size);
+
+  // For each variable, lets copy over all other variable cross terms
+  // Note: this copies over itself to when i_index=k_index
+  int i_index = 0;
+  for (size_t i = 0; i < state_order.size(); i++) {
+    int k_index = 0;
+    for (size_t k = 0; k < state_order.size(); k++) {
+      part_cov.block(i_index, k_index, state_order[i]->getSize(), state_order[k]->getSize()) =
+          cov_.block(state_order[i]->getId(), state_order[k]->getId(), state_order[i]->getSize(), state_order[k]->getSize());
+      k_index += state_order[k]->getSize();
+    }
+    i_index += state_order[i]->getSize();
+  }
+
+  // Return the covariance
+  // part_cov = 0.5*(part_cov+part_cov.transpose());
+  return part_cov;
 }
 
 }

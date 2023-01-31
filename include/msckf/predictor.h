@@ -1,6 +1,8 @@
 #ifndef MSCKF_MSCKF_PREDICTOR_H
 #define MSCKF_MSCKF_PREDICTOR_H
 
+#include <fstream>
+
 #include "types/type_all.h"
 #include "utils/utils.h"
 #include "msckf/state.h"
@@ -43,6 +45,11 @@ private:
   /// prior information for IMU
   priorImu prior_imu_;
 
+  //! TEST: 
+  const char *file_path="/home/lin/Desktop/msckf_manager.txt";
+  std::ofstream file;
+  // file.open(file_path, std::ios_base::app);//std::ios_base::app
+  // file.close();
 };
 
 } // namespace msckf_dvio

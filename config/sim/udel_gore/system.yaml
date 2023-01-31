@@ -58,7 +58,7 @@ MSCKF:
   cam_timeoffset: false
   ## Max camera clone
   ## default: 11 for non-key-frame
-  cam_clone: 11 
+  cam_clone: 12 
 
   ################################    Update    ##################################
 
@@ -66,7 +66,7 @@ MSCKF:
   ## Option 1: we have 10 clones [0,1,2,3,4,5,6,7,8,9]
   ##          the marg clone measurements: oldest, second latest [0,8]
   ## Option 2: if not provide, will use all the index in the slide window
-  # marginalized_clone: [0, 8]
+  # marginalized_clone: [0, 10]
   
   ## in open_vins(40), but it's occasionally update at 40
   ## but here, tracking will stop so always update as 40

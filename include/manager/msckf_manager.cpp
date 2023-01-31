@@ -248,20 +248,20 @@ void MsckfManager::backend() {
 
     //! TODO: some sensor not used for initialization, 
     //!       may also clean buffer before the initialization timestamp 
-    for (const auto& kv : timelines) {
-      switch(kv.first) {
+    for (const auto& [sensor, timestamp] : timelines) {
+      switch(sensor) {
         case Sensor::IMU: {
-          releaseImuBuffer(kv.second);
+          releaseImuBuffer(timestamp);
           break;
         }
 
         case Sensor::DVL: {
-          releaseDvlBuffer(kv.second);
+          releaseDvlBuffer(timestamp);
           break;
         }
 
         case Sensor::PRESSURE: {
-          releasePressureBuffer(kv.second);
+          releasePressureBuffer(timestamp);
           break;
         }
 
@@ -448,12 +448,18 @@ void MsckfManager::doCameraKeyframe() {
   }
 
   // ------------------------------  Do Update ------------------------------ // 
+  // printf("\ncam t: %.9f\n",time_curr_sensor);
+
+  //! TEST: save data
+  // file.open(file_path, std::ios_base::app);//std::ios_base::app
+  // file<<std::fixed<<std::setprecision(9);
+  // file<<"\nTime:"<<time_curr_sensor<<"\n";
+  // file.close();
 
   //// [0] IMU Propagation
   predictor->propagate(state, selected_imu);
   assert(!state->foundSPD("cam_propagate"));
 
-  // printf("cam t: %.9f\n",time_curr_sensor);
 
   //// [1] State Augmentation: 
   Eigen::Vector3d w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
@@ -470,34 +476,12 @@ void MsckfManager::doCameraKeyframe() {
 
     // printf("[TEST]: new clone:%d\n", state->getEstimationNum(CLONE_CAM0));
   }
-
+  
   // [2] select tracked features
   std::vector<Feature> feature_lost;
   std::vector<Feature> feature_marg;
   // selectFeaturesSlideWindow(time_curr_sensor, feature_lost, feature_marg);
   selectFeaturesKeyFrame(time_curr_sensor, feature_lost, feature_marg);
-
-  //! TEST: save data
-  // file.open(file_path, std::ios_base::app);//std::ios_base::app
-  // file<<std::endl;
-
-  // file<<std::fixed<<std::setprecision(9);
-  // file<<"Time: "<< time_curr_sensor <<std::endl;
-  // file.close();
-
-  // // lost feature id:
-  // file<<std::fixed<<std::setprecision(4);
-  // file<<"Lost: "<<feature_lost.size()<<" [ ";
-  // for(const auto& f : feature_lost) {
-  //   file<<f.featid <<" ";
-  // }
-  // file<<" ]"<<std::endl;
-  // // marg feature is:
-  // file<<"Marg: "<<feature_marg.size()<<" [ ";
-  // for(const auto& f : feature_marg) {
-  //   file<<f.featid <<" ";
-  // }
-  // file<<" ]"<<std::endl;
 
   // [3] Camera Feature Update: feature triangulation, feature update 
 
@@ -528,10 +512,11 @@ void MsckfManager::doCameraKeyframe() {
   // }
 
   // update triangulation to the database
-  tracker->get_feature_database()->update_new_triangulation(feature_msckf);
+  // tracker->get_feature_database()->update_new_triangulation(feature_msckf);
 
   // do the camera update
-  updater->updateCam(state, feature_msckf);
+  // updater->updateCam(state, feature_msckf);
+  updater->updateCamPart(state, feature_msckf);
 
   // setup new MSCKF features for visualization
   setFeatures(feature_msckf);
@@ -1411,17 +1396,17 @@ void MsckfManager::selectFeaturesKeyFrame(
   //    1) select the oldest clone time
   //    2) grab whole the measurements for each feature that contain the given timestamp
   //    3) not delete
-  if(state->getEstimationNum(CLONE_CAM0) == params.msckf.max_clone_C) {
-    // Grab marg index 0 of slide window
-    // get oldest clone time
-    auto index = 0;
-    auto time_oldest = state->getCloneTime(CLONE_CAM0, index);
-    // get feature contain this marg time
-    tracker->get_feature_database()->features_selected(time_oldest, feat_marg, false, true);
-  }
+
+  // if(state->getEstimationNum(CLONE_CAM0) == params.msckf.max_clone_C) {
+  //   // Grab marg index 0 of slide window
+  //   // get oldest clone time
+  //   auto index = 0;
+  //   auto time_oldest = state->getCloneTime(CLONE_CAM0, index);
+  //   // get feature contain this marg time
+  //   tracker->get_feature_database()->features_selected(time_oldest, feat_marg, false, true);
+  // }
 
 }
-
 
 /**
  *  @brief get all the data need for pressure update, e.g. pressure, DVL BT velocity, IMU
