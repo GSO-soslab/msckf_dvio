@@ -46,11 +46,11 @@ struct DvlMsg {
 
 struct ImageMsg {
 
-  // Image
-  cv::Mat image;
-
   // Image timestamp
   double time;
+
+  // Image
+  cv::Mat image;
 
   // Sort image with time
   bool operator<(const ImageMsg &other) const { return time < other.time; }
@@ -58,14 +58,33 @@ struct ImageMsg {
 
 struct PressureMsg {
 
+  //  timestamp
+  double time;
+
   // pressure
   double p;
+
+  // Sort data with time
+  bool operator<(const PressureMsg &other) const { return time < other.time; }
+};
+
+
+struct FeatureMsg {
 
   //  timestamp
   double time;
 
+  // u measurement of a image
+  std::vector<float> u;
+
+  // v measurement of a image
+  std::vector<float> v;
+
+  // id of this feature measurement
+  std::vector<unsigned int> id;
+
   // Sort data with time
-  bool operator<(const PressureMsg &other) const { return time < other.time; }
+  bool operator<(const FeatureMsg &other) const { return time < other.time; }
 };
 
 } // namespace msckf_dvio

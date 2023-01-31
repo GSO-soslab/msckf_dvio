@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0.2)
 project(msckf_dvio)
 
 ## Compile as C++14, supported in ROS Kinetic and newer
-add_compile_options(-std=c++14)
+add_compile_options(-std=c++17)
 
 ## CMAKE module path
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_LIST_DIR}/cmake")
@@ -23,6 +23,8 @@ find_package(Boost REQUIRED COMPONENTS system filesystem thread date_time)
 find_package(Eigen3 REQUIRED)
 find_package(PCL REQUIRED)
 find_package(SuiteSparse REQUIRED)
+find_package(magic_enum CONFIG REQUIRED)
+
 
 # set(Open3D_DIR /home/lin/develop/3rd/Open3D/install/lib/cmake/Open3D)
 # find_package(Open3D)
@@ -88,6 +90,7 @@ list(APPEND thirdparty_libraries
   ${OpenCV_LIBRARIES}
   ${PCL_LIBRARIES}
   ${SUITESPARSE_LIBRARIES}
+  magic_enum::magic_enum
 )
 
 ##########################################
@@ -109,6 +112,7 @@ add_library(dvio_lib SHARED
 
   include/tracker/TrackBase.cpp
   include/tracker/TrackKLT.cpp
+  include/tracker/TrackFeature.cpp
 )
 target_link_libraries(dvio_lib ${thirdparty_libraries})
 
@@ -122,6 +126,9 @@ target_link_libraries(dvio_node dvio_lib ${thirdparty_libraries})
 
 add_executable(dvl_helper_node ros/helper/dvl_helper.cpp)
 target_link_libraries(dvl_helper_node ${thirdparty_libraries})
+
+add_executable(truth_helper_node ros/helper/truth_helper.cpp)
+target_link_libraries(truth_helper_node ${thirdparty_libraries})
 
 ##########################################
 ############### build test ###############
@@ -164,6 +171,9 @@ target_link_libraries(test_cpp ${thirdparty_libraries})
 
 add_executable(test_timecost test/cpp/test_timecost.cpp)
 target_link_libraries(test_timecost ${thirdparty_libraries})
+
+add_executable(test_sim_feat test/cpp/test_sim_feat.cpp)
+target_link_libraries(test_sim_feat ${thirdparty_libraries})
 
 # add_executable(test_video_stream test/cpp/view_video_stream.cpp)
 # target_link_libraries(test_video_stream ${thirdparty_libraries})

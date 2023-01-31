@@ -18,16 +18,16 @@ MsckfManager::MsckfManager(Params &parameters)
 
   //// setup imu initializer
   switch(params.init.mode) {
-    case InitMode::SETTING: {
+    case InitMode::INIT_SETTING: {
       initializer = std::shared_ptr<InitSetting>(new InitSetting(params.init));
       break;
     }
 
-    case InitMode::STATIC: {
+    case InitMode::INIT_STATIC: {
       break;
     }
 
-    case InitMode::DVL_PRESSURE: {
+    case InitMode::INIT_DVL_PRESSURE: {
       initializer = std::shared_ptr<InitDvlAided>(new InitDvlAided(params.init, params.prior_imu, params.prior_dvl));
       break;
     }
@@ -43,24 +43,52 @@ MsckfManager::MsckfManager(Params &parameters)
   updater = std::make_shared<Updater>(params);
 
   //// setup tracker
-  tracker = std::shared_ptr<TrackBase>(new TrackKLT (
-    params.tracking.num_pts, params.tracking.num_aruco, params.tracking.fast_threshold,
-    params.tracking.grid_x, params.tracking.grid_y, params.tracking.min_px_dist, params.tracking.pyram));
+
+  // get params
+  std::map<size_t, bool> camera_fisheye;
+  std::map<size_t, Eigen::VectorXd> camera_calibration;
+  std::map<size_t, std::pair<int, int>> camera_wh;
 
   Eigen::Matrix<double, 8, 1> cam0_calib;
-  cam0_calib << params.prior_cam.intrinsics(0) * params.tracking.downsample_ratio, 
-                params.prior_cam.intrinsics(1) * params.tracking.downsample_ratio, 
-                params.prior_cam.intrinsics(2) * params.tracking.downsample_ratio, 
-                params.prior_cam.intrinsics(3) * params.tracking.downsample_ratio,
+  cam0_calib << params.prior_cam.intrinsics(0) * params.tracking.basic.downsample_ratio, 
+                params.prior_cam.intrinsics(1) * params.tracking.basic.downsample_ratio, 
+                params.prior_cam.intrinsics(2) * params.tracking.basic.downsample_ratio, 
+                params.prior_cam.intrinsics(3) * params.tracking.basic.downsample_ratio,
                 params.prior_cam.distortion_coeffs(0), params.prior_cam.distortion_coeffs(1), 
                 params.prior_cam.distortion_coeffs(2), params.prior_cam.distortion_coeffs(3);
-  if(params.tracking.cam_id == 0){
+  if(params.tracking.basic.cam_id == 0){
     camera_fisheye.insert({0, false});
     camera_calibration.insert({0, cam0_calib});
+    camera_wh.insert({0, params.prior_cam.image_wh});
   }
-  tracker->set_calibration(camera_calibration, camera_fisheye);
 
-  recorder = std::make_shared<Recorder>("/home/lin/Desktop/features.txt");
+  // start tracker
+  switch(params.tracking.basic.mode) {
+    case TrackMode::TRACK_KLT: {
+      tracker = std::shared_ptr<TrackBase>(new TrackKLT (
+        params.tracking.klt.num_pts, params.tracking.basic.num_aruco, 
+        params.tracking.klt.fast_threshold, params.tracking.klt.grid_x, 
+        params.tracking.klt.grid_y, params.tracking.klt.min_px_dist, params.tracking.klt.pyram));
+
+      tracker->set_calibration(camera_calibration, camera_fisheye);
+
+      break;
+    }
+
+    case TrackMode::TRACK_FEATURE: {
+      tracker = std::shared_ptr<TrackBase>(new TrackFeature (
+        params.tracking.basic.num_aruco, camera_wh));
+
+      tracker->set_calibration(camera_calibration, camera_fisheye);
+
+      break;
+    }
+
+    default:
+      break;
+  }
+
+  // recorder = std::make_shared<Recorder>("/home/lin/Desktop/features.txt");
 
   frame_count = params.keyframe.frame_count;
   frame_distance = 0;
@@ -119,8 +147,24 @@ void MsckfManager::feedPressure(const PressureMsg &data) {
   }
 }
 
+void MsckfManager::feedFeature(FeatureMsg &data) {
+
+  if(!initializer->isInit())
+    return;
+
+  tracker->feed_features(data);
+
+  std::unique_lock<std::mutex> lck(mtx);
+
+  buffer_time_img.emplace(data.time);
+  if(buffer_time_img.size() > 1000) {
+    buffer_time_img.pop();
+    printf("warning: feature time msg buffer overflow !\n");
+  }
+
+}
+
 void MsckfManager::feedCamera(ImageMsg &data) {
-  // check if system is initialized 
   // std::unique_lock<std::mutex> lck(mtx);
 
   //! TODO: need to store image if this not used initialization
@@ -135,6 +179,9 @@ void MsckfManager::feedCamera(ImageMsg &data) {
 
   // append new tracking result
   mtx.lock();
+
+  //! TODO: add update timestamp in the tracker
+  //! TODO: no need another buffer to store the image time
 
   // append sensor timestamp to buffer
   buffer_time_img.emplace(data.time);
@@ -198,20 +245,23 @@ void MsckfManager::backend() {
     initializer->updateInit(state, params, timelines);
 
     // clean those used in initialization in global buffer
-    for (const auto& kv : timelines) {
-      switch(kv.first) {
+
+    //! TODO: some sensor not used for initialization, 
+    //!       may also clean buffer before the initialization timestamp 
+    for (const auto& [sensor, timestamp] : timelines) {
+      switch(sensor) {
         case Sensor::IMU: {
-          releaseImuBuffer(kv.second);
+          releaseImuBuffer(timestamp);
           break;
         }
 
         case Sensor::DVL: {
-          releaseDvlBuffer(kv.second);
+          releaseDvlBuffer(timestamp);
           break;
         }
 
         case Sensor::PRESSURE: {
-          releasePressureBuffer(kv.second);
+          releasePressureBuffer(timestamp);
           break;
         }
 
@@ -398,10 +448,18 @@ void MsckfManager::doCameraKeyframe() {
   }
 
   // ------------------------------  Do Update ------------------------------ // 
+  // printf("\ncam t: %.9f\n",time_curr_sensor);
+
+  //! TEST: save data
+  // file.open(file_path, std::ios_base::app);//std::ios_base::app
+  // file<<std::fixed<<std::setprecision(9);
+  // file<<"\nTime:"<<time_curr_sensor<<"\n";
+  // file.close();
 
   //// [0] IMU Propagation
   predictor->propagate(state, selected_imu);
   assert(!state->foundSPD("cam_propagate"));
+
 
   //// [1] State Augmentation: 
   Eigen::Vector3d w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
@@ -416,9 +474,9 @@ void MsckfManager::doCameraKeyframe() {
     // clone IMU pose, augment covariance
     predictor->augment(CAM0, CLONE_CAM0, state, time_curr_sensor, w_I);
 
-    printf("[TEST]: new clone:%d\n", state->getEstimationNum(CLONE_CAM0));
+    // printf("[TEST]: new clone:%d\n", state->getEstimationNum(CLONE_CAM0));
   }
-
+  
   // [2] select tracked features
   std::vector<Feature> feature_lost;
   std::vector<Feature> feature_marg;
@@ -431,17 +489,22 @@ void MsckfManager::doCameraKeyframe() {
   std::vector<Feature> feature_msckf;
   updater->cameraMeasurementKeyFrame(state, feature_lost, feature_marg, feature_msckf);
 
-  //! TEST: check feature update analysis 
-  // if(feature_msckf.size()>0) {
-  //   auto add = 0;
-  //   for(const auto& f : feature_msckf) {
-  //     add += f.timestamps.at(0).size();
+  //! TEST: manual set the feature position as truth
+  // if(truth_feature.size()>0) {
+  //   for(auto& f : feature_msckf) {
+  //     // convert feature database if back to original tracking id
+  //     auto id = f.featid - params.tracking.basic.num_aruco - 1;
+  //     if(truth_feature.find(id) != truth_feature.end()) {
+  //       printf("trig: %f,%f,%f\n", f.p_FinG(0),f.p_FinG(1),f.p_FinG(2));
+  //       f.p_FinG = truth_feature.at(id);
+  //       printf("truth: %f,%f,%f\n", f.p_FinG(0),f.p_FinG(1),f.p_FinG(2));
+  //     }
+  //     else {
+  //       printf("\nerror find feat id\n");
+  //     }
   //   }
-
-  //   file.open(file_path, std::ios_base::app);//std::ios_base::app
-  //   file<<std::setprecision(17)<<time_curr_sensor<<","<<add<<std::endl;
-  //   file.close();
   // }
+
 
   //! TEST: manual set the depth of features
   // for(auto& feat : feature_msckf) {
@@ -449,10 +512,11 @@ void MsckfManager::doCameraKeyframe() {
   // }
 
   // update triangulation to the database
-  tracker->get_feature_database()->update_new_triangulation(feature_msckf);
+  // tracker->get_feature_database()->update_new_triangulation(feature_msckf);
 
   // do the camera update
-  updater->updateCam(state, feature_msckf);
+  // updater->updateCam(state, feature_msckf);
+  updater->updateCamPart(state, feature_msckf);
 
   // setup new MSCKF features for visualization
   setFeatures(feature_msckf);
@@ -463,18 +527,20 @@ void MsckfManager::doCameraKeyframe() {
 
     // Marginalization
 
-    // remove marginalized feature measurements, lost feature measurements alrady remove when we select
+    // remove feature measurements:
+    //   lost feature measurements: alrady remove when we select
+    //   marg feature measurements: delete right now with those used in the update
     tracker->get_feature_database()->cleanup_marg_measurements(feature_marg);
 
     // remove oldest clone state and covaraince
     auto marg_index_0 = params.msckf.marginalized_clone.at(0);
     updater->marginalize(state, CLONE_CAM0, marg_index_0);
 
-    // remove feature measurements only older then oldest clone timestamp 
+    // remove anomalous feature measurements: only older then oldest clone timestamp 
     auto oldest_time = state->getCloneTime(CLONE_CAM0, 0);
     tracker->get_feature_database()->cleanup_out_measurements(oldest_time);
 
-    printf("[TEST]: aft clean:%d\n", state->getEstimationNum(CLONE_CAM0));
+    // printf("[TEST]: aft clean:%d\n", state->getEstimationNum(CLONE_CAM0));
   }
 
 }
@@ -1127,6 +1193,7 @@ void MsckfManager::doDVL() {
     // We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d)
     assert(!state->foundSPD("dvl_propagate"));
 
+    //! TEST: just for pure IMU 
     if(do_velocity){
 
       // Last angular velocity and linear velocity
@@ -1329,40 +1396,17 @@ void MsckfManager::selectFeaturesKeyFrame(
   //    1) select the oldest clone time
   //    2) grab whole the measurements for each feature that contain the given timestamp
   //    3) not delete
-  if(state->getEstimationNum(CLONE_CAM0) == params.msckf.max_clone_C) {
-    // Grab marg feature 0 
-    // get oldest clone time
-    auto index = params.msckf.marginalized_clone.at(0);
-    auto time_oldest = state->getCloneTime(CLONE_CAM0, index);
-    // get feature contain this marg time
-    tracker->get_feature_database()->features_selected(time_oldest, feat_marg, false, true);
 
-    // // Grab marg feature 1
-    // // get second latest clone time
-    // index = params.msckf.marginalized_clone.at(1);
-    // auto time_second_latest = state->getCloneTime(CLONE_CAM0, index);
-    // // get feature contain this marg time
-    // std::vector<Feature> feat_marg_1;
-    // tracker->get_feature_database()->features_selected(time_second_latest, feat_marg_1, false, true);
-
-    // // Combine both marg features
-    // // get marg feature 0
-    // feat_marg = feat_marg_0;
-    // // get marg feature 1
-    // for(const auto& feat_1 : feat_marg_1) {
-    //   // check if feat_1 exist in feat_0 list
-    //   auto exist = std::find_if(feat_marg_0.begin(), feat_marg_0.end(),
-    //               [&](const auto& feat_0){return feat_0.featid == feat_1.featid ;});
-    //   // if not exist, then add it
-    //   if(exist == feat_marg_0.end()) {
-    //     feat_marg.emplace_back(feat_1);
-    //   }
-    // }
-
-  }
+  // if(state->getEstimationNum(CLONE_CAM0) == params.msckf.max_clone_C) {
+  //   // Grab marg index 0 of slide window
+  //   // get oldest clone time
+  //   auto index = 0;
+  //   auto time_oldest = state->getCloneTime(CLONE_CAM0, index);
+  //   // get feature contain this marg time
+  //   tracker->get_feature_database()->features_selected(time_oldest, feat_marg, false, true);
+  // }
 
 }
-
 
 /**
  *  @brief get all the data need for pressure update, e.g. pressure, DVL BT velocity, IMU

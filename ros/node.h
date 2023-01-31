@@ -6,6 +6,8 @@
 #include <atomic>
 #include <mutex>
 #include <chrono>
+#include <filesystem>
+#include <unordered_map>
 
 // ros
 #include <ros/ros.h>
@@ -13,6 +15,7 @@
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/FluidPressure.h>  
 #include <sensor_msgs/PointCloud2.h>  
+#include <sensor_msgs/PointCloud.h>
 #include <nortek_dvl/ButtomTrack.h>
 #include <geometry_msgs/Vector3Stamped.h>
 #include <geometry_msgs/PoseStamped.h>
@@ -29,11 +32,13 @@
 #include <pcl/PCLPointCloud2.h>
 #include <pcl/point_types.h>
 
+
 //
 #include "manager/msckf_manager.h"
 #include "types/type_all.h"
 
 #include "visualizer.h"
+#include "utils/rapidcsv.h"
 
 namespace msckf_dvio
 {
@@ -52,6 +57,8 @@ public:
 
   void imageCallback(const sensor_msgs::Image::ConstPtr &msg);
 
+  void featureCallback(const sensor_msgs::PointCloud::ConstPtr &msg);
+
   void pressureCallback(const sensor_msgs::FluidPressure::ConstPtr &msg);
 
   void pointcloudCallback(const sensor_msgs::PointCloud2::ConstPtr &msg);
@@ -60,7 +67,15 @@ public:
 
   void process();
 
-  Params loadParameters();
+  void loadParamSystem(Params &params);
+
+  void loadParamInit(Params &params);
+
+  void loadParamPrior(Params &params);
+
+  void loadParamImage(Params &params);
+
+  void loadCSV();
 
 private:
   ros::NodeHandle nh_;
@@ -68,11 +83,7 @@ private:
 
   ros::ServiceServer service_;
 
-  ros::Subscriber sub_imu;
-  ros::Subscriber sub_dvl;
-  ros::Subscriber sub_img;
-  ros::Subscriber sub_pressure;
-  ros::Subscriber sub_pointcloud;
+  std::map<Sensor, std::shared_ptr<ros::Subscriber>> subscribers;
 
   double last_t_img = 0;
   double last_t_dvl = 0;
@@ -84,7 +95,7 @@ private:
   std::shared_ptr<RosVisualizer> visualizer;
 
   Params parameters;
-
+  
 }; // end of class   
 
 } // namespace msckf_dvio

@@ -95,6 +95,7 @@ public:
 
     // Find this feature using the ID lookup
     std::unique_lock<std::mutex> lck(mtx);
+
     if (features_idlookup.find(id) != features_idlookup.end()) {
       // Get our feature
       std::shared_ptr<Feature> feat = features_idlookup.at(id);

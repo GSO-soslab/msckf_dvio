@@ -1,0 +1,57 @@
+####################################################################################
+############################     System Parameters   ##########################
+####################################################################################
+
+SYS:
+  # Default: ; 
+  # Note: frequency for backend processing(MSCKF update), increase if more data need for processing 
+  backend_hz: 100
+  # sensors will be fused
+  sensors: [IMU, CAM0]
+  # rostopics used for each sensor
+  topics: 
+    - {IMU: /imu0}
+    - {CAM0: /cam0/image_raw}
+
+####################################################################################
+############################    MSCKF estimation setup    ##########################
+####################################################################################
+
+MSCKF:
+  ##################################    DVL    ###################################
+
+  # # enable DVL exterisic rotation calibration 
+  # dvl_exterisic_R: false
+  # # enable DVL exterisic translation calibration 
+  # dvl_exterisic_p: false
+  # # enable DVL time offset calibration
+  # dvl_timeoffset: false
+  # # enable DVL scale calibration
+  # dvl_scale: false
+  # # Max DVL clone 
+  # dvl_clone: 0 
+
+  ################################    Camera    ##################################
+
+  # enable camera exterisic rotation calibration 
+  cam_exterisic_R: false
+  # enable camera exterisic translation calibration 
+  cam_exterisic_p: false
+  # enable camera time offset calibration
+  cam_timeoffset: false
+  # Max camera clone
+  cam_clone: 30 
+
+  ################################    Update    ##################################
+
+  # Index of clone need to marginalize 
+  # example: we have 10 clones [0,1,2,3,4,5,6,7,8,9]
+  #          the marg clone measurements: oldest, second latest [0,8]
+  marginalized_clone: [0, 28]
+  
+  # in open_vins(40), but it's occasionally update at 40
+  # but here, tracking will stop so always update as 40
+  max_msckf_update: 20
+
+  # max line of residual lines for update, maybe used for futures
+  # max_update_lines: 1500 

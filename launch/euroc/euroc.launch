@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+<launch>
+  <param name="/use_sim_time" value="true"/>
+
+  <!-- ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+  <!-- ++++++++++++++++++++++++++++++++++++++ Helpers +++++++++++++++++++++++++++++++++++++++++++++++++ -->
+  <!-- ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+  <!-- ======================================== play the dataset ====================================== -->
+  <!-- ========== MH_01_easy ==========  -->
+  <!-- <arg name="bag_start" default="40"/> 
+  <arg name="config_path" default="$(find msckf_dvio)/config/euroc/MH_01_easy"/>
+  <arg name="bag" default="/home/lin/develop/data/euroc/MH_01_easy/MH_01_easy.bag"/> -->
+
+   <!-- ========== MH_02_easy ==========  -->
+  <arg name="bag_start" default="38.4"/> 
+  <arg name="config_path" default="$(find msckf_dvio)/config/euroc/MH_02_easy"/>
+  <arg name="bag" default="/home/lin/develop/data/euroc/MH_02_easy/MH_02_easy.bag"/>
+
+  <!-- ========== MH_03_medium ==========  -->
+  <!-- <arg name="bag_start" default="17.5"/> 
+  <arg name="config_path" default="$(find msckf_dvio)/config/euroc/MH_03_medium"/>
+  <arg name="bag" default="/home/lin/develop/data/euroc/MH_03_medium/MH_03_medium.bag"/> -->
+
+  <node pkg="rosbag" type="play" name="rosbag" required="true" 
+        args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)"/>
+
+  <node name="truth_helper_node" pkg="msckf_dvio" type="truth_helper_node" output="screen">
+      <param name="frame_id" type="str" value="odom"/>
+      <param name="truth_topic_point" type="str" value="/leica/position"/>
+  </node>
+
+  <!-- ================================================================================================ -->
+  <!-- ====================================== Main MSCKF Section ====================================== -->
+  <!-- ================================================================================================ -->
+
+  <arg name="system_yaml" default="$(arg config_path)/system.yaml"/>
+  <arg name="prior_yaml" default="$(arg config_path)/prior.yaml"/>
+  <arg name="init_yaml" default="$(arg config_path)/init.yaml"/>
+  <arg name="image_yaml" default="$(arg config_path)/image.yaml"/>
+
+  <!-- build with flag: -DCMAKE_BUILD_TYPE=Debug -->
+  <!-- add to roslaunch: launch-prefix="gdb -ex run -1-args" -->
+  <!-- type: bt -->
+  <node name="dvio_node" pkg="msckf_dvio" type="dvio_node" output="screen">
+      <rosparam command="load" file="$(arg system_yaml)"/>
+      <rosparam command="load" file="$(arg prior_yaml)"/>
+      <rosparam command="load" file="$(arg init_yaml)"/>
+      <rosparam command="load" file="$(arg image_yaml)"/>
+
+      <remap from="odom" to="/msckf/odom"/>
+      <remap from="path" to="/msckf/path"/>
+  </node>
+
+
+
+  <node name="rviz" pkg="rviz" type="rviz"  
+        args="--opengl 300 -d $(find msckf_dvio)/launch/euroc/rviz.rviz" /> 
+
+</launch>

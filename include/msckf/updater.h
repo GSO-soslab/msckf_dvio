@@ -44,6 +44,8 @@ public:
   void marginalize(std::shared_ptr<State> state, Sensor clone_name, int index);
 
   void updateCam(std::shared_ptr<State> state, std::vector<Feature> &features);
+
+  void updateCamPart(std::shared_ptr<State> state, std::vector<Feature> &features);
   
   void cameraMeasurement(    
     std::shared_ptr<State> state, 
@@ -60,15 +62,26 @@ public:
                        Eigen::MatrixXd &H_x, Eigen::MatrixXd &H_f, 
                        Eigen::VectorXd & res);
                        
+  void featureJacobianPart(
+    std::shared_ptr<State> state, const Feature &feature, 
+    Eigen::MatrixXd &H_x, Eigen::MatrixXd &H_f, 
+    Eigen::VectorXd & res, std::vector<std::shared_ptr<Type>> &x_order);
+
   void nullspace_project(Eigen::MatrixXd &H_f, Eigen::MatrixXd &H_x, Eigen::VectorXd &res);
 
   void nullspace_project_inplace(Eigen::MatrixXd &H_f, Eigen::MatrixXd &H_x, Eigen::VectorXd &res);
 
-  bool gatingTest(const Eigen::MatrixXd &H, const Eigen::VectorXd &r, const int &dof);
+  bool chiSquareTest(
+    std::shared_ptr<State> state, const Eigen::MatrixXd &H_x, 
+    const Eigen::VectorXd &r, std::vector<std::shared_ptr<Type>> x_order);
 
   void compress(Eigen::MatrixXd &H_x, Eigen::VectorXd &res);
 
   void compress_inplace(Eigen::MatrixXd &H_x, Eigen::VectorXd &res);
+
+  void update(
+    std::shared_ptr<State> state, const std::vector<std::shared_ptr<Type>> &H_order,
+    const Eigen::MatrixXd &H, const Eigen::VectorXd &res, const Eigen::MatrixXd &R);
 
 private:
   priorDvl prior_dvl_;
@@ -86,7 +99,7 @@ private:
   
   //! TEST:
   long long int count;
-  const char *file_path="/home/lin/Desktop/msckf_dvio.txt";
+  const char *file_path="/home/lin/Desktop/msckf_manager.txt";
   std::ofstream file;
   // file.open(file_path, std::ios_base::app);//std::ios_base::app
   // file<<"\n"<<"aaa "<<Value;

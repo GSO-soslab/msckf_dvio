@@ -25,7 +25,13 @@ InitDvlAided::InitDvlAided(paramInit param_init_, priorImu prior_imu_, priorDvl 
      prior_imu(prior_imu_), prior_dvl(prior_dvl_),
      last_index_imu(0), last_index_dvl(0), 
      time_I_align(-1), time_D_align(-1)
-  {}
+  {
+
+  // setup the sensors used for this system initialization
+  sensors.push_back(Sensor::IMU);
+  sensors.push_back(Sensor::DVL);
+  sensors.push_back(Sensor::PRESSURE);
+}
 
 void InitDvlAided::checkInit() {
 
@@ -59,9 +65,7 @@ void InitDvlAided::checkInit() {
 }
 
 bool InitDvlAided::useSensor(const Sensor &sensor) {
-  // this initializer will use IMU, DVL, Pressure data
-
-  if(sensor == Sensor::IMU || sensor == Sensor::DVL || sensor == Sensor::PRESSURE) {
+  if(std::find(sensors.begin(), sensors.end(), sensor) != sensors.end()){
     return true;
   }
   else {

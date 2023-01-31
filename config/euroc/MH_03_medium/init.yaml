@@ -1,0 +1,38 @@
+###############################################################################
+###################    System Initailization Configuration    #################
+###############################################################################
+
+# This is the parameter must given
+# Options: INIT_SETTING, INIT_STATIC, INIT_DVL_PRESSURE, INIT_CAMERA, INIT_DVL_CAMERA
+# the given MODE shoud match to setting below
+INIT_MODE: INIT_SETTING
+
+
+###############################################################################
+
+INIT_SETTING:
+  # # Example:
+  # SENSOR:
+  #   # the timestamp that this sensor initialized
+  #   time: 1614971124.344753027
+  #   # initialized timeoffset 
+  #   temporal: [0.01]
+  #   #       q_x  q_y  q_z  q_w   x    y    z   v_x  v_y  v_z  bg_x  bg_y  bg_z  ba_x  ba_y  ba_z
+  #   state: [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.1, 0.0, 0.0, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01]
+  #   # initialized static transfomration between IMU and this sensor 
+  #   extrinsic: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+  #   # initialized intrinsic parameters for this sensor: the size depend on sensors. e.g. scale for DVL; intrinsics for camera ... 
+  #   intrinsic: [1.0, 2.0, 3.0]
+  #   # initialized global transfomration for this sensor: Pressure, Magnetometer, GPS and so on may have this 
+  #   global: [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]
+  
+
+  # start at 17.5 second
+  IMU:
+    time: 1403637148.798319101
+    # brief: orientation in quaterion form
+    state: [-0.7916, -0.0762, -0.5978, 0.1009, 
+             0.0000, 0.0000, 0.0000, 
+             0.0000, 0.0000, 0.0000, 
+             0.0033, 0.0177, 0.0764, 
+            -0.0521, 0.0037, 0.0143] 

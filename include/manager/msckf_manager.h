@@ -27,7 +27,7 @@
 #include "initializer/initializer_setting.h"
 
 #include "tracker/TrackKLT.h"
-
+#include "tracker/TrackFeature.h"
 
 namespace msckf_dvio
 {
@@ -42,6 +42,8 @@ public:
   void feedDvl(const DvlMsg &data);
 
   void feedCamera(ImageMsg &data);
+
+  void feedFeature(FeatureMsg &data);
 
   void feedPressure(const PressureMsg &data);
 
@@ -66,6 +68,10 @@ public:
   cv::Mat getImgHistory();
 
   void updateImgHistory();
+
+  void setupTest(std::unordered_map<size_t, Eigen::Vector3d> &test_data) {
+    truth_feature = test_data;
+  }
 
 private:
 
@@ -134,15 +140,16 @@ private:
   std::shared_ptr<Updater> updater;
 
   std::shared_ptr<TrackBase> tracker;
-  std::map<size_t, bool> camera_fisheye;
-  std::map<size_t, Eigen::VectorXd> camera_calibration;
 
   Params params;
 
   //! TEST: 
-  
-  const char *file_path="/home/lin/Desktop/msckf.txt";
+  const char *file_path="/home/lin/Desktop/msckf_manager.txt";
   std::ofstream file;
+  // file.open(file_path, std::ios_base::app);//std::ios_base::app
+  // file.close();
+
+  std::unordered_map<size_t, Eigen::Vector3d> truth_feature;
 
   // get triangulated feature position
   std::atomic<bool> is_feat;

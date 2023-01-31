@@ -3,6 +3,7 @@
 
 #include <Eigen/Eigen>
 #include "types/msgs.h"
+#include <magic_enum.hpp>
 
 
 namespace msckf_dvio {
@@ -281,9 +282,22 @@ std::string toCloneStamp(const T value, const int n = 9)
     return out.str();
 }
 
-// double toSensorStamp(const std::string value) {
-//   return std::stod(value);
-// }
+inline double toSensorStamp(const std::string value) {
+  return std::stod(value);
+}
+
+template <typename T>
+inline std::string enumToString (const T enum_name)
+{
+    return static_cast<std::string>(magic_enum::enum_name(enum_name));
+}
+
+template <typename T>
+inline T stringToEnum(const std::string &str, const T enum_none) {
+
+  return magic_enum::enum_cast<T>(str).value_or(enum_none);
+}
+
 
 } // namespace msckf_dvio
 

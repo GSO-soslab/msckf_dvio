@@ -4,6 +4,7 @@
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <vector>
+#include <fstream>
 #include <cassert>
 #include "utils/utils.h"
 #include "types/parameters.h"
@@ -30,6 +31,9 @@ public:
 private:
 
   paramTriangulation param_trig_;
+
+  const char *file_path="/home/lin/Desktop/msckf_manager.txt";
+  std::ofstream file; 
 };
 
 }

@@ -43,6 +43,13 @@ public:
   //! @param sub_state_name: each sub state, e.g. SENSOR and CLONE
   inline SubState getSubState(const Sensor sub_state_name) { return state_[sub_state_name]; }
  
+  //! @brief get entire estimated state
+  //! @param sub_state_name: each sub state, e.g. SENSOR and CLONE
+  //! @param est_name: each actual estimation in the sub state, e.g. rotation, position, calibration... 
+  inline std::shared_ptr<Type> getEstimation(const Sensor sub_state_name,  const std::string &est_name) {
+    return state_[sub_state_name].at(est_name);
+  }
+
   //! @brief get each estimated state value
   //! @param sub_state_name: each sub state, e.g. SENSOR and CLONE
   //! @param est_name: each actual estimation in the sub state, e.g. rotation, position, calibration...
@@ -159,15 +166,6 @@ public:
     return size;
   }
 
-
-  //==================================== DVL ========================================//
-  
-  inline void setDvl(const Eigen::MatrixXd &new_value) {
-    //! TODO: 
-    //! check size with actuall size based on DVL MSCKF state setting
-    //! accroding to id to setup values
-  }
-
   //================================= CLONE ========================================//
 
   inline bool foundClone(const Sensor &sub_state_name, const std::string &clone_name) {
@@ -203,6 +201,8 @@ public:
 
     return false;
   }
+
+  Eigen::MatrixXd getPartCov(const std::vector<std::shared_ptr<Type>> &state_order);
 
 private:
   friend class Predictor;
