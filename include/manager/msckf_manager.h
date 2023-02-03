@@ -97,6 +97,8 @@ private:
 
   bool checkScene(double curr_time);
 
+  bool checkFeatures(double curr_time);
+
   bool checkFrameCount();
 
   void selectFeatures(const double time_update, std::vector<Feature> &feat_selected);

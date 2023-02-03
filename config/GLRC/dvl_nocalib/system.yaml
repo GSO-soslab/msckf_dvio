@@ -7,15 +7,17 @@ SYS:
   # Note: frequency for backend processing(MSCKF update), increase if more data need for processing 
   backend_hz: 100
   # sensors will be fused
-  # sensors: [IMU, DVL, PRESSURE, CAM0, DVL_CLOUD]
-  sensors: [IMU, CAM0]
+  sensors: [IMU, DVL, PRESSURE, CAM0, DVL_CLOUD]
+  # sensors: [IMU, DVL, PRESSURE]
+  # sensors: [IMU, CAM0]
+
   # rostopics used for each sensor
   topics: 
     - {IMU: /rov/sensors/ahrs/imu/data}
-    # - {DVL: /rov/sensors/dvl/buttom_track_velocity}
-    # - {PRESSURE: /rov/sensors/dvl/pressure}
+    - {DVL: /rov/sensors/dvl/buttom_track_velocity}
+    - {PRESSURE: /rov/sensors/dvl/pressure}
     - {CAM0: /rov_remote/sensors/stereo/left/image_decompressed}
-    # - {DVL_CLOUD: /pointcloud}
+    - {DVL_CLOUD: /pointcloud}
 
 
 ####################################################################################
@@ -78,7 +80,7 @@ MSCKF:
   # Index of clone need to marginalize 
   # example: we have 10 clones [0,1,2,3,4,5,6,7,8,9]
   #          the marg clone measurements: oldest, second latest [0,8]
-  marginalized_clone: [0, 18]
+  # marginalized_clone: [0,4,9,13]
   
   # in open_vins(40), but it's occasionally update at 40
   # but here, tracking will stop so always update as 40

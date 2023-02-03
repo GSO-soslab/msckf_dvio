@@ -61,14 +61,20 @@ CAM0:
   - [0.9999681294260654,    -0.00785441912633285,  -0.0014311646745676972, -0.310185995908388]
   - [-0.0013868356345183388, 0.005646381757991208, -0.9999830973871349,    -0.27812151547998104]
   - [0.0,                    0.0,                   0.0,                    1.0]
-  # radial-tangential[k1,k2,r1,r2]
+  ## Alaska matlab: radial-tangential[k1,k2,r1,r2]
   distortion_coeffs: [-0.229971614369661,0.173683036312323,-7.457584765784308e-04,0.002259672821916]
-  # f_x, f_y, c_x, c_y
-  intrinsics: [1845.542490218492,1846.046949112978,825.6913274592704,605.8504151895138]  
+  ## Alaska matlab: f_x, f_y, c_x, c_y
+  intrinsics: [1845.542490218492,1846.046949112978,825.6913274592704,605.8504151895138] 
+
+  ## GLRC kalib: radial-tangential[k1,k2,r1,r2]
+  # distortion_coeffs: [-0.23332951286901957, 0.17085806195320472, -0.00023603059870771657,0.0025196292160299585]
+  ## GLRC matlab: f_x, f_y, c_x, c_y
+  # intrinsics: [1833.167836747399, 1832.2374257267884, 823.63564229672, 608.1216877595562]  
+
   resolution: [1616, 1240]
   # Default:-0.09398272330912658, from kalibr
   timeoffset_C_I: 0
-  # unit in pixel
-  noise: 1.0
   camera_model: pinhole
-  distortion_model: radtan  
+  distortion_model: radtan
+  # unit in pixel
+  noise: 0.015  

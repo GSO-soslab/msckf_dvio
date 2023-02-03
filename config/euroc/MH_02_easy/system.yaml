@@ -40,7 +40,7 @@ MSCKF:
   # enable camera time offset calibration
   cam_timeoffset: false
   # Max camera clone
-  cam_clone: 12
+  cam_clone: 20
 
   ################################    Update    ##################################
 

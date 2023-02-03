@@ -23,7 +23,7 @@ Panels:
   - Class: rviz/Time
     Name: Time
     SyncMode: 0
-    SyncSource: ""
+    SyncSource: Raw_Image
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -230,7 +230,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 17.103830337524414
+      Distance: 26.99260711669922
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -246,9 +246,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.3697965145111084
+      Pitch: 1.509796380996704
       Target Frame: <Fixed Frame>
-      Yaw: 3.1250321865081787
+      Yaw: 3.8500330448150635
     Saved: ~
 Window Geometry:
   Displays:

@@ -448,7 +448,7 @@ void MsckfManager::doCameraKeyframe() {
   }
 
   // ------------------------------  Do Update ------------------------------ // 
-  // printf("\ncam t: %.9f\n",time_curr_sensor);
+  printf("\ncam t: %.9f\n",time_curr_sensor);
 
   //! TEST: save data
   // file.open(file_path, std::ios_base::app);//std::ios_base::app
@@ -467,14 +467,15 @@ void MsckfManager::doCameraKeyframe() {
   // check if relative motion is larger enough to insert a clone
   // get last clone pose, also meaning key-frame during feature tracking
 
-  bool insert_clone = checkMotion() && checkScene(time_curr_sensor);
+  bool insert_clone = checkFeatures(time_curr_sensor) && (checkMotion() && checkScene(time_curr_sensor));
+  // bool insert_clone = checkFeatures(time_curr_sensor) && (checkMotion() || checkScene(time_curr_sensor));
 
   // use Last angular velocity for cloning when estimating time offset)
   if(params.msckf.max_clone_C > 0 && insert_clone) {
     // clone IMU pose, augment covariance
     predictor->augment(CAM0, CLONE_CAM0, state, time_curr_sensor, w_I);
 
-    // printf("[TEST]: new clone:%d\n", state->getEstimationNum(CLONE_CAM0));
+    printf("[TEST]: new clone:%d\n", state->getEstimationNum(CLONE_CAM0));
   }
   
   // [2] select tracked features
@@ -645,16 +646,16 @@ void MsckfManager::doCameraSlideWindow() {
 bool MsckfManager::checkScene(double curr_time) {
   // [0] Check current frame feature
 
-  // find feature measurements at current frame timestamp
-  std::vector<Feature> curr_frame_feat;
-  tracker->get_feature_database()->features_measurement_selected(curr_time, curr_frame_feat, true);
+  // // find feature measurements at current frame timestamp
+  // std::vector<Feature> curr_frame_feat;
+  // tracker->get_feature_database()->features_measurement_selected(curr_time, curr_frame_feat, true);
 
-  // only the detected feature reach the minimum requirement 
-  if(curr_frame_feat.size() < params.keyframe.min_tracked) {
-    return false;
-  }
+  // // only the detected feature reach the minimum requirement 
+  // if(curr_frame_feat.size() < params.keyframe.min_tracked) {
+  //   return false;
+  // }
 
-  // [1] Get last keyframe feature (associated with last clone pose)
+  // [0] Get last keyframe feature (associated with last clone pose)
 
   // if no clone exist, then insert current one
   auto clone_size = state->getEstimationNum(CLONE_CAM0);
@@ -662,14 +663,20 @@ bool MsckfManager::checkScene(double curr_time) {
     return true;
   }
 
-  // get clone timestamp
+  // get latest clone timestamp
   auto clone_time = state->getCloneTime(CLONE_CAM0, clone_size-1);
 
   // find feature measurements at last keyframe timestamp
   std::vector<Feature> key_frame_feat;
   tracker->get_feature_database()->features_measurement_selected(clone_time, key_frame_feat, true);
 
-  // [2] Compare the scene
+  // [1] Get current frame feature
+
+  // find feature measurements at current frame timestamp
+  std::vector<Feature> curr_frame_feat;
+  tracker->get_feature_database()->features_measurement_selected(curr_time, curr_frame_feat, true);
+
+  // [2] Compare
 
   // find features numbers that tracked from last keyframe
   int tracked_count = 0;
@@ -685,11 +692,25 @@ bool MsckfManager::checkScene(double curr_time) {
   // compare with parameters ratio
   double ratio = tracked_count / curr_frame_feat.size();
 
-  if(ratio < params.keyframe.scene_ratio) {
+  if(ratio <= params.keyframe.scene_ratio) {
     return true;
   }
   else {
     return false;
+  }
+}
+
+bool MsckfManager::checkFeatures(double curr_time) {
+  // find feature measurements at current frame timestamp
+  std::vector<Feature> curr_frame_feat;
+  tracker->get_feature_database()->features_measurement_selected(curr_time, curr_frame_feat, true);
+
+  // only the detected feature reach the minimum requirement 
+  if(curr_frame_feat.size() < params.keyframe.min_tracked) {
+    return false;
+  }
+  else {
+    return true;
   }
 }
 
@@ -1397,14 +1418,14 @@ void MsckfManager::selectFeaturesKeyFrame(
   //    2) grab whole the measurements for each feature that contain the given timestamp
   //    3) not delete
 
-  // if(state->getEstimationNum(CLONE_CAM0) == params.msckf.max_clone_C) {
-  //   // Grab marg index 0 of slide window
-  //   // get oldest clone time
-  //   auto index = 0;
-  //   auto time_oldest = state->getCloneTime(CLONE_CAM0, index);
-  //   // get feature contain this marg time
-  //   tracker->get_feature_database()->features_selected(time_oldest, feat_marg, false, true);
-  // }
+  if(state->getEstimationNum(CLONE_CAM0) == params.msckf.max_clone_C) {
+    // Grab marg index 0 of slide window
+    // get oldest clone time
+    auto index = 0;
+    auto time_oldest = state->getCloneTime(CLONE_CAM0, index);
+    // get feature contain this marg time
+    tracker->get_feature_database()->features_selected(time_oldest, feat_marg, false, true);
+  }
 
 }
 

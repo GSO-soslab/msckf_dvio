@@ -13,7 +13,7 @@ TRACK:
   downsample_ratio: 0.5
 
 TRACK_KLT:
-  num_pts: 200
+  num_pts: 250
   fast_threshold: 15
   grid_x: 5
   grid_y: 3
@@ -52,9 +52,10 @@ Feature:
 Keyframe:
   # option 1: frame count
   frame_count: 2 
+
   # option 2: relative motion constraint
   # default: 0.1
-  frame_motion: 0.0
+  frame_motion: 0.1
   # 2: 2D space constraint, for up-looking ice surface, 3: 3D space constraint
   # default: 2
   motion_space: 2
@@ -62,4 +63,4 @@ Keyframe:
   min_tracked: 50
   # option 4: ratio = tracked feature num from last keyframe / total features at current frame
   # default: 0.8
-  scene_ratio: 1.0
+  scene_ratio: 0.9

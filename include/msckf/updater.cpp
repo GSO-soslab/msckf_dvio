@@ -1336,6 +1336,7 @@ void Updater::updateCamPart(
     return;
   }
 
+  // std::cout<<"residual: \n"<<residual.transpose()<<std::endl;
 
  // [4] update
   Eigen::MatrixXd Rn = prior_cam_.noise * prior_cam_.noise * 
@@ -1778,6 +1779,10 @@ void Updater::update(
   // update state
   // d_x = K * r
   Eigen::VectorXd delta_X = K * res;
+
+  // constrain camera z not to update
+  delta_X(5) = 0.0;
+
   state->updateState(delta_X);
 
   // update covariance
