@@ -521,21 +521,20 @@ void MsckfManager::doCameraKeyframe() {
 
     printf("[TEST]: new clone:%d\n", state->getEstimationNum(CLONE_CAM0));
   }
-  
-  // [2] select tracked features
-  std::vector<Feature> feature_lost;
-  std::vector<Feature> feature_marg;
-  // selectFeaturesSlideWindow(time_curr_sensor, feature_lost, feature_marg);
-  selectFeaturesKeyFrame(time_curr_sensor, feature_lost, feature_marg);
+
+  // printf("=========== 1 ===========\n");
+  std::vector<Feature> feature_keyframe;
+  selectFeaturesKeyFrame(time_curr_sensor, feature_keyframe);
 
   // [] select anchor frame and DVL-enhanced depth
 
 
   // [3] Camera Feature Update: feature triangulation, feature update 
-
   // feature triangulation
-  std::vector<Feature> feature_msckf;
-  updater->featureTriangulation(state, feature_lost, feature_marg, feature_msckf);
+  updater->featureTriangulation(state,feature_keyframe);
+
+  // [4] keep marginalization feature measurements
+  selectMargMeasurement(feature_keyframe);
 
   //! TEST: manual set the feature position as truth
   // if(truth_feature.size()>0) {
@@ -563,10 +562,10 @@ void MsckfManager::doCameraKeyframe() {
 
   // do the camera update
   // updater->updateCam(state, feature_msckf);
-  updater->updateCamPart(state, feature_msckf);
+  updater->updateCamPart(state, feature_keyframe);
 
   // setup new MSCKF features for visualization
-  setFeatures(feature_msckf);
+  setFeatures(feature_keyframe);
 
   //// [4] Marginalization(if reach max clone): 
   if((params.msckf.max_clone_C > 0) &&
@@ -577,7 +576,7 @@ void MsckfManager::doCameraKeyframe() {
     // remove feature measurements:
     //   lost feature measurements: alrady remove when we select
     //   marg feature measurements: delete right now with those used in the update
-    tracker->get_feature_database()->cleanup_marg_measurements(feature_marg);
+    tracker->get_feature_database()->cleanup_marg_measurements(feature_keyframe);
 
     // remove oldest clone state and covaraince
     auto marg_index_0 = params.msckf.marginalized_clone.at(0);
@@ -1504,14 +1503,28 @@ std::vector<ImuMsg> MsckfManager::selectImu(double t_begin, double t_end) {
   return selected_data;
 }
 
+
 void MsckfManager::selectFeaturesKeyFrame(
-    const double time_update, std::vector<Feature> &feat_lost, std::vector<Feature> &feat_marg) {
+    const double time_update, std::vector<Feature> &feat_keyframe) {
   // ------------------------------- Grab features ------------------------------------------ //
 
   // Grab lost features:
   //    1) grab whole the measuremens for each lost feature
   //    2) delete the grabbed features in the database
-  tracker->get_feature_database()->features_lost(time_update, feat_lost, true, true);
+  tracker->get_feature_database()->features_lost(time_update, feat_keyframe, true, true);
+
+  // Grab maginalized features
+  //    1) select the oldest clone time
+  //    2) grab whole the measurements for each feature that contain the given timestamp
+  //    3) not delete
+  if(state->getEstimationNum(CLONE_CAM0) == params.msckf.max_clone_C) {
+    // Grab marg index 0 of slide window
+    // get oldest clone time
+    auto index = 0;
+    auto time_oldest = state->getCloneTime(CLONE_CAM0, index);
+    // get feature contain this marg time
+    tracker->get_feature_database()->features_selected(time_oldest, feat_keyframe, false, true);
+  }
 
   //! TEST: save data -- check how many features are detected as marg features
   // std::vector<Feature> feat_marg_test;
@@ -1537,19 +1550,6 @@ void MsckfManager::selectFeaturesKeyFrame(
 
   // file.close();
 
-  // Grab maginalized features
-  //    1) select the oldest clone time
-  //    2) grab whole the measurements for each feature that contain the given timestamp
-  //    3) not delete
-  if(state->getEstimationNum(CLONE_CAM0) == params.msckf.max_clone_C) {
-    // Grab marg index 0 of slide window
-    // get oldest clone time
-    auto index = 0;
-    auto time_oldest = state->getCloneTime(CLONE_CAM0, index);
-    // get feature contain this marg time
-    tracker->get_feature_database()->features_selected(time_oldest, feat_marg, false, true);
-  }
-
   // --------------------------- Filter non-keyframe or bad measurements -------------------------- //
 
   // get clone timestamp
@@ -1560,9 +1560,9 @@ void MsckfManager::selectFeaturesKeyFrame(
     clone_times.push_back(state->getCloneTime(CLONE_CAM0, index));
   }
 
-  // filter lost features: 
-  auto it0 = feat_lost.begin();
-  while (it0 != feat_lost.end()) {
+  // filter features: 
+  auto it0 = feat_keyframe.begin();
+  while (it0 != feat_keyframe.end()) {
 
     // [0] Clean non-clone stamp measurements
     it0->clean_old_measurements(clone_times);
@@ -1574,21 +1574,44 @@ void MsckfManager::selectFeaturesKeyFrame(
     }                  
 
     if(num_measurements < 2) {
-      it0 = feat_lost.erase(it0);
+      it0 = feat_keyframe.erase(it0);
       continue;
     }
 
     it0++;          
   }
 
-  // filter marg features:
-  auto it1 = feat_marg.begin();
-  while (it1 != feat_marg.end()) {
+  // --------------------------- Determine the anchor -------------------------- //
+}
 
-    // [0] Clean non-clone stamp measurements
-    it1->clean_old_measurements(clone_times);
+void MsckfManager::selectMargMeasurement(std::vector<Feature> &feat_keyframe) {
+  // if we are not reach the max slide window size, we wait
+  if(state->getEstimationNum(CLONE_CAM0) < params.msckf.max_clone_C) 
+    return;
 
-    it1++;
+  // get actually need marginalize out measurements index timestamp
+  std::vector<double> clone_times;
+  for(const auto& index : params.msckf.marginalized_clone) {
+      clone_times.push_back(
+        state->getCloneTime(CLONE_CAM0,index));
+  }
+
+  // get marg features
+  std::vector<Feature> feat_marg;
+
+  auto time_marg = state->getCloneTime(CLONE_CAM0, 0);
+
+  tracker->get_feature_database()->features_selected(time_marg, feat_marg, false, true);
+
+  // only keep marg index measurements
+  for(const auto& f : feat_marg) {
+
+    auto frame = std::find_if(feat_keyframe.begin(), feat_keyframe.end(),
+                  [&](const auto& feat){return feat.featid == f.featid ;});
+
+    if(frame != feat_keyframe.end()) {
+      frame->clean_old_measurements(clone_times);
+    }        
   }
 }
 
@@ -1668,100 +1691,6 @@ void MsckfManager::getDataForPressure(PressureMsg &pressure, DvlMsg &dvl, std::v
   }
 
 }
-
-void MsckfManager::selectFeaturesSlideWindow(
-    const double time_update, std::vector<Feature> &feat_lost, std::vector<Feature> &feat_marg) {
-
-  // ------------------------------- Grab features ------------------------------------------ //
-
-  // Grab lost features:
-  //    1) grab whole the measuremens for each lost feature
-  //    2) delete the grabbed features in the database
-  tracker->get_feature_database()->features_lost(time_update, feat_lost, true, true);
-
-  // Grab maginalized features
-  //    1) select the oldest clone time
-  //    2) grab whole the measurements for each feature that contain the given timestamp
-  //    3) not delete
-  if(state->getEstimationNum(CLONE_CAM0) == params.msckf.max_clone_C) {
-    // get oldest clone time
-    auto time_marg = state->getMarginalizedTime(CLONE_CAM0);
-    // get feature contain the marg time
-    tracker->get_feature_database()->features_selected(time_marg, feat_marg, false, true);
-  }
-
-  // ------------------------------- Keep clone related measurements -------------------------------- //
-
-  // [0] Get camera clone timestamp  
-
-  auto cam_clones = state->getSubState(CLONE_CAM0);
-  std::vector<double> clone_times;
-  for(const auto& clone : cam_clones) {
-    // convert timestamp string to actual timestamp double
-    clone_times.emplace_back(std::stod(clone.first));
-  }
-
-  // [1] Clean lost features: 
-  //    1) remove non-clone time measurements
-  //    2) make sure enough for triangulation 
-
-  auto it0 = feat_lost.begin();
-  while (it0 != feat_lost.end()) {
-    // clean the feature that don't have the clonetime
-    it0->clean_old_measurements(clone_times);
-    // count how many measurements
-    int num_measurements = 0;
-    for (const auto &pair : it0->timestamps) {
-      num_measurements += it0->timestamps[pair.first].size();
-    }
-    //! TODO: if we have DVL-adied triangulation, we don't real need more then 2 features
-    // remove feature if not enough for triangulation
-    if (num_measurements < 2) {
-      it0 = feat_lost.erase(it0);
-    } 
-    else {
-      it0++;
-    }
-  }
-
-  // [2] Clean marg features: 
-  //    1) remove non-clone time measurements
-  //    2) make sure enough for triangulation 
-
-  auto it1 = feat_marg.begin();
-  while (it1 != feat_marg.end()) {
-    // clean the feature that don't have the clonetime
-    it1->clean_old_measurements(clone_times);
-    // count how many measurements
-    int num_measurements = 0;
-    for (const auto &pair : it1->timestamps) {
-      num_measurements += it1->timestamps[pair.first].size();
-    }
-    //! TODO: if we have DVL-adied triangulation, we don't real need more then 2 features
-    // remove feature if not enough for triangulation
-    if (num_measurements < 2) {
-      it1 = feat_marg.erase(it1);
-    } 
-    else {
-      it1++;
-    }
-  }
-
-  if(feat_lost.size() > 0) {
-    printf("  Lost feat size=%ld\n", feat_lost.size());
-    // for(const auto& f : feat_lost) {
-    //   printf("  id:%ld, meas:%ld\n", f.featid, f.timestamps.at(0).size());
-    // }
-  }
-
-  if(feat_marg.size()>0) {
-    printf("  Marg feat size=%ld\n", feat_marg.size());
-    // for(const auto& f : feat_marg) {
-    //   printf("  id:%ld, meas:%ld\n", f.featid, f.timestamps.at(0).size());
-    // }
-  }
-}
-
 
 void MsckfManager::selectFeatures(const double time_update, std::vector<Feature> &feat_selected) {
   //! TEST: save all the features in the database

@@ -855,11 +855,9 @@ void Updater::marginalize(std::shared_ptr<State> state, Sensor clone_name, int i
   
 }
 
-void Updater::featureTriangulation(
+void Updater::featureTriangulation(    
     std::shared_ptr<State> state, 
-    std::vector<Feature> &feat_lost,
-    std::vector<Feature> &feat_marg,
-    std::vector<Feature> &feat_msckf) {
+    std::vector<Feature> &feat) {
 
   // -------------------- Get Camera Pose and Clone Time -------------------- //
 
@@ -893,10 +891,10 @@ void Updater::featureTriangulation(
     cam_poses.insert({cam_time, T_G_C});
   }
 
-  // -------------------- Triangulation for Lost Features -------------------- //
+  // -------------------- Triangulation -------------------- //
 
-  auto it0 = feat_lost.begin();
-  while (it0 != feat_lost.end()) {          
+  auto it0 = feat.begin();
+  while (it0 != feat.end()) {          
 
     // [2] Check: if this feature is triangulated 
     if(it0->triangulated) {
@@ -913,66 +911,12 @@ void Updater::featureTriangulation(
 
     // [3] Remove the feature if triangulation failed
     if (!success_tri || !success_refine) {
-      it0 = feat_lost.erase(it0);
+      it0 = feat.erase(it0);
     }
     else {     
       it0++;
     }
   }
-
-  // -------------------- Triangulation for Marg Features -------------------- //
-
-  auto it1 = feat_marg.begin();
-  while (it1 != feat_marg.end()) {
-
-    // [1] Check if this feature is triangulated 
-    if(it1->triangulated) {
-      it1++;
-      continue;
-    }
-
-    // [] select anchor frame: the normalized uv close to center
-
-    // [2] Triangulate the feature
-    bool success_tri = true;
-    bool success_refine = true;
-
-    success_tri = triangulater->single_triangulation(&*it1, cam_poses);
-    success_refine = triangulater->single_gaussnewton(&*it1, cam_poses);
-
-    // [] DVL enhancement depth
-
-    // [3] Remove the feature if triangulation failed
-    if (!success_tri || !success_refine) {
-      it1 = feat_marg.erase(it1);
-    }
-    else {
-      it1++;
-    }
-  }
-
-  // -------------------- Finish the Final MSCKF Features for Update -------------------- //
-
-  if(state->getEstimationNum(CLONE_CAM0) == param_msckf_.max_clone_C) {
-    // [0] Create marg clone timestamps
-    clone_times.clear();
-    for(const auto& index : param_msckf_.marginalized_clone) {
-      clone_times.push_back(
-        state->getCloneTime(CLONE_CAM0,index));
-    }
-
-    // [1] Only keep marg clone timestamp measurements for update
-    for(auto& feat : feat_marg) {
-      feat.clean_old_measurements(clone_times);
-    }
-  }
-
-  // [2] Combine lost and marg feature measurements for update
-  feat_msckf.insert(feat_msckf.end(), feat_lost.begin(), feat_lost.end());
-  feat_msckf.insert(feat_msckf.end(), feat_marg.begin(), feat_marg.end());
-
-  // [3] check normalized uv to get anchor frame for triangulation
-
 
   //! TEST: save data
   // file.open(file_path, std::ios_base::app);

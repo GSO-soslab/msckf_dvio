@@ -51,12 +51,9 @@ public:
     std::shared_ptr<State> state, 
     std::vector<Feature> &features);
 
-  void featureTriangulation(
-    std::shared_ptr<State> state, 
-    std::vector<Feature> &feat_lost,
-    std::vector<Feature> &feat_marg,
-    std::vector<Feature> &feat_msckf
-  );
+  void featureTriangulation(    
+      std::shared_ptr<State> state, 
+      std::vector<Feature> &feat);
 
   void featureJacobian(std::shared_ptr<State> state, const Feature &feature, 
                        Eigen::MatrixXd &H_x, Eigen::MatrixXd &H_f, 

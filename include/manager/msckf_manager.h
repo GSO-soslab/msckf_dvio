@@ -116,11 +116,10 @@ private:
 
   void selectFeatures(const double time_update, std::vector<Feature> &feat_selected);
 
-  void selectFeaturesSlideWindow(
-    const double time_update, std::vector<Feature> &feat_lost, std::vector<Feature> &feat_marg);
-
   void selectFeaturesKeyFrame(
-    const double time_update, std::vector<Feature> &feat_lost, std::vector<Feature> &feat_marg);
+    const double time_update, std::vector<Feature> &feat_keyframe);
+
+  void selectMargMeasurement(std::vector<Feature> &feat_keyframe);
 
   void releaseImuBuffer(double timeline);
 
