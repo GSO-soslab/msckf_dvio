@@ -526,7 +526,7 @@ void MsckfManager::doCameraKeyframe() {
   std::vector<Feature> feature_keyframe;
   selectFeaturesKeyFrame(time_curr_sensor, feature_keyframe);
 
-  // [] select anchor frame and DVL-enhanced depth
+  // [] DVL-enhanced depth
 
 
   // [3] Camera Feature Update: feature triangulation, feature update 
@@ -1578,10 +1578,29 @@ void MsckfManager::selectFeaturesKeyFrame(
       continue;
     }
 
-    it0++;          
+    it0++;
   }
 
   // --------------------------- Determine the anchor -------------------------- //
+
+  // loop each feature
+  for(auto& feat : feat_keyframe) {
+
+    double distance = std::numeric_limits<double>::max();
+
+    // loop each measurement
+    for(size_t i=0; i<feat.uvs_norm.at(0).size(); i++) {
+      auto d = sqrt(feat.uvs_norm.at(0).at(i)(0) * feat.uvs_norm.at(0).at(i)(0) +
+                    feat.uvs_norm.at(0).at(i)(1) * feat.uvs_norm.at(0).at(i)(1));
+
+      // get the mini distance 
+      if(d <= distance) {
+        distance = d;
+        // save the anchor timestamp for this feature
+        feat.anchor_clone_timestamp = feat.timestamps.at(0).at(i);
+      }
+    }
+  }
 }
 
 void MsckfManager::selectMargMeasurement(std::vector<Feature> &feat_keyframe) {

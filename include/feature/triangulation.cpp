@@ -15,8 +15,11 @@ double FeatureTriangulation::compute_error(
   double err = 0;
 
   // get Anchor transfomration
-  Eigen::Matrix3d R_A_G = T_G_C.begin()->second.block(0,0,3,3).transpose();
-  Eigen::Vector3d p_G_A = T_G_C.begin()->second.block(0,3,3,1);
+  // Eigen::Matrix3d R_A_G = T_G_C.begin()->second.block(0,0,3,3).transpose();
+  // Eigen::Vector3d p_G_A = T_G_C.begin()->second.block(0,3,3,1);
+  Eigen::Matrix3d R_A_G = T_G_C.at(feature->anchor_clone_timestamp).block(0,0,3,3).transpose();
+  Eigen::Vector3d p_G_A = T_G_C.at(feature->anchor_clone_timestamp).block(0,3,3,1);
+
 
   for(size_t i=0; i<feature->timestamps.at(0).size(); i++) {
 
@@ -56,8 +59,10 @@ bool FeatureTriangulation::single_triangulation(
   const std::unordered_map<double, Eigen::Matrix4d> &T_G_C) {        
 
   // get Anchor transfomration
-  Eigen::Matrix3d R_A_G = T_G_C.begin()->second.block(0,0,3,3).transpose();
-  Eigen::Vector3d p_G_A = T_G_C.begin()->second.block(0,3,3,1);
+  // Eigen::Matrix3d R_A_G = T_G_C.begin()->second.block(0,0,3,3).transpose();
+  // Eigen::Vector3d p_G_A = T_G_C.begin()->second.block(0,3,3,1);
+  Eigen::Matrix3d R_A_G = T_G_C.at(feature->anchor_clone_timestamp).block(0,0,3,3).transpose();
+  Eigen::Vector3d p_G_A = T_G_C.at(feature->anchor_clone_timestamp).block(0,3,3,1);
 
   // Construct linear system matrices
   Eigen::Matrix3d A = Eigen::Matrix3d::Zero();
@@ -75,7 +80,7 @@ bool FeatureTriangulation::single_triangulation(
     const Eigen::Matrix<double, 3, 1> &p_G_Ci = 
         T_G_C.at(feature->timestamps.at(0).at(i)).block(0,3,3,1);
 
-    // transfrom camera into anchor frame(first camera frame)
+    // transfrom camera into anchor frame
     Eigen::Matrix<double, 3, 3> R_A_Ci = R_A_G * R_G_Ci;
     Eigen::Matrix<double, 3, 1> p_A_Ci = R_A_G * (p_G_Ci - p_G_A);
 
@@ -128,8 +133,11 @@ bool FeatureTriangulation::single_gaussnewton(
   const std::unordered_map<double, Eigen::Matrix4d> &T_G_C) {
 
   // get Anchor transfomration
-  Eigen::Matrix3d R_A_G = T_G_C.begin()->second.block(0,0,3,3).transpose();
-  Eigen::Vector3d p_G_A = T_G_C.begin()->second.block(0,3,3,1);
+  // Eigen::Matrix3d R_A_G = T_G_C.begin()->second.block(0,0,3,3).transpose();
+  // Eigen::Vector3d p_G_A = T_G_C.begin()->second.block(0,3,3,1);
+  Eigen::Matrix3d R_A_G = T_G_C.at(feature->anchor_clone_timestamp).block(0,0,3,3).transpose();
+  Eigen::Vector3d p_G_A = T_G_C.at(feature->anchor_clone_timestamp).block(0,3,3,1);
+
 
   // Get into inverse depth
   double alpha = feature->p_FinA(0) / feature->p_FinA(2);
