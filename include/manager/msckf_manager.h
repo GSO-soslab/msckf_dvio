@@ -12,6 +12,12 @@
 #include <fstream>
 #include <queue>
 #include <limits>
+
+// 3rd
+#include <pcl/PCLPointCloud2.h>
+#include <pcl/point_types.h>
+#include <pcl_conversions/pcl_conversions.h>
+
 // customized
 #include "types/type_all.h"
 
@@ -47,6 +53,8 @@ public:
 
   void feedPressure(const PressureMsg &data);
 
+  void feedDvlCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &data);
+
   void backend();
 
   bool isInitialized() { return initializer->isInit(); }
@@ -66,6 +74,9 @@ public:
   bool isFeature() {return is_feat; }
 
   cv::Mat getImgHistory();
+
+  // get the N pointclouds that are closet to the given timestamp
+  std::vector<pcl::PointCloud<pcl::PointXYZ>> getSpareCloud(double timestamp, int num);
 
   void updateImgHistory();
 
@@ -99,6 +110,8 @@ private:
 
   bool checkFeatures(double curr_time);
 
+  bool checkAdaptive();
+
   bool checkFrameCount();
 
   void selectFeatures(const double time_update, std::vector<Feature> &feat_selected);
@@ -125,6 +138,7 @@ private:
   std::vector<DvlMsg> buffer_dvl;
   std::vector<PressureMsg> buffer_pressure;
   std::queue<double> buffer_time_img;
+  std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> buf_dvl_pc;
 
   DvlMsg last_dvl; 
   

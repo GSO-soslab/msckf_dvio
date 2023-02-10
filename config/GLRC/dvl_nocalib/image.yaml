@@ -53,14 +53,21 @@ Keyframe:
   # option 1: frame count
   frame_count: 2 
 
+  # option 3: minimum tracked features
+  min_tracked: 50
+  
+  #D=0.1, V_xy = 0.3, ->0.3
+  #D=0.1, V_xy = 0.4, ->0.25
+  adaptive_factor: 0.33
+  #
+  adaptive_power: 1
+
   # option 2: relative motion constraint
   # default: 0.1
   frame_motion: 0.1
   # 2: 2D space constraint, for up-looking ice surface, 3: 3D space constraint
   # default: 2
   motion_space: 2
-  # option 3: minimum tracked features
-  min_tracked: 50
   # option 4: ratio = tracked feature num from last keyframe / total features at current frame
   # default: 0.8
   scene_ratio: 0.9

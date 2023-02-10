@@ -855,7 +855,7 @@ void Updater::marginalize(std::shared_ptr<State> state, Sensor clone_name, int i
   
 }
 
-void Updater::cameraMeasurementKeyFrame(
+void Updater::featureTriangulation(
     std::shared_ptr<State> state, 
     std::vector<Feature> &feat_lost,
     std::vector<Feature> &feat_marg,
@@ -891,27 +891,12 @@ void Updater::cameraMeasurementKeyFrame(
 
     // insert to container
     cam_poses.insert({cam_time, T_G_C});
-    clone_times.emplace_back(cam_time);
   }
 
   // -------------------- Triangulation for Lost Features -------------------- //
 
   auto it0 = feat_lost.begin();
-  while (it0 != feat_lost.end()) {
-
-    // [0] Clean non-clone stamp measurements
-    it0->clean_old_measurements(clone_times);
-
-    // [1] Check: at least 2 measurements can be used for trig and update
-    int num_measurements = 0;
-    for (const auto &pair : it0->timestamps) {
-      num_measurements += it0->timestamps[pair.first].size();
-    }                  
-
-    if(num_measurements < 2) {
-      it0 = feat_lost.erase(it0);
-      continue;
-    }          
+  while (it0 != feat_lost.end()) {          
 
     // [2] Check: if this feature is triangulated 
     if(it0->triangulated) {
@@ -925,19 +910,6 @@ void Updater::cameraMeasurementKeyFrame(
 
     success_tri = triangulater->single_triangulation(&*it0, cam_poses);
     success_refine = triangulater->single_gaussnewton(&*it0, cam_poses);
-
-    // if(it0->featid == 1210) {
-    //   for(size_t i=0; i<it0->timestamps.at(0).size(); i++) {
-    //     printf("\nmeas time: %.9f\n", it0->timestamps.at(0).at(i));
-    //     printf("i=%ld, uvs_norm: u=%f,v=%f\n", i, it0->uvs_norm.at(0).at(i)(0),it0->uvs_norm.at(0).at(i)(1));
-    //     printf("i=%ld, uvs: u=%f,v=%f\n", i, it0->uvs.at(0).at(i)(0),it0->uvs.at(0).at(i)(1));
-    //     std::cout<<"R_C_G: \n"<<cam_poses.at(it0->timestamps.at(0).at(i)).block(0,0,3,3).transpose();
-    //     std::cout<<"\np_G_C: \n"<<cam_poses.at(it0->timestamps.at(0).at(i)).block(0,3,3,1)<<std::endl;
-    //   }
-
-    //   printf("\n[%ld,%f,%f,%f]\n",it0->featid, it0->p_FinG(0),it0->p_FinG(1),it0->p_FinG(2));
-    // } 
-
 
     // [3] Remove the feature if triangulation failed
     if (!success_tri || !success_refine) {
@@ -953,14 +925,13 @@ void Updater::cameraMeasurementKeyFrame(
   auto it1 = feat_marg.begin();
   while (it1 != feat_marg.end()) {
 
-    // [0] Clean non-clone stamp measurements
-    it1->clean_old_measurements(clone_times);
-
     // [1] Check if this feature is triangulated 
     if(it1->triangulated) {
       it1++;
       continue;
     }
+
+    // [] select anchor frame: the normalized uv close to center
 
     // [2] Triangulate the feature
     bool success_tri = true;
@@ -968,6 +939,8 @@ void Updater::cameraMeasurementKeyFrame(
 
     success_tri = triangulater->single_triangulation(&*it1, cam_poses);
     success_refine = triangulater->single_gaussnewton(&*it1, cam_poses);
+
+    // [] DVL enhancement depth
 
     // [3] Remove the feature if triangulation failed
     if (!success_tri || !success_refine) {
@@ -978,7 +951,6 @@ void Updater::cameraMeasurementKeyFrame(
     }
   }
 
-  
   // -------------------- Finish the Final MSCKF Features for Update -------------------- //
 
   if(state->getEstimationNum(CLONE_CAM0) == param_msckf_.max_clone_C) {
@@ -999,23 +971,46 @@ void Updater::cameraMeasurementKeyFrame(
   feat_msckf.insert(feat_msckf.end(), feat_lost.begin(), feat_lost.end());
   feat_msckf.insert(feat_msckf.end(), feat_marg.begin(), feat_marg.end());
 
-  auto add1 = 0;
-  if(feat_lost.size() > 0) {
-    for(const auto& f : feat_lost) {
-      add1 += f.timestamps.at(0).size();
-    }
+  // [3] check normalized uv to get anchor frame for triangulation
 
-    // printf("  Lost feat size=%ld, total meas=%d\n", feat_lost.size(), add1);
-  }
 
-  auto add2 = 0;
-  if(feat_marg.size()>0) {
-    for(const auto& f : feat_marg) {
-      add2 += f.timestamps.at(0).size();
-    }
+  //! TEST: save data
+  // file.open(file_path, std::ios_base::app);
 
-    // printf("  Marg feat size=%ld, total meas=%d\n", feat_marg.size(), add2);
-  }
+  // // loop all the features
+  // for(const auto& feat : feat_msckf) {
+
+  //   // loop each measurements
+  //   for(size_t i=0; i<feat.timestamps.at(0).size(); i++) {
+  //     // update timestamp
+  //     file<<std::fixed<<std::setprecision(9);
+  //     file<<state->getTimestamp()<<",";
+  //     file<<std::fixed<<std::setprecision(6);
+  //     // feature id
+  //     file<<feat.featid<<",";
+  //     // triangulation result
+  //     file<<feat.p_FinG(0)<<","<<feat.p_FinG(1)<<","<<feat.p_FinG(2)<<",";
+
+  //     // // measurement timestamp
+  //     // file<<std::fixed<<std::setprecision(9);
+  //     // file<<feat.timestamps.at(0).at(i)<<std::endl;
+  //     // file<<std::fixed<<std::setprecision(4); 
+
+  //     // camera pose
+  //     Eigen::Matrix<double, 3, 3> R_G_Ci = cam_poses.at(feat.timestamps.at(0).at(i)).block(0,0,3,3);
+  //     Eigen::Matrix<double, 3, 1> p_G_Ci = cam_poses.at(feat.timestamps.at(0).at(i)).block(0,3,3,1);
+  //     Eigen::Matrix<double, 4, 1> q_G_toCi = toQuaternion(R_G_Ci.transpose());   
+
+  //     file<< q_G_toCi(0)<<"," << q_G_toCi(1)<<","<< q_G_toCi(2)<<","<< q_G_toCi(3)<<",";
+  //     file<< p_G_Ci(0) <<"," << p_G_Ci(1) <<","  << p_G_Ci(2) <<",";
+
+  //     // normalied uv and raw uv
+  //     file<<feat.uvs_norm.at(0).at(i)(0)<<","<< feat.uvs_norm.at(0).at(i)(1)<<",";
+  //     file<<feat.uvs.at(0).at(i)(0)<<","<< feat.uvs.at(0).at(i)(1)<<"\n";
+  //   }
+  // }
+
+  // file.close();
 }
 
 void Updater::cameraMeasurement(    
@@ -1781,7 +1776,7 @@ void Updater::update(
   Eigen::VectorXd delta_X = K * res;
 
   // constrain camera z not to update
-  delta_X(5) = 0.0;
+  // delta_X(5) = 0.0;
 
   state->updateState(delta_X);
 

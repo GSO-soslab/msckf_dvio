@@ -147,6 +147,23 @@ void MsckfManager::feedPressure(const PressureMsg &data) {
   }
 }
 
+void MsckfManager::feedDvlCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &data) {
+  if(!initializer->isInit())
+    return;
+
+  std::unique_lock<std::mutex> lck(mtx);
+
+  buf_dvl_pc.emplace_back(data);
+
+  // prevent buffer overflow
+  auto frame = std::find_if(buf_dvl_pc.begin(), buf_dvl_pc.end(), [&](const auto& pc) {
+                  return (buf_dvl_pc.back()->header.stamp - pc->header.stamp) / 1000000.0 
+                          <= params.sys.buffers[Sensor::DVL_CLOUD]; });
+
+  if (frame != buf_dvl_pc.end())                    
+    buf_dvl_pc.erase(buf_dvl_pc.begin(), frame);
+}
+
 void MsckfManager::feedFeature(FeatureMsg &data) {
 
   if(!initializer->isInit())
@@ -211,6 +228,30 @@ void MsckfManager::feedCamera(ImageMsg &data) {
   // }
 
   // updateImgHistory();
+}
+
+std::vector<pcl::PointCloud<pcl::PointXYZ>> MsckfManager::getSpareCloud(double timestamp, int num) {
+  std::unique_lock<std::mutex> lck(mtx);
+
+  // prepare a serial of data with a delta time
+  std::vector<std::pair<double, pcl::PointCloud<pcl::PointXYZ>::Ptr>> temp_queue;
+
+  for (auto it = buf_dvl_pc.rbegin(); it != buf_dvl_pc.rend(); ++it)
+  {
+    auto dt = abs(timestamp - (*it)->header.stamp/1000000.0);
+    temp_queue.push_back(std::make_pair(dt,*it));
+  }
+
+  // sort increasing order
+  std::sort(temp_queue.begin(), temp_queue.end());
+
+  // get the first N
+  std::vector<pcl::PointCloud<pcl::PointXYZ>> sorted_pc;
+  for(size_t i = 0; i < num; i++) {
+    sorted_pc.push_back(*temp_queue.at(i).second);
+  }
+
+  return sorted_pc;
 }
 
 void MsckfManager::updateImgHistory() {
@@ -454,6 +495,7 @@ void MsckfManager::doCameraKeyframe() {
   // file.open(file_path, std::ios_base::app);//std::ios_base::app
   // file<<std::fixed<<std::setprecision(9);
   // file<<"\nTime:"<<time_curr_sensor<<"\n";
+  // // file<<time_curr_sensor<<",";
   // file.close();
 
   //// [0] IMU Propagation
@@ -467,6 +509,8 @@ void MsckfManager::doCameraKeyframe() {
   // check if relative motion is larger enough to insert a clone
   // get last clone pose, also meaning key-frame during feature tracking
 
+  // bool insert_clone = checkFeatures(time_curr_sensor) && (checkAdaptive() && checkScene(time_curr_sensor));
+  // bool insert_clone = checkFeatures(time_curr_sensor) && (checkAdaptive() || checkScene(time_curr_sensor));
   bool insert_clone = checkFeatures(time_curr_sensor) && (checkMotion() && checkScene(time_curr_sensor));
   // bool insert_clone = checkFeatures(time_curr_sensor) && (checkMotion() || checkScene(time_curr_sensor));
 
@@ -484,11 +528,14 @@ void MsckfManager::doCameraKeyframe() {
   // selectFeaturesSlideWindow(time_curr_sensor, feature_lost, feature_marg);
   selectFeaturesKeyFrame(time_curr_sensor, feature_lost, feature_marg);
 
+  // [] select anchor frame and DVL-enhanced depth
+
+
   // [3] Camera Feature Update: feature triangulation, feature update 
 
   // feature triangulation
   std::vector<Feature> feature_msckf;
-  updater->cameraMeasurementKeyFrame(state, feature_lost, feature_marg, feature_msckf);
+  updater->featureTriangulation(state, feature_lost, feature_marg, feature_msckf);
 
   //! TEST: manual set the feature position as truth
   // if(truth_feature.size()>0) {
@@ -505,7 +552,6 @@ void MsckfManager::doCameraKeyframe() {
   //     }
   //   }
   // }
-
 
   //! TEST: manual set the depth of features
   // for(auto& feat : feature_msckf) {
@@ -692,7 +738,8 @@ bool MsckfManager::checkScene(double curr_time) {
   // compare with parameters ratio
   double ratio = tracked_count / curr_frame_feat.size();
 
-  if(ratio <= params.keyframe.scene_ratio) {
+  if(ratio < params.keyframe.scene_ratio) {
+  // if(ratio <= params.keyframe.scene_ratio) {
     return true;
   }
   else {
@@ -711,6 +758,59 @@ bool MsckfManager::checkFeatures(double curr_time) {
   }
   else {
     return true;
+  }
+}
+
+bool MsckfManager::checkAdaptive() {
+  // [0] if no clone exist, then insert current one
+  auto clone_size = state->getEstimationNum(CLONE_CAM0);
+  if(clone_size == 0) {
+    return true;
+  }
+
+  // [1] Get constrain 
+
+  // get current vehilce velocity
+  Eigen::Vector3d v_G_I = state->getEstimationValue(IMU, EST_VELOCITY);
+
+  double v_xy = sqrt(v_G_I(0)*v_G_I(0) + v_G_I(1)*v_G_I(1));
+
+  // get constrain
+  double D = params.keyframe.adaptive_factor * pow(v_xy, params.keyframe.adaptive_power);
+
+  // [2] Get distance between current frame and latest keyframe
+
+  // get latest clone pose 
+  Eigen::VectorXd pose = state->getClonePose(CLONE_CAM0, clone_size-1);   
+  Eigen::Matrix3d R_Ii_G = toRotationMatrix(pose.block(0,0,4,1));
+  Eigen::Vector3d p_G_Ii = pose.block(4,0,3,1);
+
+  // get current IMU pose
+  Eigen::Vector3d p_G_Ij = state->getEstimationValue(IMU, EST_POSITION);
+
+  // get 2D or 3D distance
+  double distance = 0;
+  if(params.keyframe.motion_space == 2) {
+    // the disance from Ij to Ii at global frame
+    // p_Ii_Ij = p_G_Ij - p_G_Ii 
+    Eigen::Vector3d p_Ii_Ij = p_G_Ij - p_G_Ii;
+
+    distance = sqrt(p_Ii_Ij(0)*p_Ii_Ij(0) + p_Ii_Ij(1)*p_Ii_Ij(1));
+  }
+  else if (params.keyframe.motion_space == 3) {
+    // the disance from Ij to Ii at Ii frame
+    // p_Ii_Ij = R_G_Ii^T (p_G_Ij - p_G_Ii)
+    Eigen::Vector3d p_Ii_Ij = R_Ii_G * (p_G_Ij - p_G_Ii);
+
+    distance = sqrt(p_Ii_Ij(0)*p_Ii_Ij(0) + p_Ii_Ij(1)*p_Ii_Ij(1) + p_Ii_Ij(2)*p_Ii_Ij(2));
+  }
+
+  if(distance >= D) {
+    // printf("adaptive: yes\n");
+    return true;
+  }
+  else {
+    return false;
   }
 }
 
@@ -1413,11 +1513,34 @@ void MsckfManager::selectFeaturesKeyFrame(
   //    2) delete the grabbed features in the database
   tracker->get_feature_database()->features_lost(time_update, feat_lost, true, true);
 
+  //! TEST: save data -- check how many features are detected as marg features
+  // std::vector<Feature> feat_marg_test;
+  // if(state->getEstimationNum(CLONE_CAM0) == params.msckf.max_clone_C) {
+  //   // Grab marg index 0 of slide window
+  //   // get oldest clone time
+  //   auto index = 0;
+  //   auto time_oldest = state->getCloneTime(CLONE_CAM0, index);
+  //   // get feature contain this marg time
+  //   tracker->get_feature_database()->features_selected(time_oldest, feat_marg_test, false, true);
+  // }
+
+  // file.open(file_path, std::ios_base::app);//std::ios_base::app
+
+  // // file<<std::fixed<<std::setprecision(9);
+  // file<<feat_marg_test.size()<<",";
+
+  // std::string id_str;
+  // for(const auto& feat : feat_marg_test) {
+  //   id_str += std::to_string(feat.featid) + '-';
+  // }
+  // file<<id_str<<"\n";
+
+  // file.close();
+
   // Grab maginalized features
   //    1) select the oldest clone time
   //    2) grab whole the measurements for each feature that contain the given timestamp
   //    3) not delete
-
   if(state->getEstimationNum(CLONE_CAM0) == params.msckf.max_clone_C) {
     // Grab marg index 0 of slide window
     // get oldest clone time
@@ -1427,6 +1550,46 @@ void MsckfManager::selectFeaturesKeyFrame(
     tracker->get_feature_database()->features_selected(time_oldest, feat_marg, false, true);
   }
 
+  // --------------------------- Filter non-keyframe or bad measurements -------------------------- //
+
+  // get clone timestamp
+  std::vector<double> clone_times;
+  auto clone_num = state->getEstimationNum(CLONE_CAM0);
+
+  for( size_t index = 0; index < clone_num; index++ ){
+    clone_times.push_back(state->getCloneTime(CLONE_CAM0, index));
+  }
+
+  // filter lost features: 
+  auto it0 = feat_lost.begin();
+  while (it0 != feat_lost.end()) {
+
+    // [0] Clean non-clone stamp measurements
+    it0->clean_old_measurements(clone_times);
+
+    // [1] Check: at least 2 measurements can be used for update
+    int num_measurements = 0;
+    for (const auto &pair : it0->timestamps) {
+      num_measurements += it0->timestamps[pair.first].size();
+    }                  
+
+    if(num_measurements < 2) {
+      it0 = feat_lost.erase(it0);
+      continue;
+    }
+
+    it0++;          
+  }
+
+  // filter marg features:
+  auto it1 = feat_marg.begin();
+  while (it1 != feat_marg.end()) {
+
+    // [0] Clean non-clone stamp measurements
+    it1->clean_old_measurements(clone_times);
+
+    it1++;
+  }
 }
 
 /**

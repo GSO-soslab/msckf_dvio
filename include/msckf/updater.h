@@ -51,7 +51,7 @@ public:
     std::shared_ptr<State> state, 
     std::vector<Feature> &features);
 
-  void cameraMeasurementKeyFrame(
+  void featureTriangulation(
     std::shared_ptr<State> state, 
     std::vector<Feature> &feat_lost,
     std::vector<Feature> &feat_marg,

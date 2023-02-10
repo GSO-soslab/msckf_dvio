@@ -48,6 +48,8 @@ private:
   /// Publish current features
   void publishFeatures();
 
+  // void publishSpareCloud();
+
   std::shared_ptr<MsckfManager> msckf_manager;
 
   ros::NodeHandle nh_;

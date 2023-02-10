@@ -52,7 +52,7 @@ RosNode::RosNode(const ros::NodeHandle &nh,
       }
 
       case Sensor::DVL_CLOUD: {
-        ros::Subscriber sub = nh_.subscribe(parameters.sys.topics[sensor], 100, &RosNode::pointcloudCallback, this);
+        ros::Subscriber sub = nh_.subscribe(parameters.sys.topics[sensor], 100, &RosNode::dvlCloudCallback, this);
         auto sub_ptr = std::make_shared<ros::Subscriber>(sub);
         subscribers[sensor] = sub_ptr;        
         break;
@@ -83,13 +83,16 @@ void RosNode::loadParamSystem(Params &params) {
   // load 
   std::vector<std::string> sensors;
   XmlRpc::XmlRpcValue rosparam_topics;
+  XmlRpc::XmlRpcValue rosparam_buffers;
 
   nh_private_.param<int>("SYS/backend_hz", params.sys.backend_hz, 20);
   nh_private_.getParam("SYS/sensors", sensors);
   nh_private_.getParam("SYS/topics", rosparam_topics);
+  nh_private_.getParam("SYS/buffers", rosparam_buffers);
   nh_private_.param<std::string>("SYS/csv", params.sys.csv, "not_set.csv");
 
   ROS_ASSERT(rosparam_topics.getType() == XmlRpc::XmlRpcValue::TypeArray);
+  ROS_ASSERT(rosparam_buffers.getType() == XmlRpc::XmlRpcValue::TypeArray);
 
   // convert for sensor 
   for(const auto& name : sensors) {
@@ -115,8 +118,8 @@ void RosNode::loadParamSystem(Params &params) {
           }
           // save to parameters
           auto topic = static_cast<std::string>(rosparam_topics[i][key]);
-
           params.sys.topics[name] = topic;
+
           // each line only has one sensor, so found and break
           break;
       }
@@ -124,6 +127,24 @@ void RosNode::loadParamSystem(Params &params) {
 
   if(params.sys.topics.size() != params.sys.sensors.size()) {
     ROS_ERROR("not enough rostopics for the given sensors");
+  }
+
+  // convert for sensor buffers
+  for(uint32_t i = 0 ; i < rosparam_buffers.size() ; i++) {
+      for(const auto& name : params.sys.sensors) {
+          // convert sensor name enum to string
+          auto key = enumToString(name);
+          // check if this sensor exist
+          if(rosparam_buffers[i][key].getType() == XmlRpc::XmlRpcValue::TypeInvalid) {
+              continue;
+          }          
+          // save to parameters
+          auto buffer = static_cast<int>(rosparam_buffers[i][key]);   
+          params.sys.buffers[name] = buffer;
+
+          // each line only has one sensor, so found and break
+          break;
+      }
   }
 
   // ==================== MSCKF ==================== //
@@ -526,11 +547,13 @@ void RosNode::loadParamImage(Params &params) {
 
   // ==================== Keyframe ==================== //
 
-  nh_private_.param<int>   ("Keyframe/frame_count",  params.keyframe.frame_count,  5);
-  nh_private_.param<double>("Keyframe/frame_motion", params.keyframe.frame_motion, 0.1);
-  nh_private_.param<int>   ("Keyframe/motion_space", params.keyframe.motion_space, 3);
-  nh_private_.param<int>   ("Keyframe/min_tracked",  params.keyframe.min_tracked,  50);
-  nh_private_.param<double>("Keyframe/scene_ratio",  params.keyframe.scene_ratio,  0.8);  
+  nh_private_.param<int>   ("Keyframe/frame_count",     params.keyframe.frame_count,     5);
+  nh_private_.param<double>("Keyframe/frame_motion",    params.keyframe.frame_motion,    0.1);
+  nh_private_.param<int>   ("Keyframe/motion_space",    params.keyframe.motion_space,    3);
+  nh_private_.param<int>   ("Keyframe/min_tracked",     params.keyframe.min_tracked,     50);
+  nh_private_.param<double>("Keyframe/scene_ratio",     params.keyframe.scene_ratio,     0.8);  
+  nh_private_.param<double>("Keyframe/adaptive_factor", params.keyframe.adaptive_factor, 0.333);  
+  nh_private_.param<int>   ("Keyframe/adaptive_power",  params.keyframe.adaptive_power,  1);  
 }
 
 void RosNode::loadCSV() {
@@ -684,13 +707,17 @@ void RosNode::pressureCallback(const sensor_msgs::FluidPressure::ConstPtr &msg) 
 
 }
 
-void RosNode::pointcloudCallback(const sensor_msgs::PointCloud2::ConstPtr &msg){
+void RosNode::dvlCloudCallback(const sensor_msgs::PointCloud2::ConstPtr &msg){
   //! TODO: multi-path will has degraded measurement, filter multi-path based on sub_map, plane-constrain
-  // pcl::PCLPointCloud2 pc2;
-  // pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-  // pcl_conversions::toPCL(*msg, pc2);
-  // pcl::fromPCLPointCloud2(pc2, *cloud);
+  pcl::PCLPointCloud2 pc2;
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+  pcl_conversions::toPCL(*msg, pc2);
+  pcl::fromPCLPointCloud2(pc2, *cloud);
 
+  manager->feedDvlCloud(cloud);
+
+  // printf("DVL pointcloud received at time:%ld, double=%f\n", cloud->header.stamp, (double)(cloud->header.stamp/1000000.0));
+  
 }
 
 void RosNode::process() {

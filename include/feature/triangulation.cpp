@@ -289,41 +289,9 @@ bool FeatureTriangulation::single_gaussnewton(
       std::isnan(feature->p_FinA.norm())) {
     return false;
   }
-
+  
   feature->p_FinG = R_A_G.transpose() * feature->p_FinA + p_G_A;
   // feature->triangulated = true;
-
-
-  //! TEST: save data
-  // file.open(file_path, std::ios_base::app);//std::ios_base::app
-
-  // // save feature id
-  // file<<"\nlost id: "<< feature->featid<<std::endl;
-
-  // // loop cam pose for this feature
-  // for(size_t i=0; i<feature->timestamps.at(0).size(); i++) {
-
-  //   // save cam pose for this measurement
-  //   Eigen::Matrix<double, 3, 3> R_G_Ci = T_G_C.at(feature->timestamps.at(0).at(i)).block(0,0,3,3);
-  //   Eigen::Matrix<double, 3, 1> p_G_Ci = T_G_C.at(feature->timestamps.at(0).at(i)).block(0,3,3,1);
-  //   Eigen::Matrix<double, 4, 1> q_G_toCi = toQuaternion(R_G_Ci.transpose());
-
-  //   file<<std::endl;
-  //   file<<std::fixed<<std::setprecision(9);
-  //   file<<"  time: "<<feature->timestamps.at(0).at(i)<<std::endl;
-  //   file<<std::fixed<<std::setprecision(4);    
-
-  //   file<<"  q_G_toCi: "<< q_G_toCi.transpose() <<std::endl;
-  //   file<<"  p_CiinG: " << p_G_Ci.transpose() <<std::endl;
-
-  //   // save uv for this measurement
-  //   file<<"  uv_norm: " <<feature->uvs_norm.at(0).at(i).transpose()<<std::endl;
-  // }
-
-
-  // file<<"F: "<< feature->p_FinG.transpose()<<std::endl;
-
-  // file.close();
 
   return true;
 }

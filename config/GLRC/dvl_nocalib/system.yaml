@@ -17,7 +17,11 @@ SYS:
     - {DVL: /rov/sensors/dvl/buttom_track_velocity}
     - {PRESSURE: /rov/sensors/dvl/pressure}
     - {CAM0: /rov_remote/sensors/stereo/left/image_decompressed}
-    - {DVL_CLOUD: /pointcloud}
+    - {DVL_CLOUD: /rov/sensors/dvl/pointcloud}
+
+  buffers:
+    # DVL cloud buffer to store how many seconds
+    - {DVL_CLOUD: 10}
 
 
 ####################################################################################
@@ -73,14 +77,14 @@ MSCKF:
   cam_timeoffset: false
   # Max camera clone
   # default: 11 for non-key-frame
-  cam_clone: 20 
+  cam_clone: 15 
 
   ################################    Update    ##################################
 
   # Index of clone need to marginalize 
   # example: we have 10 clones [0,1,2,3,4,5,6,7,8,9]
   #          the marg clone measurements: oldest, second latest [0,8]
-  # marginalized_clone: [0,4,9,13]
+  marginalized_clone: [0,6,13]
   
   # in open_vins(40), but it's occasionally update at 40
   # but here, tracking will stop so always update as 40

@@ -40,6 +40,11 @@ void RosVisualizer::visualize() {
 
 }
 
+// void RosVisualizer::publishSpareCloud() {
+
+// }
+
+
 void RosVisualizer::publishImage() {
   // Check if we have subscribers
   if (pub_img.getNumSubscribers() == 0)

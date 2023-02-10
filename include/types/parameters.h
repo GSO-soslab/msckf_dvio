@@ -16,6 +16,8 @@ namespace msckf_dvio
 #define EST_BIAS_A "BiasAcce"
 #define EST_TIMEOFFSET "Timeoffset"
 #define EST_SCALE "Scale"
+// the clone state name will be clone time:
+// EST_CLONE = "1614971363.850172520"
 
 //! Use the actual sensor state name
 enum Sensor{
@@ -242,6 +244,11 @@ struct paramKeyframe {
   int min_tracked;
   /// option 4: ratio = tracked feature num from last keyframe / total features at current frame
   double scene_ratio;
+
+  /// adaptive_factor
+  double adaptive_factor;
+  ///adaptive_power
+  int adaptive_power;
 };
 
 struct paramSystem {
@@ -253,6 +260,8 @@ struct paramSystem {
   std::map<Sensor, std::string> topics;
   // test file path
   std::string csv;
+  // buffer time duration for each sensors
+  std::map<Sensor, double> buffers;
 };
 
 //! TODO: set sub-parameters as shared_ptr? 
@@ -309,6 +318,11 @@ inline void Params::printParam() {
   for(const auto& [name, topic] : sys.topics) {
     std::cout<<"    " << enumToString(name) <<" = " << topic << "\n";
   }
+
+  std::cout<<  "  buffers: \n";
+  for(const auto& [name, buffer] : sys.buffers) {
+    std::cout<<"    " << enumToString(name) <<" = " << buffer << " seconds\n";
+  }  
 
   std::cout<<"\n================== MSCKF Parameters =======================\n";
   std::cout<<"  do_R_I_D= " << (msckf.do_R_I_D ? "True" : "False" ) << "\n";
@@ -524,6 +538,8 @@ inline void Params::printParam() {
   std::cout<<"  motion_space: " << keyframe.motion_space <<"\n";   
   std::cout<<"  min_tracked: " << keyframe.min_tracked <<"\n";   
   std::cout<<"  scene_ratio: " << keyframe.scene_ratio <<"\n";   
+  std::cout<<"  adaptive_factor: " << keyframe.adaptive_factor <<"\n";   
+  std::cout<<"  adaptive_power: " << keyframe.adaptive_power <<"\n";   
 }
 
 

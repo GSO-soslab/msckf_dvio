@@ -16,7 +16,9 @@ SYS:
     - {CAM0_FEATURE: /ov_msckf/feature_sim}
   # load some test files
   # csv: /home/lin/develop/data/sim/udel_gore/sim_NoCalibNoise_4_feat_position.txt
-
+  buffers:
+    # buffer to store how many seconds
+    - {CAM0_FEATURE: 10}
 
 ####################################################################################
 ############################     TODO:  Pre-processing    ##########################
