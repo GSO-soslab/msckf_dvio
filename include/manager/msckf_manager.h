@@ -17,6 +17,8 @@
 #include <pcl/PCLPointCloud2.h>
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
+#include <pcl/common/transforms.h>
+#include <pcl/common/io.h>
 
 // customized
 #include "types/type_all.h"
@@ -76,7 +78,7 @@ public:
   cv::Mat getImgHistory();
 
   // get the N pointclouds that are closet to the given timestamp
-  std::vector<pcl::PointCloud<pcl::PointXYZ>> getSpareCloud(double timestamp, int num);
+  std::vector<pcl::PointCloud<pcl::PointXYZ>> getDvlCloud(double timestamp, int num);
 
   void updateImgHistory();
 
@@ -84,6 +86,19 @@ public:
     truth_feature = test_data;
   }
 
+  void addMatchedPointcloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud) {
+    *matched_pointcloud += *cloud;
+  }
+
+  pcl::PointCloud<pcl::PointXYZ> getMatchedPointcloud() {
+
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::copyPointCloud(*matched_pointcloud, *cloud);
+    matched_pointcloud.reset(new pcl::PointCloud<pcl::PointXYZ>);
+    
+    return *cloud;
+  }
+  
 private:
 
   void doDVL();
@@ -120,6 +135,11 @@ private:
     const double time_update, std::vector<Feature> &feat_keyframe);
 
   void selectMargMeasurement(std::vector<Feature> &feat_keyframe);
+
+  void enhanceDepth(std::vector<Feature> &features);
+
+  // interpolate IMU pose from clone poses, based on given IMU timestamp
+  bool poseInterpolation(double timestamp, Eigen::Matrix3d &R, Eigen::Vector3d &p);
 
   void releaseImuBuffer(double timeline);
 
@@ -163,6 +183,8 @@ private:
   std::ofstream file;
   // file.open(file_path, std::ios_base::app);//std::ios_base::app
   // file.close();
+
+  pcl::PointCloud<pcl::PointXYZ>::Ptr  matched_pointcloud;
 
   std::unordered_map<size_t, Eigen::Vector3d> truth_feature;
 

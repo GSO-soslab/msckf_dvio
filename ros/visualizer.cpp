@@ -15,6 +15,7 @@ RosVisualizer::RosVisualizer(const ros::NodeHandle &nh, std::shared_ptr<MsckfMan
   pub_path = nh_.advertise<nav_msgs::Path>("/path", 10);
   pub_features = nh_.advertise<sensor_msgs::PointCloud2>("/feature_clouds", 10); 
   pub_bias = nh_.advertise<geometry_msgs::TwistStamped>("/imu_bias", 100); 
+  pub_pc = nh_.advertise<sensor_msgs::PointCloud2>("/matched_DVL_clouds", 10); 
 }
 
 void RosVisualizer::visualize() {
@@ -38,11 +39,25 @@ void RosVisualizer::visualize() {
   // publish triangulated features
   publishFeatures();
 
+  // publish pointcloud: e.g. test pointcloud
+  publishPointCloud();
 }
 
-// void RosVisualizer::publishSpareCloud() {
+void RosVisualizer::publishPointCloud() {
+  // Only publish if we have subscribers
+  if (pub_pc.getNumSubscribers() == 0)
+    return;
 
-// }
+  // get pointcloud
+  auto pointcloud = msckf_manager->getMatchedPointcloud();
+
+  // publish
+  sensor_msgs::PointCloud2 cloud_msg;
+  pcl::toROSMsg(pointcloud, cloud_msg);
+  cloud_msg.header.stamp = ros::Time::now();
+  cloud_msg.header.frame_id = "odom";
+  pub_pc.publish(cloud_msg);
+}
 
 
 void RosVisualizer::publishImage() {

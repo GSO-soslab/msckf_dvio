@@ -251,6 +251,13 @@ struct paramKeyframe {
   int adaptive_power;
 };
 
+struct paramEnhancement {
+  // select how many DVL pointcloud frames
+  int matched_num;
+  // standard deviation of z of 4 points of each DVL range measurements
+  float standard_deviation; 
+};
+
 struct paramSystem {
   // Frequency for backend processing(MSCKF update), increase if more data need for processing
   int backend_hz;
@@ -268,13 +275,15 @@ struct paramSystem {
 //!       so the paramters will updated automaticly, used for localization failed case?
 struct Params{
 
-/***** Image frontend *****/
+/***** Image related *****/
 
   paramTrack tracking;
 
   paramTriangulation triangualtion;
 
   paramKeyframe keyframe;
+
+  paramEnhancement enhancement;
   
 /***** Prior ****/
 
@@ -539,7 +548,12 @@ inline void Params::printParam() {
   std::cout<<"  min_tracked: " << keyframe.min_tracked <<"\n";   
   std::cout<<"  scene_ratio: " << keyframe.scene_ratio <<"\n";   
   std::cout<<"  adaptive_factor: " << keyframe.adaptive_factor <<"\n";   
-  std::cout<<"  adaptive_power: " << keyframe.adaptive_power <<"\n";   
+  std::cout<<"  adaptive_power: " << keyframe.adaptive_power <<"\n";  
+
+  // ---------------------- Enhancement ---------------------- //
+  std::cout<<"\n================== Depth Enhancement =======================\n";
+  std::cout<<"  matched_num: " << enhancement.matched_num <<"\n";   
+  std::cout<<"  standard_deviation: " << enhancement.standard_deviation <<"\n";   
 }
 
 

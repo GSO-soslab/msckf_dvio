@@ -92,6 +92,9 @@ MsckfManager::MsckfManager(Params &parameters)
 
   frame_count = params.keyframe.frame_count;
   frame_distance = 0;
+
+  // 
+  matched_pointcloud.reset(new pcl::PointCloud<pcl::PointXYZ>);
 }
 
 void MsckfManager::feedImu(const ImuMsg &data) {
@@ -230,7 +233,7 @@ void MsckfManager::feedCamera(ImageMsg &data) {
   // updateImgHistory();
 }
 
-std::vector<pcl::PointCloud<pcl::PointXYZ>> MsckfManager::getSpareCloud(double timestamp, int num) {
+std::vector<pcl::PointCloud<pcl::PointXYZ>> MsckfManager::getDvlCloud(double timestamp, int num) {
   std::unique_lock<std::mutex> lck(mtx);
 
   // prepare a serial of data with a delta time
@@ -245,9 +248,12 @@ std::vector<pcl::PointCloud<pcl::PointXYZ>> MsckfManager::getSpareCloud(double t
   // sort increasing order
   std::sort(temp_queue.begin(), temp_queue.end());
 
-  // get the first N
+  // determine the copy size, in case the buffer size less then given num
+  int copy_size = temp_queue.size() < num ? temp_queue.size() : num;
+
+  // copy
   std::vector<pcl::PointCloud<pcl::PointXYZ>> sorted_pc;
-  for(size_t i = 0; i < num; i++) {
+  for(size_t i = 0; i < copy_size; i++) {
     sorted_pc.push_back(*temp_queue.at(i).second);
   }
 
@@ -527,7 +533,7 @@ void MsckfManager::doCameraKeyframe() {
   selectFeaturesKeyFrame(time_curr_sensor, feature_keyframe);
 
   // [] DVL-enhanced depth
-
+  enhanceDepth(feature_keyframe);
 
   // [3] Camera Feature Update: feature triangulation, feature update 
   // feature triangulation
@@ -1601,6 +1607,110 @@ void MsckfManager::selectFeaturesKeyFrame(
       }
     }
   }
+
+}
+
+void MsckfManager::enhanceDepth(std::vector<Feature> &features) {
+
+  // get konwn information
+  Eigen::Matrix3d R_I_D = params.msckf.do_R_I_D ? 
+                          toRotationMatrix(state->getEstimationValue(DVL,EST_QUATERNION)) :
+                          toRotationMatrix(params.prior_dvl.extrinsics.head(4)); 
+  Eigen::Vector3d p_I_D = params.msckf.do_p_I_D ? 
+                          state->getEstimationValue(DVL,EST_POSITION) : 
+                          params.prior_dvl.extrinsics.tail(3);
+  Eigen::Matrix4d T_I_D = Eigen::Matrix4d::Identity();
+  T_I_D.block(0,0,3,3) = R_I_D;
+  T_I_D.block(0,3,3,1) = p_I_D;
+
+  // loop each feature
+  for(const auto& feat : features) {
+    // get matched pointclouds based on anchor timestamp
+    auto matched_pcs = getDvlCloud(feat.anchor_clone_timestamp, params.enhancement.matched_num);
+
+    // check with pointcloud until get depth estimation
+    for(const auto& pc : matched_pcs) {
+      // [1] Interpolate IMU pose at DVL timetsmap 
+
+      //! TODO: add time sync, now asssuming DVL and IMU are sync
+      auto t_imu = pc.header.stamp / 1000000.0;
+
+      Eigen::Matrix3d R_I_G;
+      Eigen::Vector3d p_G_I;
+      if(!poseInterpolation(t_imu, R_I_G, p_G_I)) {
+        continue;
+      }
+
+      // [2] Filter bad DVL pointcloud in case the multi-path
+
+      // get transform between DVL and global
+      Eigen::Matrix4d T_G_I = Eigen::Matrix4d::Identity();
+      T_G_I.block(0,0,3,3) = R_I_G.transpose();
+      T_G_I.block(0,3,3,1) = p_G_I;
+      Eigen::Matrix4d T_G_D =  T_G_I * T_I_D;
+
+      // transform to global frame
+      pcl::PointCloud<pcl::PointXYZ>::Ptr pc_G(new pcl::PointCloud<pcl::PointXYZ>);
+      pcl::transformPointCloud (pc, *pc_G, T_G_D);
+
+      // filter bad pointcloud: less then 4 points
+      if(pc_G->points.size() != 4) {
+        continue;
+      }
+
+      // filter bad pointcloud: based on Standard Deviation of global Z
+      double mean = 0;
+      for(auto it = pc_G->begin(); it != pc_G->end(); it++){
+        mean += it->z;
+      }
+      mean /= pc_G->points.size();
+
+      double sd = 0;
+      for(auto it = pc_G->begin(); it != pc_G->end(); it++){
+        sd += (it->z - mean) * (it->z - mean);
+      }      
+      sd = sqrt(sd / (pc_G->points.size() - 1));
+
+      if(sd > params.enhancement.standard_deviation) {
+        printf("Bad DVL points, sd=%f\n", sd);
+        continue;
+      }
+
+      // [3] check if inside 4 DVL point coverage
+
+      // found, then break
+      // feat.anchor_clone_depth = 2.3;
+
+      addMatchedPointcloud(pc_G);
+      break;
+    }
+  }
+}
+
+bool MsckfManager::poseInterpolation(double timestamp, Eigen::Matrix3d &R, Eigen::Vector3d &p) {
+  // check if given timestamp exist in the middle of [t_a, t_b] interval
+
+  auto clone_num = state->getEstimationNum(CLONE_CAM0);
+
+  // loop interval for two consecutive clones
+  for( size_t index = 0; index < clone_num - 1; index++ ){
+    // get a interval
+    auto t_a = state->getCloneTime(CLONE_CAM0, index);
+    auto t_b = state->getCloneTime(CLONE_CAM0, index + 1);
+
+    // check if exist
+    if(timestamp >= t_a && timestamp <= t_b) {
+      // get R,p
+      auto pose_a = state->getClonePose(CLONE_CAM0, index);
+      auto pose_b = state->getClonePose(CLONE_CAM0, index + 1);
+
+      std::tie(R,p) = interpolatePose(pose_a, t_a, pose_b, t_b, timestamp);
+
+      return true;
+    }
+  }
+
+  return false;
 }
 
 void MsckfManager::selectMargMeasurement(std::vector<Feature> &feat_keyframe) {

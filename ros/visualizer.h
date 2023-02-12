@@ -48,14 +48,14 @@ private:
   /// Publish current features
   void publishFeatures();
 
-  // void publishSpareCloud();
+  void publishPointCloud();
 
   std::shared_ptr<MsckfManager> msckf_manager;
 
   ros::NodeHandle nh_;
   image_transport::ImageTransport it_;
 
-  ros::Publisher pub_odom, pub_path, pub_bias;
+  ros::Publisher pub_odom, pub_path, pub_bias, pub_pc;
   ros::Publisher pub_features;
   image_transport::Publisher pub_img;
 

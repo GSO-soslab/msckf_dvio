@@ -554,6 +554,11 @@ void RosNode::loadParamImage(Params &params) {
   nh_private_.param<double>("Keyframe/scene_ratio",     params.keyframe.scene_ratio,     0.8);  
   nh_private_.param<double>("Keyframe/adaptive_factor", params.keyframe.adaptive_factor, 0.333);  
   nh_private_.param<int>   ("Keyframe/adaptive_power",  params.keyframe.adaptive_power,  1);  
+
+  // ==================== Enhancement ==================== //
+  nh_private_.param<int>   ("Enhancement/matched_num",        params.enhancement.matched_num,        4);
+  nh_private_.param<float> ("Enhancement/standard_deviation", params.enhancement.standard_deviation, 0.1);
+
 }
 
 void RosNode::loadCSV() {

@@ -187,6 +187,42 @@ inline Eigen::Matrix<double, 3, 3> expSO3(const Eigen::Matrix<double, 3, 1> &w) 
 }
 
 /**
+ * @brief SO(3) matrix logarithm
+ *
+ * This definition was taken from "Lie Groups for 2D and 3D Transformations" by Ethan Eade equation 17 & 18.
+ * http://ethaneade.com/lie.pdf
+ * \f{align*}{
+ * \theta &= \textrm{arccos}(0.5(\textrm{trace}(\mathbf{R})-1)) \\
+ * \lfloor\mathbf{v}\times\rfloor &= \frac{\theta}{2\sin{\theta}}(\mathbf{R}-\mathbf{R}^\top)
+ * @f}
+ *
+ * @param[in] R 3x3 SO(3) rotation matrix
+ * @return 3x1 in the se(3) space [omegax, omegay, omegaz]
+ */
+inline Eigen::Matrix<double, 3, 1> logSO3(const Eigen::Matrix<double, 3, 3> &R) {
+  // magnitude of the skew elements (handle edge case where we sometimes have a>1...)
+  double a = 0.5 * (R.trace() - 1);
+  double theta = (a > 1) ? acos(1) : ((a < -1) ? acos(-1) : acos(a));
+  // Handle small angle values
+  double D;
+  if (theta < 1e-12) {
+    D = 0.5;
+  } else {
+    D = theta / (2 * sin(theta));
+  }
+  // calculate the skew symetric matrix
+  Eigen::Matrix<double, 3, 3> w_x = D * (R - R.transpose());
+  // check if we are near the identity
+  if (R != Eigen::MatrixXd::Identity(3, 3)) {
+    Eigen::Vector3d vec;
+    vec << w_x(2, 1), w_x(0, 2), w_x(1, 0);
+    return vec;
+  } else {
+    return Eigen::Vector3d::Zero();
+  }
+}
+
+/**
  * @brief Computes left Jacobian of SO(3)
  *
  * The left Jacobian of SO(3) is defined equation (7.77b) in [State Estimation for
@@ -268,6 +304,29 @@ inline Eigen::Matrix<double, 3, 3> rightJacobSO3(Eigen::Matrix<double, 3, 1> w) 
   return data;
 }
 
+
+
+inline std::tuple<Eigen::Matrix3d, Eigen::Vector3d> interpolatePose(
+  Eigen::VectorXd &pose_a, double t_a,
+  Eigen::VectorXd &pose_b, double t_b,
+  double time) {
+
+  // prepare the transformation
+  Eigen::Matrix3d R_Ia_G = toRotationMatrix(pose_a.block(0,0,4,1));
+  Eigen::Vector3d p_G_Ia = pose_a.block(4,0,3,1);
+
+  Eigen::Matrix3d R_Ib_G = toRotationMatrix(pose_b.block(0,0,4,1));
+  Eigen::Vector3d p_G_Ib = pose_b.block(4,0,3,1);
+
+  // calculate the lambda
+  double lambda = (time - t_a) / (t_b - t_a);
+
+  // do interpolation
+  Eigen::Matrix3d R = expSO3( lambda * logSO3(R_Ib_G * R_Ia_G.transpose())) * R_Ia_G;
+  Eigen::Vector3d p = (1 - lambda) * p_G_Ia + lambda * p_G_Ib;
+
+  return std::make_tuple(R, p);
+}
 
 /*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
 /*++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++*/
