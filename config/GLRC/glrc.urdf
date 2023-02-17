@@ -42,9 +42,15 @@
     <child link="right_camera"/>
     <origin rpy="-3.13826 -0.00971778 1.55943" xyz="0.310766 0.0430336 -0.278374"/>
   </joint>
-  <joint name="right_cam_to_left_cam" type="fixed">
+  <!-- <joint name="right_cam_to_left_cam" type="fixed">
     <parent link="right_camera"/>
     <child link="left_camera"/>
     <origin rpy="-0.00186865 -0.00409404 -0.00348721" xyz="0.07931133771395357 -0.0009070043568538431 0.0002663456962428519"/>
-  </joint>
+  </joint> -->
+  <joint name="ahrs_to_left_cam" type="fixed">
+    <parent link="ahrs"/>
+    <child link="left_camera"/>
+    <origin rpy="-3.140161 -0.005635 1.562934" xyz="0.310759 0.122349 -0.277866"/>
+  </joint>  
+
 </robot>

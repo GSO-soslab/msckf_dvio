@@ -71,7 +71,7 @@ public:
 
   void setFeatures(std::vector<Feature> &features);
 
-  std::vector<Eigen::Vector3d> getFeatures();
+  std::vector<std::tuple<Eigen::Vector3d, Eigen::Vector3d>> getFeatures();
 
   bool isFeature() {return is_feat; }
 
@@ -86,17 +86,26 @@ public:
     truth_feature = test_data;
   }
 
-  void addMatchedPointcloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud) {
-    *matched_pointcloud += *cloud;
+  void addMatchedPointcloud(
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, 
+    double timestamp,
+    const std::string &frame) {
+
+    tuple_pcs.push_back(std::make_tuple(timestamp, cloud, frame));
   }
 
-  pcl::PointCloud<pcl::PointXYZ> getMatchedPointcloud() {
+  std::vector<std::tuple<double, pcl::PointCloud<pcl::PointXYZ>, std::string>> getMatchedPointcloud() {
 
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::copyPointCloud(*matched_pointcloud, *cloud);
-    matched_pointcloud.reset(new pcl::PointCloud<pcl::PointXYZ>);
-    
-    return *cloud;
+    std::vector<std::tuple<double, pcl::PointCloud<pcl::PointXYZ>, std::string>> tupled;
+
+    for(const auto& tuple : tuple_pcs) {
+      tupled.push_back(std::make_tuple(std::get<0>(tuple), *std::get<1>(tuple), std::get<2>(tuple)));
+    }
+
+    // free memory
+    std::vector<std::tuple<double, pcl::PointCloud<pcl::PointXYZ>::Ptr, std::string>>().swap(tuple_pcs);
+
+    return tupled;
   }
   
 private:
@@ -184,13 +193,15 @@ private:
   // file.open(file_path, std::ios_base::app);//std::ios_base::app
   // file.close();
 
-  pcl::PointCloud<pcl::PointXYZ>::Ptr  matched_pointcloud;
+  std::vector<std::tuple<
+      double, pcl::PointCloud<pcl::PointXYZ>::Ptr, std::string>> tuple_pcs;
 
   std::unordered_map<size_t, Eigen::Vector3d> truth_feature;
 
   // get triangulated feature position
   std::atomic<bool> is_feat;
-  std::vector<Eigen::Vector3d> trig_feat;
+
+  std::vector<std::tuple<Eigen::Vector3d, Eigen::Vector3d>> trig_feat;
 
   std::queue<double> slide_window;
   cv::Mat img_history;

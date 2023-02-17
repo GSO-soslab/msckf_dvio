@@ -49,13 +49,20 @@ MsckfManager::MsckfManager(Params &parameters)
   std::map<size_t, Eigen::VectorXd> camera_calibration;
   std::map<size_t, std::pair<int, int>> camera_wh;
 
-  Eigen::Matrix<double, 8, 1> cam0_calib;
-  cam0_calib << params.prior_cam.intrinsics(0) * params.tracking.basic.downsample_ratio, 
-                params.prior_cam.intrinsics(1) * params.tracking.basic.downsample_ratio, 
-                params.prior_cam.intrinsics(2) * params.tracking.basic.downsample_ratio, 
-                params.prior_cam.intrinsics(3) * params.tracking.basic.downsample_ratio,
-                params.prior_cam.distortion_coeffs(0), params.prior_cam.distortion_coeffs(1), 
-                params.prior_cam.distortion_coeffs(2), params.prior_cam.distortion_coeffs(3);
+  Eigen::VectorXd cam0_calib;
+  auto calib_size = params.prior_cam.intrinsics.size() + params.prior_cam.distortion_coeffs.size();
+  cam0_calib.resize(calib_size);
+
+  // convert intrinsics
+  for(size_t i=0; i<4; i++) {
+    cam0_calib(i) = params.prior_cam.intrinsics.at(i) * params.tracking.basic.downsample_ratio;
+  }
+  // convert distortion_coeffs
+  for(size_t i=4; i<calib_size; i++) {
+    cam0_calib(i) = params.prior_cam.distortion_coeffs.at(i-4);
+  }
+
+  // setup param for tracker
   if(params.tracking.basic.cam_id == 0){
     camera_fisheye.insert({0, false});
     camera_calibration.insert({0, cam0_calib});
@@ -93,8 +100,6 @@ MsckfManager::MsckfManager(Params &parameters)
   frame_count = params.keyframe.frame_count;
   frame_distance = 0;
 
-  // 
-  matched_pointcloud.reset(new pcl::PointCloud<pcl::PointXYZ>);
 }
 
 void MsckfManager::feedImu(const ImuMsg &data) {
@@ -916,20 +921,34 @@ void MsckfManager::setFeatures(std::vector<Feature> &features) {
 
   // get feature
   for (size_t f = 0; f < features.size(); f++) {
-    trig_feat.emplace_back(features[f].p_FinG);
+    // setup feature position: enhaced + not enhanced
+    Eigen::Vector3d color;
+    if(features[f].anchor_clone_depth == 0) {
+      // blue for normal triangulation
+      color << 0,0,255;
+    }
+    else {
+      // red for depth enhanced
+      color << 255,0,0;
+    }
+    trig_feat.emplace_back(std::make_tuple(features[f].p_FinG, color));
+
+    // setup the original features
+    trig_feat.emplace_back(std::make_tuple(features[f].p_FinG_original, 
+                                           Eigen::Vector3d(0,255,0)));
   }
 }
 
-std::vector<Eigen::Vector3d> MsckfManager::getFeatures() {
+std::vector<std::tuple<Eigen::Vector3d, Eigen::Vector3d>> MsckfManager::getFeatures() {
   std::unique_lock<std::mutex> lck(mtx);
 
-  std::vector<Eigen::Vector3d> out_trig_feat;
+  std::vector<std::tuple<Eigen::Vector3d, Eigen::Vector3d>> out_trig_feat;
 
   // copy triangulated message
   std::copy(trig_feat.begin(), trig_feat.end(), std::back_inserter(out_trig_feat)); 
 
   // clean
-  std::vector<Eigen::Vector3d>().swap(trig_feat);
+  std::vector<std::tuple<Eigen::Vector3d, Eigen::Vector3d>>().swap(trig_feat);
 
   return out_trig_feat;
 }
@@ -1602,8 +1621,9 @@ void MsckfManager::selectFeaturesKeyFrame(
       // get the mini distance 
       if(d <= distance) {
         distance = d;
-        // save the anchor timestamp for this feature
+        // reset the anchor of feature for this update
         feat.anchor_clone_timestamp = feat.timestamps.at(0).at(i);
+        feat.anchor_clone_depth = 0;
       }
     }
   }
@@ -1612,7 +1632,7 @@ void MsckfManager::selectFeaturesKeyFrame(
 
 void MsckfManager::enhanceDepth(std::vector<Feature> &features) {
 
-  // get konwn information
+  // get extrinsic calibration for IMU and DVL
   Eigen::Matrix3d R_I_D = params.msckf.do_R_I_D ? 
                           toRotationMatrix(state->getEstimationValue(DVL,EST_QUATERNION)) :
                           toRotationMatrix(params.prior_dvl.extrinsics.head(4)); 
@@ -1623,8 +1643,19 @@ void MsckfManager::enhanceDepth(std::vector<Feature> &features) {
   T_I_D.block(0,0,3,3) = R_I_D;
   T_I_D.block(0,3,3,1) = p_I_D;
 
+  // get extrinsic calibration for IMU and Camera
+  Eigen::Matrix3d R_C_I = params.msckf.do_R_C_I ?
+                          toRotationMatrix(state->getEstimationValue(CAM0,EST_QUATERNION)) :
+                          toRotationMatrix(params.prior_cam.extrinsics.head(4));
+  Eigen::Vector3d p_C_I = params.msckf.do_p_C_I ?
+                          state->getEstimationValue(CAM0,EST_POSITION) :
+                          params.prior_cam.extrinsics.tail(3);
+  Eigen::Matrix4d T_C_I = Eigen::Matrix4d::Identity();
+  T_C_I.block(0,0,3,3) = R_C_I;
+  T_C_I.block(0,3,3,1) = p_C_I;
+
   // loop each feature
-  for(const auto& feat : features) {
+  for(auto& feat : features) {
     // get matched pointclouds based on anchor timestamp
     auto matched_pcs = getDvlCloud(feat.anchor_clone_timestamp, params.enhancement.matched_num);
 
@@ -1633,11 +1664,11 @@ void MsckfManager::enhanceDepth(std::vector<Feature> &features) {
       // [1] Interpolate IMU pose at DVL timetsmap 
 
       //! TODO: add time sync, now asssuming DVL and IMU are sync
-      auto t_imu = pc.header.stamp / 1000000.0;
+      auto t_I = pc.header.stamp / 1000000.0;
 
       Eigen::Matrix3d R_I_G;
       Eigen::Vector3d p_G_I;
-      if(!poseInterpolation(t_imu, R_I_G, p_G_I)) {
+      if(!poseInterpolation(t_I, R_I_G, p_G_I)) {
         continue;
       }
 
@@ -1672,16 +1703,72 @@ void MsckfManager::enhanceDepth(std::vector<Feature> &features) {
       sd = sqrt(sd / (pc_G->points.size() - 1));
 
       if(sd > params.enhancement.standard_deviation) {
-        printf("Bad DVL points, sd=%f\n", sd);
+        // printf("Bad DVL points, sd=%f, z=[%f,%f,%f,%f]\n", sd,
+          // pc_G->points[0].z,pc_G->points[1].z,pc_G->points[2].z,pc_G->points[3].z);
         continue;
       }
 
       // [3] check if inside 4 DVL point coverage
 
-      // found, then break
-      // feat.anchor_clone_depth = 2.3;
+      // get anchor pose from clone state 
+      auto anchor_time = toCloneStamp(feat.anchor_clone_timestamp);
+      auto pose_vec = state->getEstimationValue(CLONE_CAM0, anchor_time);
+      Eigen::Matrix3d R_Ia_G = toRotationMatrix(pose_vec.head(4));
+      Eigen::Vector3d p_G_Ia = pose_vec.tail(3);
 
-      addMatchedPointcloud(pc_G);
+      // transform to camera frame
+      Eigen::Matrix4d T_Ia_G = Eigen::Matrix4d::Identity();
+      T_Ia_G.block(0,0,3,3) = R_Ia_G;
+      T_Ia_G.block(0,3,3,1) = - R_Ia_G * p_G_Ia;
+
+      // p_C = T_I_C^-1 * T_G_I^-1 * p_G      
+      Eigen::Matrix4d T_C_G = T_C_I * T_Ia_G;
+      pcl::PointCloud<pcl::PointXYZ>::Ptr pc_C(new pcl::PointCloud<pcl::PointXYZ>);
+      pcl::transformPointCloud (*pc_G, *pc_C, T_C_G);
+
+      // construct a polygon on normalized plane of camera using DVL 4 points
+      std::vector<Eigen::Vector2d> polygon;
+      std::vector<Eigen::Vector3d> quadrilateral;
+
+      for(auto it = pc_C->begin(); it != pc_C->end(); it++) {
+        auto x_norm = it->x/it->z;
+        auto y_norm = it->y/it->z;
+        polygon.push_back(Eigen::Vector2d(x_norm, y_norm));
+        quadrilateral.push_back(Eigen::Vector3d(x_norm, y_norm, it->z));
+      }
+
+      // get un_norm for anchor frame
+      Eigen::Vector2d uv_norm = Eigen::Vector2d::Zero();
+      auto it = std::find_if(feat.timestamps.at(0).begin(), feat.timestamps.at(0).end(),
+                  [&](const auto& t){return t == feat.anchor_clone_timestamp ;});
+      if(it != feat.timestamps.at(0).end()) {
+          uv_norm(0) = feat.uvs_norm.at(0).at(it - feat.timestamps.at(0).begin())(0);
+          uv_norm(1) = feat.uvs_norm.at(0).at(it - feat.timestamps.at(0).begin())(1);
+      }
+
+      // check
+      if(!pointInPolygon(polygon, uv_norm)) {
+        // printf("Depth enahcement: not covered\n");
+        // std::cout<<"vertex: "<< polygon[0].transpose()<<","
+        //                      << polygon[1].transpose()<<","
+        //                      << polygon[2].transpose()<<","
+        //                      << polygon[3].transpose()<<"\n";
+        // std::cout<<"uv_norm: "<<uv_norm.transpose()<<std::endl;
+        continue;
+      }
+
+      // [4] bilinear interpolation
+      double interpolated_depth;
+      if(!bilinearInterpolation(quadrilateral, uv_norm, interpolated_depth)) {
+        continue;
+      }
+
+      // found, then break
+      feat.anchor_clone_depth = interpolated_depth;
+
+      // addMatchedPointcloud(pc_C, feat.anchor_clone_timestamp, "left_camera");
+      addMatchedPointcloud(pc_G, t_I, "odom");
+
       break;
     }
   }

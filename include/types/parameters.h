@@ -89,9 +89,11 @@ struct priorCam {
   // extrinsic transformation between Camera and IMU
   Eigen::Matrix<double, 7, 1> extrinsics;
   // intrinsics projection transformation 
-  Eigen::Matrix<double, 4, 1> intrinsics;
+  std::vector<double> intrinsics;
+  // Eigen::Matrix<double, 4, 1> intrinsics;
   // distortion coeffs for camera
-  Eigen::Matrix<double, 4, 1> distortion_coeffs;
+  std::vector<double> distortion_coeffs;
+  // Eigen::Matrix<double, 4, 1> distortion_coeffs;
   // width and height of image
   std::pair<int, int> image_wh;
   // timeoffset between Camera and IMU
@@ -395,8 +397,18 @@ inline void Params::printParam() {
         T_C_I.block(0, 0, 3, 3) = toRotationMatrix(prior_cam.extrinsics.block(0, 0, 4, 1));
         T_C_I.block(0, 3, 3, 1) = prior_cam.extrinsics.block(4, 0, 3, 1);        
         std::cout << "  T_C_I: \n" <<T_C_I << "\n";
-        std::cout << "  distortion_coeffs: " << prior_cam.distortion_coeffs.transpose() << "\n";
-        std::cout << "  intrinsics: " << prior_cam.intrinsics.transpose() << "\n";
+        std::cout << "  distortion_coeffs: ";
+        for(const auto& i:prior_cam.distortion_coeffs) {
+          std::cout<<i <<", ";
+        }
+        std::cout<<"\n";
+
+        std::cout << "  intrinsics: ";
+        for(const auto& i:prior_cam.intrinsics) {
+          std::cout<<i <<", ";
+        }
+        std::cout<<"\n";
+        
         std::cout << "  resolution(W x H): " << prior_cam.image_wh.first << " x " << prior_cam.image_wh.second << "\n";
         std::cout << "  timeoffset_C_I: " << prior_cam.timeoffset << "\n";
         std::cout << "  noise: " << prior_cam.noise << "\n";        

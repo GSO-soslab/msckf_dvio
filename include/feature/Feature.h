@@ -70,6 +70,10 @@ public:
   /// Triangulated position of this feature, in the global frame
   Eigen::Vector3d p_FinG;
 
+  // original Triangulated position of this feature, in the global frame
+  Eigen::Vector3d p_FinG_original;
+
+
   /// Indicated if this feature is triangulated
   bool triangulated = false;
 

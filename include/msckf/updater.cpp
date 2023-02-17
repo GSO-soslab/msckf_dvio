@@ -874,7 +874,7 @@ void Updater::featureTriangulation(
 
   // get clone pose 
   Eigen::Matrix4d T_G_C = Eigen::Matrix4d::Identity();
-  std::unordered_map<double, Eigen::Matrix4d> cam_poses;
+  std::unordered_map<double, Eigen::Matrix4d> T_G_Cs;
   std::vector<double> clone_times;
 
   for (const auto &clone : state->state_[CLONE_CAM0]) {
@@ -888,7 +888,7 @@ void Updater::featureTriangulation(
     T_G_C.block(0,3,3,1) = p_G_I - T_G_C.block(0,0,3,3) * p_C_I;
 
     // insert to container
-    cam_poses.insert({cam_time, T_G_C});
+    T_G_Cs.insert({cam_time, T_G_C});
   }
 
   // -------------------- Triangulation -------------------- //
@@ -896,6 +896,7 @@ void Updater::featureTriangulation(
   auto it0 = feat.begin();
   while (it0 != feat.end()) {          
 
+    //! TODO: if triangulation enahced by DVL, then no need to triangution again
     // [2] Check: if this feature is triangulated 
     if(it0->triangulated) {
       it0++;
@@ -906,16 +907,30 @@ void Updater::featureTriangulation(
     bool success_tri = true;
     bool success_refine = true;
 
-    success_tri = triangulater->single_triangulation(&*it0, cam_poses);
-    success_refine = triangulater->single_gaussnewton(&*it0, cam_poses);
+    success_tri = triangulater->single_triangulation(&*it0, T_G_Cs);
+    success_refine = triangulater->single_gaussnewton(&*it0, T_G_Cs);
 
     // [3] Remove the feature if triangulation failed
     if (!success_tri || !success_refine) {
       it0 = feat.erase(it0);
+      continue;
     }
-    else {     
-      it0++;
+
+    // [4] recovery depth if enahced by DVL range 
+    if(it0->anchor_clone_depth != 0) {
+      // recovery the feature on anchor frame
+      it0->p_FinA(0) = it0->p_FinA(0) * it0->anchor_clone_depth / it0->p_FinA(2);
+      it0->p_FinA(1) = it0->p_FinA(1) * it0->anchor_clone_depth / it0->p_FinA(2);
+      it0->p_FinA(2) = it0->anchor_clone_depth;
+
+      // convert the feature to global frame
+      Eigen::Matrix3d R_G_A = T_G_Cs.at(it0->anchor_clone_timestamp).block(0,0,3,3);
+      Eigen::Vector3d p_G_A = T_G_Cs.at(it0->anchor_clone_timestamp).block(0,3,3,1);
+      it0->p_FinG = R_G_A * it0->p_FinA + p_G_A;
     }
+
+    // go to next 
+    it0++;
   }
 
   //! TEST: save data
@@ -941,8 +956,8 @@ void Updater::featureTriangulation(
   //     // file<<std::fixed<<std::setprecision(4); 
 
   //     // camera pose
-  //     Eigen::Matrix<double, 3, 3> R_G_Ci = cam_poses.at(feat.timestamps.at(0).at(i)).block(0,0,3,3);
-  //     Eigen::Matrix<double, 3, 1> p_G_Ci = cam_poses.at(feat.timestamps.at(0).at(i)).block(0,3,3,1);
+  //     Eigen::Matrix<double, 3, 3> R_G_Ci = T_G_Cs.at(feat.timestamps.at(0).at(i)).block(0,0,3,3);
+  //     Eigen::Matrix<double, 3, 1> p_G_Ci = T_G_Cs.at(feat.timestamps.at(0).at(i)).block(0,3,3,1);
   //     Eigen::Matrix<double, 4, 1> q_G_toCi = toQuaternion(R_G_Ci.transpose());   
 
   //     file<< q_G_toCi(0)<<"," << q_G_toCi(1)<<","<< q_G_toCi(2)<<","<< q_G_toCi(3)<<",";
@@ -982,7 +997,7 @@ void Updater::cameraMeasurement(
 
   // get clone pose 
   Eigen::Matrix4d T_G_C = Eigen::Matrix4d::Identity();
-  std::unordered_map<double, Eigen::Matrix4d> cam_poses;
+  std::unordered_map<double, Eigen::Matrix4d> T_G_Cs;
   std::vector<double> clone_times;
 
   for (const auto &clone : state->state_[CLONE_CAM0]) {
@@ -996,7 +1011,7 @@ void Updater::cameraMeasurement(
     T_G_C.block(0,3,3,1) = p_G_I - T_G_C.block(0,0,3,3) * p_C_I;
 
     // insert to container
-    cam_poses.insert({cam_time, T_G_C});
+    T_G_Cs.insert({cam_time, T_G_C});
     clone_times.emplace_back(cam_time);
   }
 
@@ -1033,9 +1048,9 @@ void Updater::cameraMeasurement(
     bool success_tri = true;
     bool success_refine = true;
 
-    success_tri = triangulater->single_triangulation(&*it1, cam_poses);
+    success_tri = triangulater->single_triangulation(&*it1, T_G_Cs);
 
-    success_refine = triangulater->single_gaussnewton(&*it1, cam_poses);
+    success_refine = triangulater->single_gaussnewton(&*it1, T_G_Cs);
 
     // remove the feature if not a success
     if (!success_tri || !success_refine) {

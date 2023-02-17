@@ -119,6 +119,8 @@ bool FeatureTriangulation::single_triangulation(
   // Store it in our feature object
   feature->p_FinA = p_A_F;
   feature->p_FinG = R_A_G.transpose() * feature->p_FinA + p_G_A;
+  feature->p_FinG_original = feature->p_FinG;
+
   // printf("tri 1: x:%f,y:%f,z:%f\n", feature->p_FinG(0), feature->p_FinG(1), feature->p_FinG(2) );
 
   return true;
@@ -299,6 +301,7 @@ bool FeatureTriangulation::single_gaussnewton(
   }
   
   feature->p_FinG = R_A_G.transpose() * feature->p_FinA + p_G_A;
+  feature->p_FinG_original = feature->p_FinG;
   // feature->triangulated = true;
 
   return true;

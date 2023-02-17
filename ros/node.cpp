@@ -439,12 +439,11 @@ void RosNode::loadParamPrior(Params &params) {
 
           // load
           XmlRpc::XmlRpcValue rosparam_cam;
-          std::vector<double> distortion_coeffs(4);
-          std::vector<double> intrinsics(4);
+          params.prior_cam.intrinsics.reserve(4);
           std::vector<double> resolution(2);
           nh_private_.getParam     (param_name + "/T_C_I",             rosparam_cam);
-          nh_private_.getParam     (param_name + "/distortion_coeffs", distortion_coeffs);
-          nh_private_.getParam     (param_name + "/intrinsics",        intrinsics);
+          nh_private_.getParam     (param_name + "/distortion_coeffs", params.prior_cam.distortion_coeffs);
+          nh_private_.getParam     (param_name + "/intrinsics",        params.prior_cam.intrinsics);
           nh_private_.getParam     (param_name + "/resolution",        resolution);
           nh_private_.param<double>(param_name + "/timeoffset_C_I",    params.prior_cam.timeoffset, 0.0);
           nh_private_.param<double>(param_name + "/noise",    params.prior_cam.noise, 1.0);
@@ -459,10 +458,6 @@ void RosNode::loadParamPrior(Params &params) {
 
           params.prior_cam.extrinsics.block(0, 0, 4, 1) = toQuaternion(T_C_I.block(0, 0, 3, 3));
           params.prior_cam.extrinsics.block(4, 0, 3, 1) = T_C_I.block(0, 3, 3, 1);
-          params.prior_cam.distortion_coeffs << distortion_coeffs.at(0), distortion_coeffs.at(1), 
-                                                distortion_coeffs.at(2), distortion_coeffs.at(3);
-          params.prior_cam.intrinsics << intrinsics.at(0), intrinsics.at(1), 
-                                        intrinsics.at(2), intrinsics.at(3);
           params.prior_cam.image_wh = std::make_pair(resolution.at(0), resolution.at(1));
           
           break;

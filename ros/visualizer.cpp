@@ -49,14 +49,18 @@ void RosVisualizer::publishPointCloud() {
     return;
 
   // get pointcloud
-  auto pointcloud = msckf_manager->getMatchedPointcloud();
+  auto paired_pc = msckf_manager->getMatchedPointcloud();
 
-  // publish
-  sensor_msgs::PointCloud2 cloud_msg;
-  pcl::toROSMsg(pointcloud, cloud_msg);
-  cloud_msg.header.stamp = ros::Time::now();
-  cloud_msg.header.frame_id = "odom";
-  pub_pc.publish(cloud_msg);
+  for(const auto& tuple: paired_pc) {
+    // publish
+    sensor_msgs::PointCloud2 cloud_msg;
+    cloud_msg.header.stamp = ros::Time().fromSec(std::get<0>(tuple));
+    pcl::toROSMsg(std::get<1>(tuple), cloud_msg);
+    cloud_msg.header.frame_id = std::get<2>(tuple);
+    pub_pc.publish(cloud_msg);
+  }
+
+
 }
 
 
@@ -183,28 +187,53 @@ void RosVisualizer::publishFeatures() {
 // visualize tracked feature in 3D
 
   // get features
-  std::vector<Eigen::Vector3d> feats = msckf_manager->getFeatures();
+  std::vector<std::tuple<Eigen::Vector3d, Eigen::Vector3d>> feats 
+    = msckf_manager->getFeatures();
 
   if(feats.size() == 0 ) {
     return;
   }
   
-  // setup the points XYZ
+  // setup the points XYZ, RGB
   sensor_msgs::PointCloud2 cloud_msg;
   sensor_msgs::PointCloud2Modifier modifier(cloud_msg);
-  modifier.setPointCloud2FieldsByString(1, "xyz");    
-  modifier.resize(feats.size()); 
+  modifier.setPointCloud2FieldsByString(2, "xyz", "rgb");
+  modifier.resize(feats.size());
   sensor_msgs::PointCloud2Iterator<float> ros_pc2_x(cloud_msg, "x");
   sensor_msgs::PointCloud2Iterator<float> ros_pc2_y(cloud_msg, "y");
   sensor_msgs::PointCloud2Iterator<float> ros_pc2_z(cloud_msg, "z");
-
-  // copy to msg
-  for (size_t i = 0; i < feats.size(); i++, ++ros_pc2_x, ++ros_pc2_y, ++ros_pc2_z) {
-      const Eigen::Vector3d& point = feats.at(i);
-      *ros_pc2_x = point(0);
-      *ros_pc2_y = point(1);
-      *ros_pc2_z = point(2);
+  sensor_msgs::PointCloud2Iterator<uint8_t> ros_pc2_r(cloud_msg, "r");
+  sensor_msgs::PointCloud2Iterator<uint8_t> ros_pc2_g(cloud_msg, "g");
+  sensor_msgs::PointCloud2Iterator<uint8_t> ros_pc2_b(cloud_msg, "b");
+  for (size_t i = 0; i < feats.size(); i++, 
+       ++ros_pc2_x, ++ros_pc2_y, ++ros_pc2_z, 
+       ++ros_pc2_r, ++ros_pc2_g, ++ros_pc2_b)
+  {
+    const Eigen::Vector3d& point = std::get<0>(feats.at(i));
+    const Eigen::Vector3d& color = std::get<1>(feats.at(i));
+    *ros_pc2_x = point(0);
+    *ros_pc2_y = point(1);
+    *ros_pc2_z = point(2);
+    *ros_pc2_r = (int)(color(0));
+    *ros_pc2_g = (int)(color(1));
+    *ros_pc2_b = (int)(color(2));
   }
+
+  // // setup the points XYZ
+  // sensor_msgs::PointCloud2 cloud_msg;
+  // sensor_msgs::PointCloud2Modifier modifier(cloud_msg);
+  // modifier.setPointCloud2FieldsByString(1, "xyz");    
+  // modifier.resize(feats.size()); 
+  // sensor_msgs::PointCloud2Iterator<float> ros_pc2_x(cloud_msg, "x");
+  // sensor_msgs::PointCloud2Iterator<float> ros_pc2_y(cloud_msg, "y");
+  // sensor_msgs::PointCloud2Iterator<float> ros_pc2_z(cloud_msg, "z");
+  // // copy to msg
+  // for (size_t i = 0; i < feats.size(); i++, ++ros_pc2_x, ++ros_pc2_y, ++ros_pc2_z) {
+  //     const Eigen::Vector3d& point = feats.at(i);
+  //     *ros_pc2_x = point(0);
+  //     *ros_pc2_y = point(1);
+  //     *ros_pc2_z = point(2);
+  // }
 
   // publish
   cloud_msg.header.frame_id = "odom";
