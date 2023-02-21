@@ -75,7 +75,8 @@ MsckfManager::MsckfManager(Params &parameters)
       tracker = std::shared_ptr<TrackBase>(new TrackKLT (
         params.tracking.klt.num_pts, params.tracking.basic.num_aruco, 
         params.tracking.klt.fast_threshold, params.tracking.klt.grid_x, 
-        params.tracking.klt.grid_y, params.tracking.klt.min_px_dist, params.tracking.klt.pyram));
+        params.tracking.klt.grid_y, params.tracking.klt.min_px_dist, 
+        params.tracking.klt.pyram, params.tracking.basic.img_enhancement));
 
       tracker->set_calibration(camera_calibration, camera_fisheye);
 
@@ -513,27 +514,29 @@ void MsckfManager::doCameraKeyframe() {
   predictor->propagate(state, selected_imu);
   assert(!state->foundSPD("cam_propagate"));
 
-
   //// [1] State Augmentation: 
   Eigen::Vector3d w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
 
   // check if relative motion is larger enough to insert a clone
   // get last clone pose, also meaning key-frame during feature tracking
+  bool check_feature = checkFeatures(time_curr_sensor);
+  bool check_motion = checkMotion();
+  bool check_scene = checkScene(time_curr_sensor);
+  bool check_adaptive = checkAdaptive();
 
-  // bool insert_clone = checkFeatures(time_curr_sensor) && (checkAdaptive() && checkScene(time_curr_sensor));
-  // bool insert_clone = checkFeatures(time_curr_sensor) && (checkAdaptive() || checkScene(time_curr_sensor));
-  bool insert_clone = checkFeatures(time_curr_sensor) && (checkMotion() && checkScene(time_curr_sensor));
-  // bool insert_clone = checkFeatures(time_curr_sensor) && (checkMotion() || checkScene(time_curr_sensor));
+  // bool insert_clone = check_feature && (check_adaptive && check_scene);
+  // bool insert_clone = check_feature && (check_adaptive || check_scene);
+  bool insert_clone = check_feature && (check_motion && check_scene);
+  // bool insert_clone = check_feature && (check_motion || check_scene);
 
   // use Last angular velocity for cloning when estimating time offset)
   if(params.msckf.max_clone_C > 0 && insert_clone) {
     // clone IMU pose, augment covariance
     predictor->augment(CAM0, CLONE_CAM0, state, time_curr_sensor, w_I);
 
-    printf("[TEST]: new clone:%d\n", state->getEstimationNum(CLONE_CAM0));
+    printf("[TEST]: new keyframe:%d\n", state->getEstimationNum(CLONE_CAM0));
   }
 
-  // printf("=========== 1 ===========\n");
   std::vector<Feature> feature_keyframe;
   selectFeaturesKeyFrame(time_curr_sensor, feature_keyframe);
 
@@ -543,6 +546,7 @@ void MsckfManager::doCameraKeyframe() {
   // [3] Camera Feature Update: feature triangulation, feature update 
   // feature triangulation
   updater->featureTriangulation(state,feature_keyframe);
+
 
   // [4] keep marginalization feature measurements
   selectMargMeasurement(feature_keyframe);
@@ -582,22 +586,38 @@ void MsckfManager::doCameraKeyframe() {
   if((params.msckf.max_clone_C > 0) &&
      (params.msckf.max_clone_C == state->getEstimationNum(CLONE_CAM0))) {
 
-    // Marginalization
-
-    // remove feature measurements:
+    // remove used feature measurements:
     //   lost feature measurements: alrady remove when we select
     //   marg feature measurements: delete right now with those used in the update
     tracker->get_feature_database()->cleanup_marg_measurements(feature_keyframe);
 
-    // remove oldest clone state and covaraince
-    auto marg_index_0 = params.msckf.marginalized_clone.at(0);
-    updater->marginalize(state, CLONE_CAM0, marg_index_0);
+    // remove specific marg pose index
+    for(size_t i=0; i<params.msckf.marg_pose_index.size(); i++) {
+      auto index = params.msckf.marg_pose_index.at(i) - i;
+      updater->marginalize(state, CLONE_CAM0, index);
+      printf("======= marg index clone\n");
+    }
+  }
+
+
+  // [5] cleanup
+  if(state->getEstimationNum(CLONE_CAM0) > 0) {
+    // remove the oldest pose if no measurements exists
+
+    // get oldest clone timestamp
+    auto clone_time = state->getCloneTime(CLONE_CAM0, 0);
+
+    // find feature measurements at last keyframe timestamp
+    std::vector<Feature> oldest_feat;
+    tracker->get_feature_database()->features_measurement_selected(clone_time, oldest_feat, true);
+    if(oldest_feat.size() == 0) {
+        updater->marginalize(state, CLONE_CAM0, 0);
+        printf("======= marg oldest clone\n");
+    }
 
     // remove anomalous feature measurements: only older then oldest clone timestamp 
     auto oldest_time = state->getCloneTime(CLONE_CAM0, 0);
     tracker->get_feature_database()->cleanup_out_measurements(oldest_time);
-
-    // printf("[TEST]: aft clean:%d\n", state->getEstimationNum(CLONE_CAM0));
   }
 
 }
@@ -700,16 +720,6 @@ void MsckfManager::doCameraSlideWindow() {
 }
 
 bool MsckfManager::checkScene(double curr_time) {
-  // [0] Check current frame feature
-
-  // // find feature measurements at current frame timestamp
-  // std::vector<Feature> curr_frame_feat;
-  // tracker->get_feature_database()->features_measurement_selected(curr_time, curr_frame_feat, true);
-
-  // // only the detected feature reach the minimum requirement 
-  // if(curr_frame_feat.size() < params.keyframe.min_tracked) {
-  //   return false;
-  // }
 
   // [0] Get last keyframe feature (associated with last clone pose)
 
@@ -748,11 +758,12 @@ bool MsckfManager::checkScene(double curr_time) {
   // compare with parameters ratio
   double ratio = tracked_count / curr_frame_feat.size();
 
-  if(ratio < params.keyframe.scene_ratio) {
-  // if(ratio <= params.keyframe.scene_ratio) {
+  // if(ratio < params.keyframe.scene_ratio) {
+  if(ratio <= params.keyframe.scene_ratio) {
     return true;
   }
   else {
+    // printf("ratio:%f\n", ratio);
     return false;
   }
 }
@@ -1543,13 +1554,20 @@ void MsckfManager::selectFeaturesKeyFrame(
   //    2) grab whole the measurements for each feature that contain the given timestamp
   //    3) not delete
   if(state->getEstimationNum(CLONE_CAM0) == params.msckf.max_clone_C) {
-    // Grab marg index 0 of slide window
-    // get oldest clone time
-    auto index = 0;
-    auto time_oldest = state->getCloneTime(CLONE_CAM0, index);
+    // Grab index 0 of slide window to get oldest clone time
+    auto time_oldest = state->getCloneTime(CLONE_CAM0, 0);
     // get feature contain this marg time
     tracker->get_feature_database()->features_selected(time_oldest, feat_keyframe, false, true);
   }
+
+  // printf("===== select marg =====\n");
+  // for(const auto& f : feat_keyframe) {
+  //   printf("id:%ld, size:%ld\n", f.featid, f.timestamps.at(0).size());
+  //   for(const auto& t : f.timestamps.at(0)) {
+  //     printf("  t=%.9f, ", t);
+  //   }
+  //   printf("\n");
+  // }
 
   //! TEST: save data -- check how many features are detected as marg features
   // std::vector<Feature> feat_marg_test;
@@ -1584,6 +1602,11 @@ void MsckfManager::selectFeaturesKeyFrame(
   for( size_t index = 0; index < clone_num; index++ ){
     clone_times.push_back(state->getCloneTime(CLONE_CAM0, index));
   }
+  // printf("clone time: \n");
+  // for(const auto& t : clone_times) {
+  //   printf("  t=%.9f, ", t);
+  // }
+  // printf("\n");
 
   // filter features: 
   auto it0 = feat_keyframe.begin();
@@ -1605,6 +1628,15 @@ void MsckfManager::selectFeaturesKeyFrame(
 
     it0++;
   }
+
+  // printf("===== filter nonKeyframe =====\n");
+  // for(const auto& f : feat_keyframe) {
+  //   printf("id:%ld, size:%ld\n", f.featid, f.timestamps.at(0).size());
+  //   for(const auto& t : f.timestamps.at(0)) {
+  //     printf("  t=%.9f, ", t);
+  //   }
+  //   printf("\n");
+  // }  
 
   // --------------------------- Determine the anchor -------------------------- //
 
@@ -1807,28 +1839,38 @@ void MsckfManager::selectMargMeasurement(std::vector<Feature> &feat_keyframe) {
 
   // get actually need marginalize out measurements index timestamp
   std::vector<double> clone_times;
-  for(const auto& index : params.msckf.marginalized_clone) {
+  for(const auto& index : params.msckf.marg_meas_index) {
       clone_times.push_back(
         state->getCloneTime(CLONE_CAM0,index));
   }
 
-  // get marg features
+  // get max-tracked features
   std::vector<Feature> feat_marg;
-
   auto time_marg = state->getCloneTime(CLONE_CAM0, 0);
-
   tracker->get_feature_database()->features_selected(time_marg, feat_marg, false, true);
 
   // only keep marg index measurements
   for(const auto& f : feat_marg) {
-
+    // check if the marg feature exist in our selected feature pool
     auto frame = std::find_if(feat_keyframe.begin(), feat_keyframe.end(),
                   [&](const auto& feat){return feat.featid == f.featid ;});
-
+    // find                 
     if(frame != feat_keyframe.end()) {
+      // only keep the marg index measurements
       frame->clean_old_measurements(clone_times);
+
+      // check if measurements less then 2
+      int num_measurements = 0;
+      for (const auto &pair : frame->timestamps) {
+        num_measurements += frame->timestamps[pair.first].size();
+      }
+
+      if(num_measurements < 2) {
+        feat_keyframe.erase(frame);
+      }      
     }        
   }
+
 }
 
 /**

@@ -1297,6 +1297,7 @@ void Updater::updateCamPart(
     Eigen::MatrixXd::Identity(residual.rows(), residual.rows());
 
   update(state, Hx_order_big, H_x, residual, Rn);
+
 }
 
 void Updater::featureJacobianPart(

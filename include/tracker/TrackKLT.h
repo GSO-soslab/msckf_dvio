@@ -54,9 +54,11 @@ public:
    * @param gridy size of grid in the y-direction / v-direction
    * @param minpxdist features need to be at least this number pixels away from each other
    */
-  explicit TrackKLT(int numfeats, int numaruco, int fast_threshold, int gridx, int gridy, int minpxdist, int pyram=3)
-      : TrackBase(numfeats, numaruco), threshold(fast_threshold), grid_x(gridx), grid_y(gridy), min_px_dist(minpxdist), 
-        pyr_levels(pyram) {}
+  explicit TrackKLT(int numfeats, int numaruco, int fast_threshold, 
+                    int gridx, int gridy, int minpxdist, int pyram, int enhance_type)
+      : TrackBase(numfeats, numaruco), threshold(fast_threshold), 
+        grid_x(gridx), grid_y(gridy), min_px_dist(minpxdist), 
+        pyr_levels(pyram), enhancement(enhance_type) {}
 
   /**
    * @brief Process a new monocular image
@@ -149,6 +151,8 @@ protected:
 
   // Last set of image pyramids
   std::map<size_t, std::vector<cv::Mat>> img_pyramid_last;
+
+  int enhancement;
 };
 
 } // namespace msckf_dvio

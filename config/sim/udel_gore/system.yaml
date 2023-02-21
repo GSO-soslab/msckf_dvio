@@ -67,9 +67,18 @@ MSCKF:
   ## Index of clone need to marginalize 
   ## Option 1: we have 10 clones [0,1,2,3,4,5,6,7,8,9]
   ##          the marg clone measurements: oldest, second latest [0,8]
-  ## Option 2: if not provide, will use all the index in the slide window
-  # marginalized_clone: [0, 10]
+  ## Option 2: [-1] means use all 
+  # marg_meas_index: [-1] 
+  # marg_meas_index: [0, 10]
+  marg_meas_index: [1, 10]
   
+  # brief: marginalized pose at slide-windows index (or clone state index)
+  # note: this select from 'marg_meas_index', no need exactly same as 'marg_meas_index'
+  # example: [-1] means use first index from 'marg_meas_index'
+  # marg_pose_index: [-1]
+  # marg_pose_index: [0, 10]
+  marg_pose_index: [1, 10]
+
   ## in open_vins(40), but it's occasionally update at 40
   ## but here, tracking will stop so always update as 40
   # max_msckf_update: 20

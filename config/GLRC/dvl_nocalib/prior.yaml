@@ -82,7 +82,7 @@ CAM0:
   camera_model: pinhole
   distortion_model: radtan
   # unit in pixel
-  noise: 0.015
+  noise: 0.01
   # 
   rostopic: /rov_remote/sensors/stereo/left/image_decompressed
 

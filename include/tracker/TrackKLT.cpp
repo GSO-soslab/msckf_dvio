@@ -33,9 +33,13 @@ void TrackKLT::feed_monocular(double timestamp, cv::Mat &img, size_t cam_id) {
   std::unique_lock<std::mutex> lck(mtx_feeds.at(cam_id));
 
   // Histogram equalize
-  cv::equalizeHist(img, img);
-  // cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(eq_clip_limit, eq_win_size);
-  // clahe->apply(img, img);
+  if(enhancement == 0) {
+    cv::equalizeHist(img, img);
+  }
+  else if( enhancement == 1) {
+    cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(eq_clip_limit, eq_win_size);
+    clahe->apply(img, img);
+  }
 
   // Extract the new image pyramid
   std::vector<cv::Mat> imgpyr;

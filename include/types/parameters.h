@@ -122,8 +122,10 @@ struct paramMsckf {
   bool do_time_C_I;
   // max clone for camera 
   int max_clone_C;
-  // index of marginalzied clone 
-  std::vector<int> marginalized_clone;
+  // index of marginalzied measurements
+  std::vector<int> marg_meas_index;
+  // index of marginalzied clones
+  std::vector<int> marg_pose_index;
 
   // the max features used for MSCKF update
   int max_msckf_update;
@@ -203,6 +205,7 @@ struct paramTrackBasic {
   int max_camera;
   int cam_id;
   double downsample_ratio;  
+  int img_enhancement;
 };
 
 struct paramTrack {
@@ -348,8 +351,15 @@ inline void Params::printParam() {
   std::cout<<"  max_clone_C= " << msckf.max_clone_C << "\n\n";
 
   std::cout<<"  max_msckf_update= " << msckf.max_msckf_update << "\n";
-  std::cout<<"  marginalized_clone= ";
-  for(const auto& clone : msckf.marginalized_clone) {
+
+  std::cout<<"  marg_meas_index= ";
+  for(const auto& clone : msckf.marg_meas_index) {
+    std::cout<< clone <<", "; 
+  }
+  std::cout<<"\n";
+
+  std::cout<<"  marg_pose_index= ";
+  for(const auto& clone : msckf.marg_pose_index) {
     std::cout<< clone <<", "; 
   }
   std::cout<<"\n";
@@ -408,7 +418,7 @@ inline void Params::printParam() {
           std::cout<<i <<", ";
         }
         std::cout<<"\n";
-        
+
         std::cout << "  resolution(W x H): " << prior_cam.image_wh.first << " x " << prior_cam.image_wh.second << "\n";
         std::cout << "  timeoffset_C_I: " << prior_cam.timeoffset << "\n";
         std::cout << "  noise: " << prior_cam.noise << "\n";        
@@ -515,6 +525,7 @@ inline void Params::printParam() {
   std::cout<<"  max_camera: " << tracking.basic.max_camera <<"\n";      
   std::cout<<"  cam_id: " << tracking.basic.cam_id <<"\n";      
   std::cout<<"  downsample_ratio: " << tracking.basic.downsample_ratio <<"\n";      
+  std::cout<<"  img_enhancement: " << tracking.basic.img_enhancement <<"\n";      
 
   switch(tracking.basic.mode) {
     case TrackMode::TRACK_KLT: {

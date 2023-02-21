@@ -166,28 +166,52 @@ void RosNode::loadParamSystem(Params &params) {
 
   nh_private_.param<int> ("MSCKF/max_msckf_update", params.msckf.max_msckf_update, 40);
 
-  nh_private_.getParam("MSCKF/marginalized_clone", params.msckf.marginalized_clone);
+  if(nh_private_.getParam("MSCKF/marg_meas_index", params.msckf.marg_meas_index)) {
+    // use default: all the measurements
+    if(params.msckf.marg_meas_index.at(0) == -1) {
+      // remove the -1
+      params.msckf.marg_meas_index.clear();
+      // put all the index
+      for(int i =0; i < params.msckf.max_clone_C; i++){
+        params.msckf.marg_meas_index.push_back(i);
+      }
+    }
 
-  // check if given index outside of slide window size
-  // for(const auto& clone : params.msckf.marginalized_clone) {
-  //   if(clone > params.msckf.max_clone_C -1) {
-  //     ROS_ERROR("marginalized_clone: given marg clone index out of clone window");
-  //   }
-  // }
+    // make sure the marg size larger then 2
+    if(params.msckf.marg_meas_index.size() < 2) {
+        ROS_ERROR("marg_meas_index: given marg index size less then 2");
+    }
 
-  if(params.msckf.marginalized_clone.size() == 0) {
-    // if no indexs given, assumming use the entire slide window
-    for(int i =0; i < params.msckf.max_clone_C; i++){
-      params.msckf.marginalized_clone.push_back(i);
+    // check if this outside of slide window size
+    for(const auto& clone : params.msckf.marg_meas_index) {
+      if(clone > params.msckf.max_clone_C -1) {
+        ROS_ERROR("marg_meas_index: given marg index =%d out of clone window", clone);
+      }
+    }    
+  }
+  else {
+    ROS_ERROR("marg_meas_index: not provided!");
+  }
+
+  if(nh_private_.getParam("MSCKF/marg_pose_index", params.msckf.marg_pose_index)) {
+    // use default: marg the first index from  marg_pose_index
+    if(params.msckf.marg_pose_index.at(0) == -1) {
+      params.msckf.marg_pose_index.clear();
+      params.msckf.marg_pose_index.push_back(params.msckf.marg_meas_index.at(0));
+    }
+
+    // check if this match with marg_meas_index
+    for(const auto& i : params.msckf.marg_pose_index) {
+
+      if(std::find(params.msckf.marg_meas_index.begin(), 
+                   params.msckf.marg_meas_index.end(), i) 
+                   == params.msckf.marg_meas_index.end()) {
+        ROS_ERROR("marg_pose_index: given=%d not match marg_meas_index !", i);               
+      }
     }
   }
   else {
-    // check if given index outside of slide window size
-    for(const auto& clone : params.msckf.marginalized_clone) {
-      if(clone > params.msckf.max_clone_C -1) {
-        ROS_ERROR("marginalized_clone: given marg clone index out of clone window");
-      }
-    }
+    ROS_ERROR("marg_pose_index: not provided!");
   }
 }
 
@@ -484,6 +508,8 @@ void RosNode::loadParamImage(Params &params) {
   nh_private_.param<int>   ("TRACK/max_camera",       params.tracking.basic.max_camera,       1);
   nh_private_.param<int>   ("TRACK/cam_id",           params.tracking.basic.cam_id,           0);
   nh_private_.param<double>("TRACK/downsample_ratio", params.tracking.basic.downsample_ratio, 1.0);
+  nh_private_.param<int>   ("TRACK/img_enhancement",  params.tracking.basic.img_enhancement, 1);
+  
 
   // load specific tracking parameters
   switch(params.tracking.basic.mode) {
@@ -674,7 +700,8 @@ void RosNode::imageCallback(const sensor_msgs::Image::ConstPtr &msg) {
   cv::Mat img;
   int width = cv_ptr->image.cols * parameters.tracking.basic.downsample_ratio;
   int height = cv_ptr->image.rows * parameters.tracking.basic.downsample_ratio;
-  cv::resize(cv_ptr->image, img, cv::Size(width, height));
+  // cv::resize(cv_ptr->image, img, cv::Size(width, height));
+  cv::pyrDown(cv_ptr->image, img, cv::Size(width, height));
 
   // feed img
   ImageMsg message;
@@ -767,7 +794,7 @@ int main(int argc, char **argv) {
 
   ros::spin();
 
-  backendThread.join();
+  // backendThread.join();
 
   return 0;
 }
