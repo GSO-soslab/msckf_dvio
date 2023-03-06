@@ -16,6 +16,8 @@ namespace msckf_dvio
 #define EST_BIAS_A "BiasAcce"
 #define EST_TIMEOFFSET "Timeoffset"
 #define EST_SCALE "Scale"
+// the clone state name will be clone time:
+// EST_CLONE = "1614971363.850172520"
 
 //! Use the actual sensor state name
 enum Sensor{
@@ -87,9 +89,11 @@ struct priorCam {
   // extrinsic transformation between Camera and IMU
   Eigen::Matrix<double, 7, 1> extrinsics;
   // intrinsics projection transformation 
-  Eigen::Matrix<double, 4, 1> intrinsics;
+  std::vector<double> intrinsics;
+  // Eigen::Matrix<double, 4, 1> intrinsics;
   // distortion coeffs for camera
-  Eigen::Matrix<double, 4, 1> distortion_coeffs;
+  std::vector<double> distortion_coeffs;
+  // Eigen::Matrix<double, 4, 1> distortion_coeffs;
   // width and height of image
   std::pair<int, int> image_wh;
   // timeoffset between Camera and IMU
@@ -118,8 +122,10 @@ struct paramMsckf {
   bool do_time_C_I;
   // max clone for camera 
   int max_clone_C;
-  // index of marginalzied clone 
-  std::vector<int> marginalized_clone;
+  // index of marginalzied measurements
+  std::vector<int> marg_meas_index;
+  // index of marginalzied clones
+  std::vector<int> marg_pose_index;
 
   // the max features used for MSCKF update
   int max_msckf_update;
@@ -199,6 +205,7 @@ struct paramTrackBasic {
   int max_camera;
   int cam_id;
   double downsample_ratio;  
+  int img_enhancement;
 };
 
 struct paramTrack {
@@ -242,6 +249,18 @@ struct paramKeyframe {
   int min_tracked;
   /// option 4: ratio = tracked feature num from last keyframe / total features at current frame
   double scene_ratio;
+
+  /// adaptive_factor
+  double adaptive_factor;
+  ///adaptive_power
+  int adaptive_power;
+};
+
+struct paramEnhancement {
+  // select how many DVL pointcloud frames
+  int matched_num;
+  // standard deviation of z of 4 points of each DVL range measurements
+  float standard_deviation; 
 };
 
 struct paramSystem {
@@ -253,19 +272,23 @@ struct paramSystem {
   std::map<Sensor, std::string> topics;
   // test file path
   std::string csv;
+  // buffer time duration for each sensors
+  std::map<Sensor, double> buffers;
 };
 
 //! TODO: set sub-parameters as shared_ptr? 
 //!       so the paramters will updated automaticly, used for localization failed case?
 struct Params{
 
-/***** Image frontend *****/
+/***** Image related *****/
 
   paramTrack tracking;
 
   paramTriangulation triangualtion;
 
   paramKeyframe keyframe;
+
+  paramEnhancement enhancement;
   
 /***** Prior ****/
 
@@ -310,6 +333,11 @@ inline void Params::printParam() {
     std::cout<<"    " << enumToString(name) <<" = " << topic << "\n";
   }
 
+  std::cout<<  "  buffers: \n";
+  for(const auto& [name, buffer] : sys.buffers) {
+    std::cout<<"    " << enumToString(name) <<" = " << buffer << " seconds\n";
+  }  
+
   std::cout<<"\n================== MSCKF Parameters =======================\n";
   std::cout<<"  do_R_I_D= " << (msckf.do_R_I_D ? "True" : "False" ) << "\n";
   std::cout<<"  do_p_I_D= " << (msckf.do_p_I_D ? "True" : "False" ) << "\n";
@@ -323,8 +351,15 @@ inline void Params::printParam() {
   std::cout<<"  max_clone_C= " << msckf.max_clone_C << "\n\n";
 
   std::cout<<"  max_msckf_update= " << msckf.max_msckf_update << "\n";
-  std::cout<<"  marginalized_clone= ";
-  for(const auto& clone : msckf.marginalized_clone) {
+
+  std::cout<<"  marg_meas_index= ";
+  for(const auto& clone : msckf.marg_meas_index) {
+    std::cout<< clone <<", "; 
+  }
+  std::cout<<"\n";
+
+  std::cout<<"  marg_pose_index= ";
+  for(const auto& clone : msckf.marg_pose_index) {
     std::cout<< clone <<", "; 
   }
   std::cout<<"\n";
@@ -372,8 +407,18 @@ inline void Params::printParam() {
         T_C_I.block(0, 0, 3, 3) = toRotationMatrix(prior_cam.extrinsics.block(0, 0, 4, 1));
         T_C_I.block(0, 3, 3, 1) = prior_cam.extrinsics.block(4, 0, 3, 1);        
         std::cout << "  T_C_I: \n" <<T_C_I << "\n";
-        std::cout << "  distortion_coeffs: " << prior_cam.distortion_coeffs.transpose() << "\n";
-        std::cout << "  intrinsics: " << prior_cam.intrinsics.transpose() << "\n";
+        std::cout << "  distortion_coeffs: ";
+        for(const auto& i:prior_cam.distortion_coeffs) {
+          std::cout<<i <<", ";
+        }
+        std::cout<<"\n";
+
+        std::cout << "  intrinsics: ";
+        for(const auto& i:prior_cam.intrinsics) {
+          std::cout<<i <<", ";
+        }
+        std::cout<<"\n";
+
         std::cout << "  resolution(W x H): " << prior_cam.image_wh.first << " x " << prior_cam.image_wh.second << "\n";
         std::cout << "  timeoffset_C_I: " << prior_cam.timeoffset << "\n";
         std::cout << "  noise: " << prior_cam.noise << "\n";        
@@ -480,6 +525,7 @@ inline void Params::printParam() {
   std::cout<<"  max_camera: " << tracking.basic.max_camera <<"\n";      
   std::cout<<"  cam_id: " << tracking.basic.cam_id <<"\n";      
   std::cout<<"  downsample_ratio: " << tracking.basic.downsample_ratio <<"\n";      
+  std::cout<<"  img_enhancement: " << tracking.basic.img_enhancement <<"\n";      
 
   switch(tracking.basic.mode) {
     case TrackMode::TRACK_KLT: {
@@ -524,6 +570,13 @@ inline void Params::printParam() {
   std::cout<<"  motion_space: " << keyframe.motion_space <<"\n";   
   std::cout<<"  min_tracked: " << keyframe.min_tracked <<"\n";   
   std::cout<<"  scene_ratio: " << keyframe.scene_ratio <<"\n";   
+  std::cout<<"  adaptive_factor: " << keyframe.adaptive_factor <<"\n";   
+  std::cout<<"  adaptive_power: " << keyframe.adaptive_power <<"\n";  
+
+  // ---------------------- Enhancement ---------------------- //
+  std::cout<<"\n================== Depth Enhancement =======================\n";
+  std::cout<<"  matched_num: " << enhancement.matched_num <<"\n";   
+  std::cout<<"  standard_deviation: " << enhancement.standard_deviation <<"\n";   
 }
 
 

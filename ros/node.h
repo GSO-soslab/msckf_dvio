@@ -32,7 +32,6 @@
 #include <pcl/PCLPointCloud2.h>
 #include <pcl/point_types.h>
 
-
 //
 #include "manager/msckf_manager.h"
 #include "types/type_all.h"
@@ -61,7 +60,7 @@ public:
 
   void pressureCallback(const sensor_msgs::FluidPressure::ConstPtr &msg);
 
-  void pointcloudCallback(const sensor_msgs::PointCloud2::ConstPtr &msg);
+  void dvlCloudCallback(const sensor_msgs::PointCloud2::ConstPtr &msg);
 
   bool srvCallback(std_srvs::Trigger::Request  &req, std_srvs::Trigger::Response &res);
 

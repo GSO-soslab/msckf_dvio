@@ -52,7 +52,7 @@ RosNode::RosNode(const ros::NodeHandle &nh,
       }
 
       case Sensor::DVL_CLOUD: {
-        ros::Subscriber sub = nh_.subscribe(parameters.sys.topics[sensor], 100, &RosNode::pointcloudCallback, this);
+        ros::Subscriber sub = nh_.subscribe(parameters.sys.topics[sensor], 100, &RosNode::dvlCloudCallback, this);
         auto sub_ptr = std::make_shared<ros::Subscriber>(sub);
         subscribers[sensor] = sub_ptr;        
         break;
@@ -83,13 +83,16 @@ void RosNode::loadParamSystem(Params &params) {
   // load 
   std::vector<std::string> sensors;
   XmlRpc::XmlRpcValue rosparam_topics;
+  XmlRpc::XmlRpcValue rosparam_buffers;
 
   nh_private_.param<int>("SYS/backend_hz", params.sys.backend_hz, 20);
   nh_private_.getParam("SYS/sensors", sensors);
   nh_private_.getParam("SYS/topics", rosparam_topics);
+  nh_private_.getParam("SYS/buffers", rosparam_buffers);
   nh_private_.param<std::string>("SYS/csv", params.sys.csv, "not_set.csv");
 
   ROS_ASSERT(rosparam_topics.getType() == XmlRpc::XmlRpcValue::TypeArray);
+  ROS_ASSERT(rosparam_buffers.getType() == XmlRpc::XmlRpcValue::TypeArray);
 
   // convert for sensor 
   for(const auto& name : sensors) {
@@ -115,8 +118,8 @@ void RosNode::loadParamSystem(Params &params) {
           }
           // save to parameters
           auto topic = static_cast<std::string>(rosparam_topics[i][key]);
-
           params.sys.topics[name] = topic;
+
           // each line only has one sensor, so found and break
           break;
       }
@@ -124,6 +127,24 @@ void RosNode::loadParamSystem(Params &params) {
 
   if(params.sys.topics.size() != params.sys.sensors.size()) {
     ROS_ERROR("not enough rostopics for the given sensors");
+  }
+
+  // convert for sensor buffers
+  for(uint32_t i = 0 ; i < rosparam_buffers.size() ; i++) {
+      for(const auto& name : params.sys.sensors) {
+          // convert sensor name enum to string
+          auto key = enumToString(name);
+          // check if this sensor exist
+          if(rosparam_buffers[i][key].getType() == XmlRpc::XmlRpcValue::TypeInvalid) {
+              continue;
+          }          
+          // save to parameters
+          auto buffer = static_cast<int>(rosparam_buffers[i][key]);   
+          params.sys.buffers[name] = buffer;
+
+          // each line only has one sensor, so found and break
+          break;
+      }
   }
 
   // ==================== MSCKF ==================== //
@@ -145,28 +166,52 @@ void RosNode::loadParamSystem(Params &params) {
 
   nh_private_.param<int> ("MSCKF/max_msckf_update", params.msckf.max_msckf_update, 40);
 
-  nh_private_.getParam("MSCKF/marginalized_clone", params.msckf.marginalized_clone);
+  if(nh_private_.getParam("MSCKF/marg_meas_index", params.msckf.marg_meas_index)) {
+    // use default: all the measurements
+    if(params.msckf.marg_meas_index.at(0) == -1) {
+      // remove the -1
+      params.msckf.marg_meas_index.clear();
+      // put all the index
+      for(int i =0; i < params.msckf.max_clone_C; i++){
+        params.msckf.marg_meas_index.push_back(i);
+      }
+    }
 
-  // check if given index outside of slide window size
-  // for(const auto& clone : params.msckf.marginalized_clone) {
-  //   if(clone > params.msckf.max_clone_C -1) {
-  //     ROS_ERROR("marginalized_clone: given marg clone index out of clone window");
-  //   }
-  // }
+    // make sure the marg size larger then 2
+    if(params.msckf.marg_meas_index.size() < 2) {
+        ROS_ERROR("marg_meas_index: given marg index size less then 2");
+    }
 
-  if(params.msckf.marginalized_clone.size() == 0) {
-    // if no indexs given, assumming use the entire slide window
-    for(int i =0; i < params.msckf.max_clone_C; i++){
-      params.msckf.marginalized_clone.push_back(i);
+    // check if this outside of slide window size
+    for(const auto& clone : params.msckf.marg_meas_index) {
+      if(clone > params.msckf.max_clone_C -1) {
+        ROS_ERROR("marg_meas_index: given marg index =%d out of clone window", clone);
+      }
+    }    
+  }
+  else {
+    ROS_ERROR("marg_meas_index: not provided!");
+  }
+
+  if(nh_private_.getParam("MSCKF/marg_pose_index", params.msckf.marg_pose_index)) {
+    // use default: marg the first index from  marg_pose_index
+    if(params.msckf.marg_pose_index.at(0) == -1) {
+      params.msckf.marg_pose_index.clear();
+      params.msckf.marg_pose_index.push_back(params.msckf.marg_meas_index.at(0));
+    }
+
+    // check if this match with marg_meas_index
+    for(const auto& i : params.msckf.marg_pose_index) {
+
+      if(std::find(params.msckf.marg_meas_index.begin(), 
+                   params.msckf.marg_meas_index.end(), i) 
+                   == params.msckf.marg_meas_index.end()) {
+        ROS_ERROR("marg_pose_index: given=%d not match marg_meas_index !", i);               
+      }
     }
   }
   else {
-    // check if given index outside of slide window size
-    for(const auto& clone : params.msckf.marginalized_clone) {
-      if(clone > params.msckf.max_clone_C -1) {
-        ROS_ERROR("marginalized_clone: given marg clone index out of clone window");
-      }
-    }
+    ROS_ERROR("marg_pose_index: not provided!");
   }
 }
 
@@ -418,12 +463,11 @@ void RosNode::loadParamPrior(Params &params) {
 
           // load
           XmlRpc::XmlRpcValue rosparam_cam;
-          std::vector<double> distortion_coeffs(4);
-          std::vector<double> intrinsics(4);
+          params.prior_cam.intrinsics.reserve(4);
           std::vector<double> resolution(2);
           nh_private_.getParam     (param_name + "/T_C_I",             rosparam_cam);
-          nh_private_.getParam     (param_name + "/distortion_coeffs", distortion_coeffs);
-          nh_private_.getParam     (param_name + "/intrinsics",        intrinsics);
+          nh_private_.getParam     (param_name + "/distortion_coeffs", params.prior_cam.distortion_coeffs);
+          nh_private_.getParam     (param_name + "/intrinsics",        params.prior_cam.intrinsics);
           nh_private_.getParam     (param_name + "/resolution",        resolution);
           nh_private_.param<double>(param_name + "/timeoffset_C_I",    params.prior_cam.timeoffset, 0.0);
           nh_private_.param<double>(param_name + "/noise",    params.prior_cam.noise, 1.0);
@@ -438,10 +482,6 @@ void RosNode::loadParamPrior(Params &params) {
 
           params.prior_cam.extrinsics.block(0, 0, 4, 1) = toQuaternion(T_C_I.block(0, 0, 3, 3));
           params.prior_cam.extrinsics.block(4, 0, 3, 1) = T_C_I.block(0, 3, 3, 1);
-          params.prior_cam.distortion_coeffs << distortion_coeffs.at(0), distortion_coeffs.at(1), 
-                                                distortion_coeffs.at(2), distortion_coeffs.at(3);
-          params.prior_cam.intrinsics << intrinsics.at(0), intrinsics.at(1), 
-                                        intrinsics.at(2), intrinsics.at(3);
           params.prior_cam.image_wh = std::make_pair(resolution.at(0), resolution.at(1));
           
           break;
@@ -468,6 +508,8 @@ void RosNode::loadParamImage(Params &params) {
   nh_private_.param<int>   ("TRACK/max_camera",       params.tracking.basic.max_camera,       1);
   nh_private_.param<int>   ("TRACK/cam_id",           params.tracking.basic.cam_id,           0);
   nh_private_.param<double>("TRACK/downsample_ratio", params.tracking.basic.downsample_ratio, 1.0);
+  nh_private_.param<int>   ("TRACK/img_enhancement",  params.tracking.basic.img_enhancement,  1);
+  
 
   // load specific tracking parameters
   switch(params.tracking.basic.mode) {
@@ -526,11 +568,18 @@ void RosNode::loadParamImage(Params &params) {
 
   // ==================== Keyframe ==================== //
 
-  nh_private_.param<int>   ("Keyframe/frame_count",  params.keyframe.frame_count,  5);
-  nh_private_.param<double>("Keyframe/frame_motion", params.keyframe.frame_motion, 0.1);
-  nh_private_.param<int>   ("Keyframe/motion_space", params.keyframe.motion_space, 3);
-  nh_private_.param<int>   ("Keyframe/min_tracked",  params.keyframe.min_tracked,  50);
-  nh_private_.param<double>("Keyframe/scene_ratio",  params.keyframe.scene_ratio,  0.8);  
+  nh_private_.param<int>   ("Keyframe/frame_count",     params.keyframe.frame_count,     5);
+  nh_private_.param<double>("Keyframe/frame_motion",    params.keyframe.frame_motion,    0.1);
+  nh_private_.param<int>   ("Keyframe/motion_space",    params.keyframe.motion_space,    3);
+  nh_private_.param<int>   ("Keyframe/min_tracked",     params.keyframe.min_tracked,     50);
+  nh_private_.param<double>("Keyframe/scene_ratio",     params.keyframe.scene_ratio,     0.8);  
+  nh_private_.param<double>("Keyframe/adaptive_factor", params.keyframe.adaptive_factor, 0.333);  
+  nh_private_.param<int>   ("Keyframe/adaptive_power",  params.keyframe.adaptive_power,  1);  
+
+  // ==================== Enhancement ==================== //
+  nh_private_.param<int>   ("Enhancement/matched_num",        params.enhancement.matched_num,        4);
+  nh_private_.param<float> ("Enhancement/standard_deviation", params.enhancement.standard_deviation, 0.1);
+
 }
 
 void RosNode::loadCSV() {
@@ -651,7 +700,8 @@ void RosNode::imageCallback(const sensor_msgs::Image::ConstPtr &msg) {
   cv::Mat img;
   int width = cv_ptr->image.cols * parameters.tracking.basic.downsample_ratio;
   int height = cv_ptr->image.rows * parameters.tracking.basic.downsample_ratio;
-  cv::resize(cv_ptr->image, img, cv::Size(width, height));
+  // cv::resize(cv_ptr->image, img, cv::Size(width, height));
+  cv::pyrDown(cv_ptr->image, img, cv::Size(width, height));
 
   // feed img
   ImageMsg message;
@@ -684,13 +734,17 @@ void RosNode::pressureCallback(const sensor_msgs::FluidPressure::ConstPtr &msg) 
 
 }
 
-void RosNode::pointcloudCallback(const sensor_msgs::PointCloud2::ConstPtr &msg){
+void RosNode::dvlCloudCallback(const sensor_msgs::PointCloud2::ConstPtr &msg){
   //! TODO: multi-path will has degraded measurement, filter multi-path based on sub_map, plane-constrain
-  // pcl::PCLPointCloud2 pc2;
-  // pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-  // pcl_conversions::toPCL(*msg, pc2);
-  // pcl::fromPCLPointCloud2(pc2, *cloud);
+  pcl::PCLPointCloud2 pc2;
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+  pcl_conversions::toPCL(*msg, pc2);
+  pcl::fromPCLPointCloud2(pc2, *cloud);
 
+  manager->feedDvlCloud(cloud);
+
+  // printf("DVL pointcloud received at time:%ld, double=%f\n", cloud->header.stamp, (double)(cloud->header.stamp/1000000.0));
+  
 }
 
 void RosNode::process() {
@@ -740,7 +794,7 @@ int main(int argc, char **argv) {
 
   ros::spin();
 
-  backendThread.join();
+  // backendThread.join();
 
   return 0;
 }

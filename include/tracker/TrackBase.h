@@ -134,12 +134,13 @@ public:
         tempK(2, 1) = 0;
         tempK(2, 2) = 1;
         camera_k_OPENCV.insert({cam.first, tempK});
+
         // Distortion parameters
-        cv::Vec4d tempD;
-        tempD(0) = cam.second(4);
-        tempD(1) = cam.second(5);
-        tempD(2) = cam.second(6);
-        tempD(3) = cam.second(7);
+        cv::Mat tempD = cv::Mat(1, cam.second.rows() - 4, CV_64F, double(0));
+        for(size_t i=0; i < cam.second.rows() - 4; i++) {
+          tempD.at<double>(i) = cam.second(i+4);
+        }
+
         camera_d_OPENCV.insert({cam.first, tempD});
       }
       return;
@@ -170,12 +171,12 @@ public:
       tempK(2, 1) = 0;
       tempK(2, 2) = 1;
       camera_k_OPENCV.at(cam.first) = tempK;
+
       // Distortion parameters
-      cv::Vec4d tempD;
-      tempD(0) = cam.second(4);
-      tempD(1) = cam.second(5);
-      tempD(2) = cam.second(6);
-      tempD(3) = cam.second(7);
+      cv::Mat tempD = cv::Mat(1, cam.second.rows() - 4, CV_64F, double(0));
+      for(size_t i=0; i < cam.second.rows() - 4; i++) {
+        tempD.at<double>(i) = cam.second(i+4);
+      }
       camera_d_OPENCV.at(cam.first) = tempD;
     }
 
@@ -292,7 +293,7 @@ public:
   cv::Point2f undistort_point(cv::Point2f pt_in, size_t cam_id) {
     // Determine what camera parameters we should use
     cv::Matx33d camK = this->camera_k_OPENCV.at(cam_id);
-    cv::Vec4d camD = this->camera_d_OPENCV.at(cam_id);
+    cv::Mat camD = this->camera_d_OPENCV.at(cam_id);
     // Call on the fisheye if we should!
     if (this->camera_fisheye.at(cam_id)) {
       return undistort_point_fisheye(pt_in, camK, camD);
@@ -307,7 +308,7 @@ protected:
    * Given a uv point, this will undistort it based on the camera matrices.
    * To equate this to Kalibr's models, this is what you would use for `pinhole-radtan`.
    */
-  static cv::Point2f undistort_point_brown(cv::Point2f pt_in, cv::Matx33d &camK, cv::Vec4d &camD) {
+  static cv::Point2f undistort_point_brown(cv::Point2f pt_in, cv::Matx33d &camK, cv::Mat &camD) {
     // Convert to opencv format
     cv::Mat mat(1, 2, CV_32F);
     mat.at<float>(0, 0) = pt_in.x;
@@ -329,7 +330,7 @@ protected:
    * Given a uv point, this will undistort it based on the camera matrices.
    * To equate this to Kalibr's models, this is what you would use for `pinhole-equi`.
    */
-  static cv::Point2f undistort_point_fisheye(cv::Point2f pt_in, cv::Matx33d &camK, cv::Vec4d &camD) {
+  static cv::Point2f undistort_point_fisheye(cv::Point2f pt_in, cv::Matx33d &camK, cv::Mat &camD) {
     // Convert point to opencv format
     cv::Mat mat(1, 2, CV_32F);
     mat.at<float>(0, 0) = pt_in.x;
@@ -355,7 +356,7 @@ protected:
   std::map<size_t, cv::Matx33d> camera_k_OPENCV;
 
   /// Camera distortion in OpenCV format
-  std::map<size_t, cv::Vec4d> camera_d_OPENCV;
+  std::map<size_t, cv::Mat> camera_d_OPENCV;
 
   /// Number of features we should try to track frame to frame
   int num_features;

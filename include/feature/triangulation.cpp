@@ -15,8 +15,11 @@ double FeatureTriangulation::compute_error(
   double err = 0;
 
   // get Anchor transfomration
-  Eigen::Matrix3d R_A_G = T_G_C.begin()->second.block(0,0,3,3).transpose();
-  Eigen::Vector3d p_G_A = T_G_C.begin()->second.block(0,3,3,1);
+  // Eigen::Matrix3d R_A_G = T_G_C.begin()->second.block(0,0,3,3).transpose();
+  // Eigen::Vector3d p_G_A = T_G_C.begin()->second.block(0,3,3,1);
+  Eigen::Matrix3d R_A_G = T_G_C.at(feature->anchor_clone_timestamp).block(0,0,3,3).transpose();
+  Eigen::Vector3d p_G_A = T_G_C.at(feature->anchor_clone_timestamp).block(0,3,3,1);
+
 
   for(size_t i=0; i<feature->timestamps.at(0).size(); i++) {
 
@@ -56,8 +59,10 @@ bool FeatureTriangulation::single_triangulation(
   const std::unordered_map<double, Eigen::Matrix4d> &T_G_C) {        
 
   // get Anchor transfomration
-  Eigen::Matrix3d R_A_G = T_G_C.begin()->second.block(0,0,3,3).transpose();
-  Eigen::Vector3d p_G_A = T_G_C.begin()->second.block(0,3,3,1);
+  // Eigen::Matrix3d R_A_G = T_G_C.begin()->second.block(0,0,3,3).transpose();
+  // Eigen::Vector3d p_G_A = T_G_C.begin()->second.block(0,3,3,1);
+  Eigen::Matrix3d R_A_G = T_G_C.at(feature->anchor_clone_timestamp).block(0,0,3,3).transpose();
+  Eigen::Vector3d p_G_A = T_G_C.at(feature->anchor_clone_timestamp).block(0,3,3,1);
 
   // Construct linear system matrices
   Eigen::Matrix3d A = Eigen::Matrix3d::Zero();
@@ -75,7 +80,7 @@ bool FeatureTriangulation::single_triangulation(
     const Eigen::Matrix<double, 3, 1> &p_G_Ci = 
         T_G_C.at(feature->timestamps.at(0).at(i)).block(0,3,3,1);
 
-    // transfrom camera into anchor frame(first camera frame)
+    // transfrom camera into anchor frame
     Eigen::Matrix<double, 3, 3> R_A_Ci = R_A_G * R_G_Ci;
     Eigen::Matrix<double, 3, 1> p_A_Ci = R_A_G * (p_G_Ci - p_G_A);
 
@@ -114,6 +119,8 @@ bool FeatureTriangulation::single_triangulation(
   // Store it in our feature object
   feature->p_FinA = p_A_F;
   feature->p_FinG = R_A_G.transpose() * feature->p_FinA + p_G_A;
+  feature->p_FinG_original = feature->p_FinG;
+
   // printf("tri 1: x:%f,y:%f,z:%f\n", feature->p_FinG(0), feature->p_FinG(1), feature->p_FinG(2) );
 
   return true;
@@ -128,8 +135,11 @@ bool FeatureTriangulation::single_gaussnewton(
   const std::unordered_map<double, Eigen::Matrix4d> &T_G_C) {
 
   // get Anchor transfomration
-  Eigen::Matrix3d R_A_G = T_G_C.begin()->second.block(0,0,3,3).transpose();
-  Eigen::Vector3d p_G_A = T_G_C.begin()->second.block(0,3,3,1);
+  // Eigen::Matrix3d R_A_G = T_G_C.begin()->second.block(0,0,3,3).transpose();
+  // Eigen::Vector3d p_G_A = T_G_C.begin()->second.block(0,3,3,1);
+  Eigen::Matrix3d R_A_G = T_G_C.at(feature->anchor_clone_timestamp).block(0,0,3,3).transpose();
+  Eigen::Vector3d p_G_A = T_G_C.at(feature->anchor_clone_timestamp).block(0,3,3,1);
+
 
   // Get into inverse depth
   double alpha = feature->p_FinA(0) / feature->p_FinA(2);
@@ -289,41 +299,10 @@ bool FeatureTriangulation::single_gaussnewton(
       std::isnan(feature->p_FinA.norm())) {
     return false;
   }
-
+  
   feature->p_FinG = R_A_G.transpose() * feature->p_FinA + p_G_A;
+  feature->p_FinG_original = feature->p_FinG;
   // feature->triangulated = true;
-
-
-  //! TEST: save data
-  // file.open(file_path, std::ios_base::app);//std::ios_base::app
-
-  // // save feature id
-  // file<<"\nlost id: "<< feature->featid<<std::endl;
-
-  // // loop cam pose for this feature
-  // for(size_t i=0; i<feature->timestamps.at(0).size(); i++) {
-
-  //   // save cam pose for this measurement
-  //   Eigen::Matrix<double, 3, 3> R_G_Ci = T_G_C.at(feature->timestamps.at(0).at(i)).block(0,0,3,3);
-  //   Eigen::Matrix<double, 3, 1> p_G_Ci = T_G_C.at(feature->timestamps.at(0).at(i)).block(0,3,3,1);
-  //   Eigen::Matrix<double, 4, 1> q_G_toCi = toQuaternion(R_G_Ci.transpose());
-
-  //   file<<std::endl;
-  //   file<<std::fixed<<std::setprecision(9);
-  //   file<<"  time: "<<feature->timestamps.at(0).at(i)<<std::endl;
-  //   file<<std::fixed<<std::setprecision(4);    
-
-  //   file<<"  q_G_toCi: "<< q_G_toCi.transpose() <<std::endl;
-  //   file<<"  p_CiinG: " << p_G_Ci.transpose() <<std::endl;
-
-  //   // save uv for this measurement
-  //   file<<"  uv_norm: " <<feature->uvs_norm.at(0).at(i).transpose()<<std::endl;
-  // }
-
-
-  // file<<"F: "<< feature->p_FinG.transpose()<<std::endl;
-
-  // file.close();
 
   return true;
 }

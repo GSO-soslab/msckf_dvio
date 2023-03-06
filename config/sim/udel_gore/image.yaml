@@ -54,3 +54,7 @@ Keyframe:
   min_tracked: 50
   # option 4: ratio = tracked feature num from last keyframe / total features at current frame
   scene_ratio: 1.0  
+
+  adaptive_factor: 0.0
+
+  adaptive_power: 1  

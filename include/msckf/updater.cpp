@@ -855,11 +855,9 @@ void Updater::marginalize(std::shared_ptr<State> state, Sensor clone_name, int i
   
 }
 
-void Updater::cameraMeasurementKeyFrame(
+void Updater::featureTriangulation(    
     std::shared_ptr<State> state, 
-    std::vector<Feature> &feat_lost,
-    std::vector<Feature> &feat_marg,
-    std::vector<Feature> &feat_msckf) {
+    std::vector<Feature> &feat) {
 
   // -------------------- Get Camera Pose and Clone Time -------------------- //
 
@@ -876,7 +874,7 @@ void Updater::cameraMeasurementKeyFrame(
 
   // get clone pose 
   Eigen::Matrix4d T_G_C = Eigen::Matrix4d::Identity();
-  std::unordered_map<double, Eigen::Matrix4d> cam_poses;
+  std::unordered_map<double, Eigen::Matrix4d> T_G_Cs;
   std::vector<double> clone_times;
 
   for (const auto &clone : state->state_[CLONE_CAM0]) {
@@ -890,29 +888,15 @@ void Updater::cameraMeasurementKeyFrame(
     T_G_C.block(0,3,3,1) = p_G_I - T_G_C.block(0,0,3,3) * p_C_I;
 
     // insert to container
-    cam_poses.insert({cam_time, T_G_C});
-    clone_times.emplace_back(cam_time);
+    T_G_Cs.insert({cam_time, T_G_C});
   }
 
-  // -------------------- Triangulation for Lost Features -------------------- //
+  // -------------------- Triangulation -------------------- //
 
-  auto it0 = feat_lost.begin();
-  while (it0 != feat_lost.end()) {
+  auto it0 = feat.begin();
+  while (it0 != feat.end()) {          
 
-    // [0] Clean non-clone stamp measurements
-    it0->clean_old_measurements(clone_times);
-
-    // [1] Check: at least 2 measurements can be used for trig and update
-    int num_measurements = 0;
-    for (const auto &pair : it0->timestamps) {
-      num_measurements += it0->timestamps[pair.first].size();
-    }                  
-
-    if(num_measurements < 2) {
-      it0 = feat_lost.erase(it0);
-      continue;
-    }          
-
+    //! TODO: if triangulation enahced by DVL, then no need to triangution again
     // [2] Check: if this feature is triangulated 
     if(it0->triangulated) {
       it0++;
@@ -923,99 +907,74 @@ void Updater::cameraMeasurementKeyFrame(
     bool success_tri = true;
     bool success_refine = true;
 
-    success_tri = triangulater->single_triangulation(&*it0, cam_poses);
-    success_refine = triangulater->single_gaussnewton(&*it0, cam_poses);
-
-    // if(it0->featid == 1210) {
-    //   for(size_t i=0; i<it0->timestamps.at(0).size(); i++) {
-    //     printf("\nmeas time: %.9f\n", it0->timestamps.at(0).at(i));
-    //     printf("i=%ld, uvs_norm: u=%f,v=%f\n", i, it0->uvs_norm.at(0).at(i)(0),it0->uvs_norm.at(0).at(i)(1));
-    //     printf("i=%ld, uvs: u=%f,v=%f\n", i, it0->uvs.at(0).at(i)(0),it0->uvs.at(0).at(i)(1));
-    //     std::cout<<"R_C_G: \n"<<cam_poses.at(it0->timestamps.at(0).at(i)).block(0,0,3,3).transpose();
-    //     std::cout<<"\np_G_C: \n"<<cam_poses.at(it0->timestamps.at(0).at(i)).block(0,3,3,1)<<std::endl;
-    //   }
-
-    //   printf("\n[%ld,%f,%f,%f]\n",it0->featid, it0->p_FinG(0),it0->p_FinG(1),it0->p_FinG(2));
-    // } 
-
+    success_tri = triangulater->single_triangulation(&*it0, T_G_Cs);
+    success_refine = triangulater->single_gaussnewton(&*it0, T_G_Cs);
 
     // [3] Remove the feature if triangulation failed
     if (!success_tri || !success_refine) {
-      it0 = feat_lost.erase(it0);
-    }
-    else {     
-      it0++;
-    }
-  }
-
-  // -------------------- Triangulation for Marg Features -------------------- //
-
-  auto it1 = feat_marg.begin();
-  while (it1 != feat_marg.end()) {
-
-    // [0] Clean non-clone stamp measurements
-    it1->clean_old_measurements(clone_times);
-
-    // [1] Check if this feature is triangulated 
-    if(it1->triangulated) {
-      it1++;
+      it0 = feat.erase(it0);
       continue;
     }
 
-    // [2] Triangulate the feature
-    bool success_tri = true;
-    bool success_refine = true;
+    // [4] recovery depth if enahced by DVL range 
+    if(it0->anchor_clone_depth != 0) {
+      // recovery the feature on anchor frame
+      it0->p_FinA(0) = it0->p_FinA(0) * it0->anchor_clone_depth / it0->p_FinA(2);
+      it0->p_FinA(1) = it0->p_FinA(1) * it0->anchor_clone_depth / it0->p_FinA(2);
+      it0->p_FinA(2) = it0->anchor_clone_depth;
 
-    success_tri = triangulater->single_triangulation(&*it1, cam_poses);
-    success_refine = triangulater->single_gaussnewton(&*it1, cam_poses);
+      // convert the feature to global frame
+      Eigen::Matrix3d R_G_A = T_G_Cs.at(it0->anchor_clone_timestamp).block(0,0,3,3);
+      Eigen::Vector3d p_G_A = T_G_Cs.at(it0->anchor_clone_timestamp).block(0,3,3,1);
+      it0->p_FinG = R_G_A * it0->p_FinA + p_G_A;
+    }
+    // else {
+    //   // remove not enhanced features
+    //   it0 = feat.erase(it0);
+    //   continue;
+    // }
 
-    // [3] Remove the feature if triangulation failed
-    if (!success_tri || !success_refine) {
-      it1 = feat_marg.erase(it1);
-    }
-    else {
-      it1++;
-    }
+    // go to next 
+    it0++;
   }
 
-  
-  // -------------------- Finish the Final MSCKF Features for Update -------------------- //
+  //! TEST: save data
+  // file.open(file_path, std::ios_base::app);
 
-  if(state->getEstimationNum(CLONE_CAM0) == param_msckf_.max_clone_C) {
-    // [0] Create marg clone timestamps
-    clone_times.clear();
-    for(const auto& index : param_msckf_.marginalized_clone) {
-      clone_times.push_back(
-        state->getCloneTime(CLONE_CAM0,index));
-    }
+  // // loop all the features
+  // for(const auto& feat : feat_msckf) {
 
-    // [1] Only keep marg clone timestamp measurements for update
-    for(auto& feat : feat_marg) {
-      feat.clean_old_measurements(clone_times);
-    }
-  }
+  //   // loop each measurements
+  //   for(size_t i=0; i<feat.timestamps.at(0).size(); i++) {
+  //     // update timestamp
+  //     file<<std::fixed<<std::setprecision(9);
+  //     file<<state->getTimestamp()<<",";
+  //     file<<std::fixed<<std::setprecision(6);
+  //     // feature id
+  //     file<<feat.featid<<",";
+  //     // triangulation result
+  //     file<<feat.p_FinG(0)<<","<<feat.p_FinG(1)<<","<<feat.p_FinG(2)<<",";
 
-  // [2] Combine lost and marg feature measurements for update
-  feat_msckf.insert(feat_msckf.end(), feat_lost.begin(), feat_lost.end());
-  feat_msckf.insert(feat_msckf.end(), feat_marg.begin(), feat_marg.end());
+  //     // // measurement timestamp
+  //     // file<<std::fixed<<std::setprecision(9);
+  //     // file<<feat.timestamps.at(0).at(i)<<std::endl;
+  //     // file<<std::fixed<<std::setprecision(4); 
 
-  auto add1 = 0;
-  if(feat_lost.size() > 0) {
-    for(const auto& f : feat_lost) {
-      add1 += f.timestamps.at(0).size();
-    }
+  //     // camera pose
+  //     Eigen::Matrix<double, 3, 3> R_G_Ci = T_G_Cs.at(feat.timestamps.at(0).at(i)).block(0,0,3,3);
+  //     Eigen::Matrix<double, 3, 1> p_G_Ci = T_G_Cs.at(feat.timestamps.at(0).at(i)).block(0,3,3,1);
+  //     Eigen::Matrix<double, 4, 1> q_G_toCi = toQuaternion(R_G_Ci.transpose());   
 
-    // printf("  Lost feat size=%ld, total meas=%d\n", feat_lost.size(), add1);
-  }
+  //     file<< q_G_toCi(0)<<"," << q_G_toCi(1)<<","<< q_G_toCi(2)<<","<< q_G_toCi(3)<<",";
+  //     file<< p_G_Ci(0) <<"," << p_G_Ci(1) <<","  << p_G_Ci(2) <<",";
 
-  auto add2 = 0;
-  if(feat_marg.size()>0) {
-    for(const auto& f : feat_marg) {
-      add2 += f.timestamps.at(0).size();
-    }
+  //     // normalied uv and raw uv
+  //     file<<feat.uvs_norm.at(0).at(i)(0)<<","<< feat.uvs_norm.at(0).at(i)(1)<<",";
+  //     file<<feat.uvs.at(0).at(i)(0)<<","<< feat.uvs.at(0).at(i)(1)<<"\n";
+  //   }
+  // }
 
-    // printf("  Marg feat size=%ld, total meas=%d\n", feat_marg.size(), add2);
-  }
+  // file.close();
 }
 
 void Updater::cameraMeasurement(    
@@ -1043,7 +1002,7 @@ void Updater::cameraMeasurement(
 
   // get clone pose 
   Eigen::Matrix4d T_G_C = Eigen::Matrix4d::Identity();
-  std::unordered_map<double, Eigen::Matrix4d> cam_poses;
+  std::unordered_map<double, Eigen::Matrix4d> T_G_Cs;
   std::vector<double> clone_times;
 
   for (const auto &clone : state->state_[CLONE_CAM0]) {
@@ -1057,7 +1016,7 @@ void Updater::cameraMeasurement(
     T_G_C.block(0,3,3,1) = p_G_I - T_G_C.block(0,0,3,3) * p_C_I;
 
     // insert to container
-    cam_poses.insert({cam_time, T_G_C});
+    T_G_Cs.insert({cam_time, T_G_C});
     clone_times.emplace_back(cam_time);
   }
 
@@ -1094,9 +1053,9 @@ void Updater::cameraMeasurement(
     bool success_tri = true;
     bool success_refine = true;
 
-    success_tri = triangulater->single_triangulation(&*it1, cam_poses);
+    success_tri = triangulater->single_triangulation(&*it1, T_G_Cs);
 
-    success_refine = triangulater->single_gaussnewton(&*it1, cam_poses);
+    success_refine = triangulater->single_gaussnewton(&*it1, T_G_Cs);
 
     // remove the feature if not a success
     if (!success_tri || !success_refine) {
@@ -1336,12 +1295,14 @@ void Updater::updateCamPart(
     return;
   }
 
+  // std::cout<<"residual: \n"<<residual.transpose()<<std::endl;
 
  // [4] update
   Eigen::MatrixXd Rn = prior_cam_.noise * prior_cam_.noise * 
     Eigen::MatrixXd::Identity(residual.rows(), residual.rows());
 
   update(state, Hx_order_big, H_x, residual, Rn);
+
 }
 
 void Updater::featureJacobianPart(
@@ -1778,6 +1739,12 @@ void Updater::update(
   // update state
   // d_x = K * r
   Eigen::VectorXd delta_X = K * res;
+
+  // constrain camera z not to update
+  // delta_X(5) = 0.0;
+
+  // constrain state roll,pitch,yaw not to update
+
   state->updateState(delta_X);
 
   // update covariance

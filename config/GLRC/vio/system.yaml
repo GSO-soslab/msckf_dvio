@@ -8,17 +8,16 @@ SYS:
   backend_hz: 100
   # sensors will be fused
   # sensors: [IMU, DVL]
-  sensors: [IMU, CAM0_FEATURE]
+  sensors: [IMU, CAM0]
   # rostopics used for each sensor
   topics: 
-    - {IMU: /ov_msckf/imu_sim}
-    # - {DVL: /ov_msckf/dvl_sim}
-    - {CAM0_FEATURE: /ov_msckf/feature_sim}
+    - {IMU: /rov/sensors/ahrs/imu/data}
+    - {CAM0: /rov_remote/sensors/stereo/left/image_decompressed}
   # load some test files
   # csv: /home/lin/develop/data/sim/udel_gore/sim_NoCalibNoise_4_feat_position.txt
   buffers:
     # buffer to store how many seconds
-    - {CAM0_FEATURE: 10}
+    - {CAM0: 10}
 
 ####################################################################################
 ############################     TODO:  Pre-processing    ##########################
@@ -60,7 +59,7 @@ MSCKF:
   cam_timeoffset: false
   ## Max camera clone
   ## default: 11 for non-key-frame
-  cam_clone: 12 
+  cam_clone: 15 
 
   ################################    Update    ##################################
 
@@ -70,14 +69,14 @@ MSCKF:
   ## Option 2: [-1] means use all 
   # marg_meas_index: [-1] 
   # marg_meas_index: [0, 10]
-  marg_meas_index: [1, 10]
+  marg_meas_index: [0, 13]
   
   # brief: marginalized pose at slide-windows index (or clone state index)
   # note: this select from 'marg_meas_index', no need exactly same as 'marg_meas_index'
   # example: [-1] means use first index from 'marg_meas_index'
   # marg_pose_index: [-1]
   # marg_pose_index: [0, 10]
-  marg_pose_index: [1, 10]
+  marg_pose_index: [0]
 
   ## in open_vins(40), but it's occasionally update at 40
   ## but here, tracking will stop so always update as 40

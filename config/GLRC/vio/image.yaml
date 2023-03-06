@@ -3,7 +3,6 @@
 ############################################
 
 # option: TRACK_FEATURE, TRACK_KLT, TRACK_DESCRIPTOR
-# FRONT_END:
 TRACK:
   mode: TRACK_KLT
   num_aruco: 1024
@@ -22,8 +21,7 @@ TRACK_KLT:
   grid_y: 3
   min_px_dist: 8
   pyram: 3
-
-
+  
 ############################################
 #### Camera feature triangulation parameters ####
 ############################################
@@ -67,13 +65,13 @@ Keyframe:
 
   # option 2: relative motion constraint
   # default: 0.1
-  frame_motion: 0.1
+  frame_motion: 0.0
   # 2: 2D space constraint, for up-looking ice surface, 3: 3D space constraint
   # default: 2
   motion_space: 2
   # option 4: ratio = tracked feature num from last keyframe / total features at current frame
   # default: 0.8
-  scene_ratio: 0.9
+  scene_ratio: 1.0 
 
 ############################################
 ####           Depth Enhancement        ####
@@ -87,4 +85,4 @@ Enhancement:
 
   # brief: larger value descibe the z of 4 points are diverge, then some measurement is not good (e.g. multi-path)
   # default: maybe try 0.15
-  standard_deviation: 0.2
+  standard_deviation: 0.2  

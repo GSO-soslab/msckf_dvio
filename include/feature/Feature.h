@@ -61,11 +61,18 @@ public:
   /// Timestamp of anchor clone
   double anchor_clone_timestamp;
 
+  /// depth of anchor clone
+  double anchor_clone_depth = 0;
+
   /// Triangulated position of this feature, in the anchor frame
   Eigen::Vector3d p_FinA;
 
   /// Triangulated position of this feature, in the global frame
   Eigen::Vector3d p_FinG;
+
+  // original Triangulated position of this feature, in the global frame
+  Eigen::Vector3d p_FinG_original;
+
 
   /// Indicated if this feature is triangulated
   bool triangulated = false;

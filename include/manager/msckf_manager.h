@@ -12,6 +12,14 @@
 #include <fstream>
 #include <queue>
 #include <limits>
+
+// 3rd
+#include <pcl/PCLPointCloud2.h>
+#include <pcl/point_types.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/common/transforms.h>
+#include <pcl/common/io.h>
+
 // customized
 #include "types/type_all.h"
 
@@ -47,6 +55,8 @@ public:
 
   void feedPressure(const PressureMsg &data);
 
+  void feedDvlCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &data);
+
   void backend();
 
   bool isInitialized() { return initializer->isInit(); }
@@ -61,11 +71,14 @@ public:
 
   void setFeatures(std::vector<Feature> &features);
 
-  std::vector<Eigen::Vector3d> getFeatures();
+  std::vector<std::tuple<Eigen::Vector3d, Eigen::Vector3d>> getFeatures();
 
   bool isFeature() {return is_feat; }
 
   cv::Mat getImgHistory();
+
+  // get the N pointclouds that are closet to the given timestamp
+  std::vector<pcl::PointCloud<pcl::PointXYZ>> getDvlCloud(double timestamp, int num);
 
   void updateImgHistory();
 
@@ -73,6 +86,28 @@ public:
     truth_feature = test_data;
   }
 
+  void addMatchedPointcloud(
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, 
+    double timestamp,
+    const std::string &frame) {
+
+    tuple_pcs.push_back(std::make_tuple(timestamp, cloud, frame));
+  }
+
+  std::vector<std::tuple<double, pcl::PointCloud<pcl::PointXYZ>, std::string>> getMatchedPointcloud() {
+
+    std::vector<std::tuple<double, pcl::PointCloud<pcl::PointXYZ>, std::string>> tupled;
+
+    for(const auto& tuple : tuple_pcs) {
+      tupled.push_back(std::make_tuple(std::get<0>(tuple), *std::get<1>(tuple), std::get<2>(tuple)));
+    }
+
+    // free memory
+    std::vector<std::tuple<double, pcl::PointCloud<pcl::PointXYZ>::Ptr, std::string>>().swap(tuple_pcs);
+
+    return tupled;
+  }
+  
 private:
 
   void doDVL();
@@ -97,15 +132,23 @@ private:
 
   bool checkScene(double curr_time);
 
+  bool checkFeatures(double curr_time);
+
+  bool checkAdaptive();
+
   bool checkFrameCount();
 
   void selectFeatures(const double time_update, std::vector<Feature> &feat_selected);
 
-  void selectFeaturesSlideWindow(
-    const double time_update, std::vector<Feature> &feat_lost, std::vector<Feature> &feat_marg);
-
   void selectFeaturesKeyFrame(
-    const double time_update, std::vector<Feature> &feat_lost, std::vector<Feature> &feat_marg);
+    const double time_update, std::vector<Feature> &feat_keyframe);
+
+  void selectMargMeasurement(std::vector<Feature> &feat_keyframe);
+
+  void enhanceDepth(std::vector<Feature> &features);
+
+  // interpolate IMU pose from clone poses, based on given IMU timestamp
+  bool poseInterpolation(double timestamp, Eigen::Matrix3d &R, Eigen::Vector3d &p);
 
   void releaseImuBuffer(double timeline);
 
@@ -123,6 +166,7 @@ private:
   std::vector<DvlMsg> buffer_dvl;
   std::vector<PressureMsg> buffer_pressure;
   std::queue<double> buffer_time_img;
+  std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> buf_dvl_pc;
 
   DvlMsg last_dvl; 
   
@@ -149,11 +193,15 @@ private:
   // file.open(file_path, std::ios_base::app);//std::ios_base::app
   // file.close();
 
+  std::vector<std::tuple<
+      double, pcl::PointCloud<pcl::PointXYZ>::Ptr, std::string>> tuple_pcs;
+
   std::unordered_map<size_t, Eigen::Vector3d> truth_feature;
 
   // get triangulated feature position
   std::atomic<bool> is_feat;
-  std::vector<Eigen::Vector3d> trig_feat;
+
+  std::vector<std::tuple<Eigen::Vector3d, Eigen::Vector3d>> trig_feat;
 
   std::queue<double> slide_window;
   cv::Mat img_history;
