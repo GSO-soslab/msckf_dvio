@@ -9,9 +9,6 @@ INIT_MODE: INIT_SETTING
 
 
 ###############################################################################
-
-# brief: only select the sensor given by system.yaml
-
 INIT_SETTING:
   # # Example:
   # SENSOR:
@@ -27,7 +24,7 @@ INIT_SETTING:
   #   intrinsic: [1.0, 2.0, 3.0]
   #   # initialized global transfomration for this sensor: Pressure, Magnetometer, GPS and so on may have this 
   #   global: [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]
-  
+
   IMU:
     time: 1614971124.344753027
     # brief: orientation in quaterion form
@@ -37,52 +34,3 @@ INIT_SETTING:
                -0.001849, -0.001689, -0.002033, 
               #  0.001, 0.001, -0.001, 
                -0.003053, -0.004853, -0.020769] 
-
-  DVL:
-    time: 1614971124.354732990
-    temporal: [0.000000238]
-
-  PRESSURE:
-    time: 1614971124.354732990
-    global: [4.453799]    
-
-
-###############################################################################
-# INIT_STATIC:
-  # todo: 0.0
-
-###############################################################################
-INIT_DVL_PRESSURE:
-  # Default: 10
-  # Note: how many IMU data is selected to detect IMU jump (suddenly move)  
-  imu_window: 10
-
-  # Default: 0.2
-  # Note: the IMU variance threshold that indicates IMU jump inclued
-  imu_var: 0.2
-
-  # Default: 0.07
-  # Note: IMU accleraion difference in x-axis(forward direction) shows at the suddenly movement time
-  imu_delta: 0.07
-
-  # Default: 5
-  # Note: how many DVL data is selected to detect DVL jump (suddenly move)  
-  dvl_window: 4
-  
-  # Default: 0.05
-  # Note: DVL velocity difference in x-axis(forward direction) shows at the suddenly movement time
-  dvl_delta: 0.05
-
-  # Default: 1s
-  #Note: how many second selected for initialization
-  dvl_init_duration: 1
-
-
-###############################################################################
-# INIT_CAMERA:
-  # todo: 0.0
-
-
-###############################################################################
-# INIT_DVL_CAMERA:
-  # todo: 0.0

@@ -4,7 +4,7 @@ namespace msckf_dvio
 {
 
 RosVisualizer::RosVisualizer(const ros::NodeHandle &nh, std::shared_ptr<MsckfManager> manager)
-  :msckf_manager(manager), it_(nh), nh_(nh), last_visual_times(0) {
+  :msckf_manager(manager), it_(nh), nh_(nh), last_visual_times(0), save_flag(false) {
 
   // Setup our transform broadcaster
   odom_broadcaster = std::make_unique<tf2_ros::TransformBroadcaster>();
@@ -16,6 +16,8 @@ RosVisualizer::RosVisualizer(const ros::NodeHandle &nh, std::shared_ptr<MsckfMan
   pub_features = nh_.advertise<sensor_msgs::PointCloud2>("/feature_clouds", 10); 
   pub_bias = nh_.advertise<geometry_msgs::TwistStamped>("/imu_bias", 100); 
   pub_pc = nh_.advertise<sensor_msgs::PointCloud2>("/matched_DVL_clouds", 10); 
+
+  service_ = nh_.advertiseService("viz_cmd",&RosVisualizer::srvCallback, this);
 }
 
 void RosVisualizer::visualize() {
@@ -36,11 +38,20 @@ void RosVisualizer::visualize() {
   // publish State
   publishState();
 
-  // publish triangulated features
-  publishFeatures();
-
   // publish pointcloud: e.g. test pointcloud
   publishPointCloud();
+
+  // publish triangulated features
+  publishFeatures();
+}
+
+bool RosVisualizer::srvCallback(std_srvs::Trigger::Request  &req, std_srvs::Trigger::Response &res) {
+  res.success = true;
+  res.message = "received";
+
+  save_flag = true;
+
+  return true;
 }
 
 void RosVisualizer::publishPointCloud() {
@@ -58,6 +69,26 @@ void RosVisualizer::publishPointCloud() {
     pcl::toROSMsg(std::get<1>(tuple), cloud_msg);
     cloud_msg.header.frame_id = std::get<2>(tuple);
     pub_pc.publish(cloud_msg);
+
+    //! TEST:
+    // // to pcl_xyz
+    // pcl::PCLPointCloud2 pc2;
+    // pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_xyz(new pcl::PointCloud<pcl::PointXYZ>);
+    // pcl_conversions::toPCL(cloud_msg, pc2);
+    // pcl::fromPCLPointCloud2(pc2, *cloud_xyz);
+
+    // // add rgb
+    // pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_xyzrgb(new pcl::PointCloud<pcl::PointXYZRGB>);
+    // pcl::copyPointCloud(*cloud_xyz, *cloud_xyzrgb);
+    // for( size_t i= 0; i< cloud_xyz->points.size(); i++)
+    // {
+    //   cloud_xyzrgb->points[i].r = 96;
+    //   cloud_xyzrgb->points[i].g = 96;
+    //   cloud_xyzrgb->points[i].b = 96;
+    // }
+
+    // // append
+    // saved_pcd += *cloud_xyzrgb;
   }
 
 
@@ -219,26 +250,25 @@ void RosVisualizer::publishFeatures() {
     *ros_pc2_b = (int)(color(2));
   }
 
-  // // setup the points XYZ
-  // sensor_msgs::PointCloud2 cloud_msg;
-  // sensor_msgs::PointCloud2Modifier modifier(cloud_msg);
-  // modifier.setPointCloud2FieldsByString(1, "xyz");    
-  // modifier.resize(feats.size()); 
-  // sensor_msgs::PointCloud2Iterator<float> ros_pc2_x(cloud_msg, "x");
-  // sensor_msgs::PointCloud2Iterator<float> ros_pc2_y(cloud_msg, "y");
-  // sensor_msgs::PointCloud2Iterator<float> ros_pc2_z(cloud_msg, "z");
-  // // copy to msg
-  // for (size_t i = 0; i < feats.size(); i++, ++ros_pc2_x, ++ros_pc2_y, ++ros_pc2_z) {
-  //     const Eigen::Vector3d& point = feats.at(i);
-  //     *ros_pc2_x = point(0);
-  //     *ros_pc2_y = point(1);
-  //     *ros_pc2_z = point(2);
-  // }
-
   // publish
   cloud_msg.header.frame_id = "odom";
   cloud_msg.header.stamp = ros::Time::now();
   pub_features.publish(cloud_msg);
+
+  // convert to pcl and save to pcd
+  pcl::PCLPointCloud2 pc2;
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+  pcl_conversions::toPCL(cloud_msg, pc2);
+  pcl::fromPCLPointCloud2(pc2, *cloud);
+
+  // saved_pcd += *cloud;
+
+  // //! TEST:
+  // if(save_flag) {
+  //   save_flag = false;
+  //   pcl::io::savePCDFileASCII ("/home/lin/Desktop/test_pcd.pcd", saved_pcd);
+  //   printf("\n=======================================\n");
+  // }
 
 }
 

@@ -377,6 +377,7 @@ public:
 
   /**
    * @brief Get measurement of all features that at the given timestamp
+   *        ONLY for feature counting for this timestamp
    * 
    * @details each feature will only has one measurements
    *

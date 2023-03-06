@@ -190,9 +190,10 @@ void TrackBase::display_history(cv::Mat &img_out, int r1, int g1, int b1, int r2
       }
     }
     // Draw what camera this is
-    auto txtpt = (is_small) ? cv::Point(10, 30) : cv::Point(30, 60);
-    cv::putText(img_temp, "CAM:" + std::to_string((int)pair.first), txtpt, cv::FONT_HERSHEY_COMPLEX_SMALL, (is_small) ? 1.5 : 3.0,
-                cv::Scalar(0, 255, 0), 3);
+    // auto txtpt = (is_small) ? cv::Point(10, 30) : cv::Point(30, 60);
+    // cv::putText(img_temp, "CAM:" + std::to_string((int)pair.first), txtpt, cv::FONT_HERSHEY_COMPLEX_SMALL, (is_small) ? 1.5 : 3.0,
+    //             cv::Scalar(0, 255, 0), 3);
+
     // Replace the output image
     img_temp.copyTo(img_out(cv::Rect(max_width * index_cam, 0, img_last_cache[pair.first].cols, img_last_cache[pair.first].rows)));
     index_cam++;

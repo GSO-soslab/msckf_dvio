@@ -508,7 +508,7 @@ void RosNode::loadParamImage(Params &params) {
   nh_private_.param<int>   ("TRACK/max_camera",       params.tracking.basic.max_camera,       1);
   nh_private_.param<int>   ("TRACK/cam_id",           params.tracking.basic.cam_id,           0);
   nh_private_.param<double>("TRACK/downsample_ratio", params.tracking.basic.downsample_ratio, 1.0);
-  nh_private_.param<int>   ("TRACK/img_enhancement",  params.tracking.basic.img_enhancement, 1);
+  nh_private_.param<int>   ("TRACK/img_enhancement",  params.tracking.basic.img_enhancement,  1);
   
 
   // load specific tracking parameters

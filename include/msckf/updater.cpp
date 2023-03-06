@@ -928,6 +928,11 @@ void Updater::featureTriangulation(
       Eigen::Vector3d p_G_A = T_G_Cs.at(it0->anchor_clone_timestamp).block(0,3,3,1);
       it0->p_FinG = R_G_A * it0->p_FinA + p_G_A;
     }
+    // else {
+    //   // remove not enhanced features
+    //   it0 = feat.erase(it0);
+    //   continue;
+    // }
 
     // go to next 
     it0++;
@@ -1737,6 +1742,8 @@ void Updater::update(
 
   // constrain camera z not to update
   // delta_X(5) = 0.0;
+
+  // constrain state roll,pitch,yaw not to update
 
   state->updateState(delta_X);
 

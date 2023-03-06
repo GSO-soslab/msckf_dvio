@@ -18,6 +18,15 @@
 #include <eigen_conversions/eigen_msg.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include "manager/msckf_manager.h"
+#include <std_srvs/Trigger.h>
+
+
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/PCLPointCloud2.h>
+#include <pcl/point_types.h>
+#include <pcl/io/pcd_io.h>
+
+#include <atomic>
 
 namespace msckf_dvio
 {
@@ -41,7 +50,10 @@ public:
   /// Publish the active tracking image
   void publishImage();
 
+  bool srvCallback(std_srvs::Trigger::Request  &req, std_srvs::Trigger::Response &res);
+
 private:
+
   /// Publish the current state
   void publishState();
 
@@ -54,6 +66,8 @@ private:
 
   ros::NodeHandle nh_;
   image_transport::ImageTransport it_;
+
+  ros::ServiceServer service_;
 
   ros::Publisher pub_odom, pub_path, pub_bias, pub_pc;
   ros::Publisher pub_features;
@@ -69,6 +83,9 @@ private:
   
   Eigen::Isometry3d T_B_I;
 
+  pcl::PointCloud<pcl::PointXYZRGB> saved_pcd;
+
+  std::atomic<bool> save_flag;
 };
 
 } // end of namespace msckf_dvio

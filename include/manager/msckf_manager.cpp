@@ -547,7 +547,6 @@ void MsckfManager::doCameraKeyframe() {
   // feature triangulation
   updater->featureTriangulation(state,feature_keyframe);
 
-
   // [4] keep marginalization feature measurements
   selectMargMeasurement(feature_keyframe);
 
@@ -599,23 +598,29 @@ void MsckfManager::doCameraKeyframe() {
     }
   }
 
-
   // [5] cleanup
   if(state->getEstimationNum(CLONE_CAM0) > 0) {
     // remove the oldest pose if no measurements exists
 
     // get oldest clone timestamp
-    auto clone_time = state->getCloneTime(CLONE_CAM0, 0);
+    auto oldest_time = state->getCloneTime(CLONE_CAM0, 0);
 
     // find feature measurements at last keyframe timestamp
     std::vector<Feature> oldest_feat;
-    tracker->get_feature_database()->features_measurement_selected(clone_time, oldest_feat, true);
+    tracker->get_feature_database()->features_measurement_selected(oldest_time, oldest_feat, true);
     if(oldest_feat.size() == 0) {
         updater->marginalize(state, CLONE_CAM0, 0);
         printf("======= marg oldest clone\n");
     }
 
-    // remove anomalous feature measurements: only older then oldest clone timestamp 
+    // oldest_time = state->getCloneTime(CLONE_CAM0, 0);
+    // tracker->get_feature_database()->cleanup_out_measurements(oldest_time);
+  }
+
+
+
+  if(state->getEstimationNum(CLONE_CAM0) > 0) {
+    // remove outdate feature measurements: remove older then oldest clone timestamp 
     auto oldest_time = state->getCloneTime(CLONE_CAM0, 0);
     tracker->get_feature_database()->cleanup_out_measurements(oldest_time);
   }
@@ -935,18 +940,18 @@ void MsckfManager::setFeatures(std::vector<Feature> &features) {
     // setup feature position: enhaced + not enhanced
     Eigen::Vector3d color;
     if(features[f].anchor_clone_depth == 0) {
-      // blue for normal triangulation
-      color << 0,0,255;
+      // red for normal triangulation
+      color << 255,0,0;
     }
     else {
-      // red for depth enhanced
-      color << 255,0,0;
+      // green for depth enhanced
+      color << 0,255,0;
     }
     trig_feat.emplace_back(std::make_tuple(features[f].p_FinG, color));
 
     // setup the original features
-    trig_feat.emplace_back(std::make_tuple(features[f].p_FinG_original, 
-                                           Eigen::Vector3d(0,255,0)));
+    // trig_feat.emplace_back(std::make_tuple(features[f].p_FinG_original, 
+    //                                        Eigen::Vector3d(255,0,0)));
   }
 }
 
