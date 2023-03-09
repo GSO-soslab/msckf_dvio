@@ -751,6 +751,7 @@ void Updater::updatePressure(std::shared_ptr<State> state, const double pres_beg
 
   Eigen::Vector3d p_G_I_hat = R_I_G.transpose() * R_I_D * R_D_P * p_P;
 
+  // residual = measurement - estimation
   Eigen::Matrix<double,1,1> r;
   r << p_G_I_hat(2) - p_G_I(2);
   // std::cout<<"r: "<< r<<std::endl;

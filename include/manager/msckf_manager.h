@@ -80,8 +80,6 @@ public:
   // get the N pointclouds that are closet to the given timestamp
   std::vector<pcl::PointCloud<pcl::PointXYZ>> getDvlCloud(double timestamp, int num);
 
-  void updateImgHistory();
-
   void setupTest(std::unordered_map<size_t, Eigen::Vector3d> &test_data) {
     truth_feature = test_data;
   }
@@ -108,7 +106,49 @@ public:
     return tupled;
   }
   
+  // check if the system has visual measurements
+  bool checkVisual() {
+    auto find_cam0 = std::find(params.sys.sensors.begin(), 
+                               params.sys.sensors.end(), 
+                               Sensor::CAM0) != 
+                               params.sys.sensors.end();
+    auto find_cam0_feature = std::find(params.sys.sensors.begin(), 
+                                       params.sys.sensors.end(), 
+                                       Sensor::CAM0_FEATURE) != 
+                                       params.sys.sensors.end(); 
+
+    return find_cam0 || find_cam0_feature;                                       
+  }
+
 private:
+
+  /**
+   *  @brief get all the data need for pressure update, e.g. pressure, IMU
+   * 
+   *  @param pressure_msg: selected pressure data for this update
+   *  @param imu_msgs: selected a series of IMU for propagation
+   * 
+   *  @return True: successfully get data; 
+   *  @return False: failed to get data
+   * 
+   */
+  bool getImuForPressure(PressureMsg &pressure_msg, std::vector<ImuMsg> &imu_msgs);
+
+  /**
+   *  @brief get all the data need for dvl update, e.g. dvl, IMU
+   * 
+   *  @param dvl_msg: selected dvl data for this update
+   *  @param imu_msgs: selected a series of IMU for propagation
+   * 
+   *  @return True: successfully get data; 
+   *  @return False: failed to get data
+   * 
+   */
+  bool getImuForDvl(DvlMsg &dvl_msg,  std::vector<ImuMsg> &imu_msgs);
+
+  void doDvlUpdate();
+
+  void doPressureUpdate();
 
   void doDVL();
 
@@ -157,8 +197,6 @@ private:
   void releasePressureBuffer(double timeline);
 
   int frame_count;
-
-  double frame_distance;
 
   std::vector<ImuMsg> buffer_imu;
   
