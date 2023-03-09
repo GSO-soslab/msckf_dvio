@@ -59,7 +59,7 @@
   <arg name="image_yaml" default="$(arg config_path)/image.yaml"/>
 
   <!-- build with flag: -DCMAKE_BUILD_TYPE=Debug -->
-  <!-- add to roslaunch: launch-prefix="gdb -ex run -1-args" -->
+  <!-- add to roslaunch: launch-prefix="gdb -ex run -!-args" -->
   <!-- type: bt -->
   <node name="dvio_node" pkg="msckf_dvio" type="dvio_node" output="screen">
       <rosparam command="load" file="$(arg system_yaml)"/>

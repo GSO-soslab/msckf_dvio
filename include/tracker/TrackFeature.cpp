@@ -5,8 +5,8 @@ using namespace msckf_dvio;
 //! TODO: only support mono camera features
 void TrackFeature::feed_features(FeatureMsg &data) {
   // make sure all the data size are same
-  assert(data.id.size == data.u.size());
-  assert(data.u.size == data.v.size());
+  assert(data.id.size() == data.u.size());
+  assert(data.u.size() == data.v.size());
 
   // only support mono camera features
   int cam_id = 0;

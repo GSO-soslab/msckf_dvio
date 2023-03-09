@@ -42,65 +42,62 @@ MsckfManager::MsckfManager(Params &parameters)
   //// setup updater
   updater = std::make_shared<Updater>(params);
 
-  //// setup tracker
+  //// setup tracker if system has visual measurements
+  if(checkVisual()) {
+    // get params
+    std::map<size_t, bool> camera_fisheye;
+    std::map<size_t, Eigen::VectorXd> camera_calibration;
+    std::map<size_t, std::pair<int, int>> camera_wh;
 
-  // get params
-  std::map<size_t, bool> camera_fisheye;
-  std::map<size_t, Eigen::VectorXd> camera_calibration;
-  std::map<size_t, std::pair<int, int>> camera_wh;
-
-  Eigen::VectorXd cam0_calib;
-  auto calib_size = params.prior_cam.intrinsics.size() + params.prior_cam.distortion_coeffs.size();
-  cam0_calib.resize(calib_size);
-
-  // convert intrinsics
-  for(size_t i=0; i<4; i++) {
-    cam0_calib(i) = params.prior_cam.intrinsics.at(i) * params.tracking.basic.downsample_ratio;
-  }
-  // convert distortion_coeffs
-  for(size_t i=4; i<calib_size; i++) {
-    cam0_calib(i) = params.prior_cam.distortion_coeffs.at(i-4);
-  }
-
-  // setup param for tracker
-  if(params.tracking.basic.cam_id == 0){
-    camera_fisheye.insert({0, false});
-    camera_calibration.insert({0, cam0_calib});
-    camera_wh.insert({0, params.prior_cam.image_wh});
-  }
-
-  // start tracker
-  switch(params.tracking.basic.mode) {
-    case TrackMode::TRACK_KLT: {
-      tracker = std::shared_ptr<TrackBase>(new TrackKLT (
-        params.tracking.klt.num_pts, params.tracking.basic.num_aruco, 
-        params.tracking.klt.fast_threshold, params.tracking.klt.grid_x, 
-        params.tracking.klt.grid_y, params.tracking.klt.min_px_dist, 
-        params.tracking.klt.pyram, params.tracking.basic.img_enhancement));
-
-      tracker->set_calibration(camera_calibration, camera_fisheye);
-
-      break;
+    Eigen::VectorXd cam0_calib;
+    auto intrinsic_size = params.prior_cam.intrinsics.size();
+    auto distortion_size = params.prior_cam.distortion_coeffs.size();
+    cam0_calib.resize(intrinsic_size + distortion_size);
+    // convert intrinsics and 
+    for(size_t i=0; i<intrinsic_size; i++) {
+      cam0_calib(i) = params.prior_cam.intrinsics.at(i) * params.tracking.basic.downsample_ratio;
+    }
+    // convert distortion_coeffs
+    for(size_t i=4; i< (intrinsic_size + distortion_size); i++) {
+      cam0_calib(i) = params.prior_cam.distortion_coeffs.at(i-4);
     }
 
-    case TrackMode::TRACK_FEATURE: {
-      tracker = std::shared_ptr<TrackBase>(new TrackFeature (
-        params.tracking.basic.num_aruco, camera_wh));
-
-      tracker->set_calibration(camera_calibration, camera_fisheye);
-
-      break;
+    // setup param for tracker
+    if(params.tracking.basic.cam_id == 0){
+      camera_fisheye.insert({0, false});
+      camera_calibration.insert({0, cam0_calib});
+      camera_wh.insert({0, params.prior_cam.image_wh});
     }
 
-    default:
-      break;
-  }
+    // start tracker
+    switch(params.tracking.basic.mode) {
+      case TrackMode::TRACK_KLT: {
+        tracker = std::shared_ptr<TrackBase>(new TrackKLT (
+          params.tracking.klt.num_pts, params.tracking.basic.num_aruco, 
+          params.tracking.klt.fast_threshold, params.tracking.klt.grid_x, 
+          params.tracking.klt.grid_y, params.tracking.klt.min_px_dist, 
+          params.tracking.klt.pyram, params.tracking.basic.img_enhancement));
 
-  // recorder = std::make_shared<Recorder>("/home/lin/Desktop/features.txt");
+        tracker->set_calibration(camera_calibration, camera_fisheye);
+
+        break;
+      }
+
+      case TrackMode::TRACK_FEATURE: {
+        tracker = std::shared_ptr<TrackBase>(new TrackFeature (
+          params.tracking.basic.num_aruco, camera_wh));
+
+        tracker->set_calibration(camera_calibration, camera_fisheye);
+
+        break;
+      }
+
+      default:
+        break;
+    }
+  }
 
   frame_count = params.keyframe.frame_count;
-  frame_distance = 0;
-
 }
 
 void MsckfManager::feedImu(const ImuMsg &data) {
@@ -217,26 +214,6 @@ void MsckfManager::feedCamera(ImageMsg &data) {
   }
 
   mtx.unlock();
-
-  // // lost features
-  // std::shared_ptr<FeatureDatabase> database = tracker->get_feature_database();
-  // std::vector<std::shared_ptr<Feature>> feats_lost = database->features_not_containing_newer(data.time);
-
-  // // delete access features
-  // for (auto const &f : feats_lost) {
-  //   f->to_delete = true;
-  // }
-  // database->cleanup();
-
-  // // marg features
-  // if(buffer_time_img.size() == params.msckf.max_clone_C) {
-  //   auto marg_time = buffer_time_img.front();
-  //   buffer_time_img.pop();
-
-  //   database->cleanup_measurements(marg_time);
-  // }
-
-  // updateImgHistory();
 }
 
 std::vector<pcl::PointCloud<pcl::PointXYZ>> MsckfManager::getDvlCloud(double timestamp, int num) {
@@ -264,14 +241,6 @@ std::vector<pcl::PointCloud<pcl::PointXYZ>> MsckfManager::getDvlCloud(double tim
   }
 
   return sorted_pc;
-}
-
-void MsckfManager::updateImgHistory() {
-  std::lock_guard<std::recursive_mutex> lock(img_mtx);
-
-  cv::Mat img;
-  tracker->display_history(img, 0, 255, 255, 255, 255, 255);
-  img_history = img.clone();
 }
 
 cv::Mat MsckfManager::getImgHistory() {
@@ -337,20 +306,28 @@ void MsckfManager::backend() {
     // choose DVL BT velocity to update IMU
     case DVL: {
 
-      doDVL();
+      // doDVL();
 
       // // individual BT veloicty update 
       // doDvlBT();
+
+      // new individual BT velocity update
+      doDvlUpdate();
+
       break;
     }
 
     // choose DVL CP pressure to update IMU
     case PRESSURE: {
 
-      doDVL();
+      // doDVL();
 
       // // individual pressure update
       // doPressure();
+
+      // new individual pressure update
+      doPressureUpdate();
+      
       break;
     }
 
@@ -463,9 +440,9 @@ void MsckfManager::doCameraKeyframe() {
   auto time_curr_state = time_curr_sensor + time_offset;
   // make sure sensors data is not eariler then current state
   if(time_curr_state <= time_prev_state) {
-    // printf("Manger warning: new image time:%f "
-    //        "is eariler then current state time:%f, drop it now!\n",
-    //        time_curr_state, time_prev_state);
+    printf("Manger warning: new image time:%f "
+           "is eariler then current state time:%f, drop it now!\n",
+           time_curr_state, time_prev_state);
 
     // erase this image data because bad timestamp
     buffer_time_img.pop();
@@ -1154,9 +1131,60 @@ void MsckfManager::doPressure() {
 
 }
 
+void MsckfManager::doDvlUpdate() {
+
+  // [0] get data
+  DvlMsg selected_dvl;
+  std::vector<ImuMsg> selected_imu;
+
+  if(!getImuForDvl(selected_dvl, selected_imu)) {
+    return;
+  }
+
+  // [1] IMU propagation
+  predictor->propagate(state, selected_imu);
+  // We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d)
+  if(state->foundSPD("dvl_propagate")){
+    std::exit(EXIT_FAILURE);
+  }
+
+  // [2] update
+
+  // Last angular velocity and linear velocity
+  Eigen::Vector3d last_w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
+  Eigen::Vector3d last_v_D = selected_dvl.v;
+
+  // update
+  updater->updateDvl(state, last_w_I, last_v_D);
+  // updater->updateDvlSimple(state, last_w_I, last_v_D, true);
+}
+
+void MsckfManager::doPressureUpdate() {
+  // [0] get data
+  PressureMsg selected_pressure;
+  std::vector<ImuMsg> selected_imu;
+  if(!getImuForPressure(selected_pressure, selected_imu)) {
+    return;
+  }
+  
+  // [1] IMU propagation
+  predictor->propagate(state, selected_imu);
+  // We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d)
+  if(state->foundSPD("pressure_propagate")){
+    std::exit(EXIT_FAILURE);
+  }
+
+  // [2] State Update with Pressure
+
+  // get the begin pressure value
+  double pres_init = state->getPressureInit();
+  double pres_curr = selected_pressure.p;
+  // update
+  updater->updatePressure(state, pres_init, pres_curr, true);  
+}
+
 //! TODO: DVL/pressure can still update without IMU propagation
 //!       check how many IMU inside DVL/pressure update
-
 void MsckfManager::doDVL() {
 
 /**************************************************/
@@ -1877,6 +1905,100 @@ void MsckfManager::selectMargMeasurement(std::vector<Feature> &feat_keyframe) {
   }
 
 }
+
+bool MsckfManager::getImuForDvl(DvlMsg &dvl_msg,  std::vector<ImuMsg> &imu_msgs) {
+  std::unique_lock<std::mutex> lck(mtx);
+
+  // [0] select DVL
+  dvl_msg = buffer_dvl.front();
+
+  // [1] select IMU time duration
+
+  // convert sensor time into IMU time
+  auto offset = params.msckf.do_time_I_D ? 
+                state->getEstimationValue(DVL, EST_TIMEOFFSET)(0) : 
+                params.prior_dvl.timeoffset;
+  double time_prev_state = state->getTimestamp();
+  double time_curr_state = dvl_msg.time + offset;
+
+  // make sure sensor data is not eariler then current state
+  if(time_curr_state <= time_prev_state) {
+    printf("Manger warning: new dvl measurement time:%f" 
+            "is eariler then last state time:%f, drop it now!\n",
+            time_curr_state, time_prev_state);
+
+    buffer_dvl.erase(buffer_dvl.begin());
+
+    return false;
+  }
+
+  // [2] select IMU data: make sure IMU time > current sensor time for interpolation
+  auto frame_imu = std::find_if(buffer_imu.begin(), buffer_imu.end(),
+                   [&](const auto& imu){return imu.time > time_curr_state ;});
+  if(frame_imu != buffer_imu.end()) {
+    // select
+    imu_msgs = selectImu(time_prev_state, time_curr_state);
+
+    // erase selected dvl 
+    buffer_dvl.erase(buffer_dvl.begin());
+
+    // erase selected IMU, but leave one for next interpolate
+    buffer_imu.erase(buffer_imu.begin(), frame_imu-1);
+
+    return true;   
+  }
+  else {
+    return false;
+  }
+}
+
+bool MsckfManager::getImuForPressure(PressureMsg &pressure_msg, std::vector<ImuMsg> &imu_msgs) {
+  std::unique_lock<std::mutex> lck(mtx);
+
+  // [0] select pressure 
+  pressure_msg = buffer_pressure.front();
+
+  // [1] select IMU time duration
+
+  // convert sensor time into IMU time
+  auto offset = params.msckf.do_time_I_D ? 
+                state->getEstimationValue(DVL, EST_TIMEOFFSET)(0) : 
+                params.prior_dvl.timeoffset;
+  double time_prev_state = state->getTimestamp();
+  double time_curr_state = pressure_msg.time + offset;
+
+  // make sure sensor data is not eariler then current state
+  if(time_curr_state <= time_prev_state) {
+    printf("Manger warning: new pressure measurement time:%f" 
+            "is eariler then last state time:%f, drop it now!\n",
+            time_curr_state, time_prev_state);
+
+    buffer_pressure.erase(buffer_pressure.begin());
+
+    return false;
+  }
+
+  // [2] select IMU data: make sure IMU time > current sensor time for interpolation
+  auto frame_imu = std::find_if(buffer_imu.begin(), buffer_imu.end(),
+                   [&](const auto& imu){return imu.time > time_curr_state ;});
+  if(frame_imu != buffer_imu.end()) {
+    // select
+    imu_msgs = selectImu(time_prev_state, time_curr_state);
+
+    // erase selected pressure 
+    buffer_pressure.erase(buffer_pressure.begin());
+
+    // erase selected IMU, but leave one for next interpolate
+    buffer_imu.erase(buffer_imu.begin(), frame_imu-1);
+
+    return true;   
+  }
+  else {
+    return false;
+  }
+
+}
+
 
 /**
  *  @brief get all the data need for pressure update, e.g. pressure, DVL BT velocity, IMU

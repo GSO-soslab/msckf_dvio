@@ -100,6 +100,10 @@ void RosVisualizer::publishImage() {
   if (pub_img.getNumSubscribers() == 0)
     return;
 
+  // check if the system has visual measurements
+  if (!msckf_manager->checkVisual()) 
+    return;
+
   // Get our image of history tracks
   cv::Mat img_history;
   msckf_manager->getTracker()->display_history(img_history, 0, 255, 255, 255, 255, 255);
@@ -261,9 +265,9 @@ void RosVisualizer::publishFeatures() {
   pcl_conversions::toPCL(cloud_msg, pc2);
   pcl::fromPCLPointCloud2(pc2, *cloud);
 
+  // //! TEST:
   // saved_pcd += *cloud;
 
-  // //! TEST:
   // if(save_flag) {
   //   save_flag = false;
   //   pcl::io::savePCDFileASCII ("/home/lin/Desktop/test_pcd.pcd", saved_pcd);
