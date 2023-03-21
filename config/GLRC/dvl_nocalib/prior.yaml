@@ -36,7 +36,7 @@ DVL:
   # Default:1.0; Scale factor for DVL measurement effected by sound speed (caused by salinity, temperature...)
   scale: 0.944666667
   # noise on DVL tottom track 3-axis velocity measurement
-  noise_bt: [0.1, 0.1, 0.1]
+  noise_bt: [0.05, 0.1, 0.2]
 
 
 ##################################################################################### 
@@ -49,7 +49,7 @@ PRESSURE:
   mount_angle: 0
   # noise for pressure update
   # default: 0.01
-  noise_pressure: 0.1
+  noise_pressure: 0.01
 
 
 ##################################################################################### 
@@ -81,7 +81,7 @@ CAM0:
   timeoffset_C_I: 0
   camera_model: pinhole
   distortion_model: radtan
-  # unit in pixel: 0.01
+  # unit in pixel: 0.09
   noise: 0.09
   # 
   rostopic: /rov_remote/sensors/stereo/left/image_decompressed

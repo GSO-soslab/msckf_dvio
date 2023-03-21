@@ -12,7 +12,8 @@
 #include <fstream>
 #include <queue>
 #include <limits>
-
+// #undef NDEBUG
+// #include <cassert>
 // 3rd
 #include <pcl/PCLPointCloud2.h>
 #include <pcl/point_types.h>
@@ -144,23 +145,30 @@ private:
    *  @return False: failed to get data
    * 
    */
-  bool getImuForDvl(DvlMsg &dvl_msg,  std::vector<ImuMsg> &imu_msgs);
+  bool getImuForBt(DvlMsg &dvl_msg,  std::vector<ImuMsg> &imu_msgs);
 
-  void doDvlUpdate();
+  /**
+   *  @brief get all the data need for dvl+pressure update, e.g. dvl, pressure, IMU
+   * 
+   *  @param dvl_msg: selected dvl data for this update
+   *  @param pressure_msg: selected pressure data for this update
+   *  @param imu_msgs: selected a series of IMU for propagation
+   * 
+   *  @return True: successfully get data; 
+   *  @return False: failed to get data
+   * 
+   */
+  bool getImuForBtPressure(DvlMsg &dvl_msg,  PressureMsg &pressure_msg, std::vector<ImuMsg> &imu_msgs);
+
+  void doBtUpdate();
 
   void doPressureUpdate();
 
+  void doBtPressureUpdate();
+
   void doDVL();
 
-  void doDvlBT();
-
-  void doPressure();
-
-  void doCameraSlideWindow();
-
   void doCameraKeyframe();
-
-  void doPressure_test();
 
   Sensor selectUpdateSensor();
 

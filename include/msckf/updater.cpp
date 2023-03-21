@@ -122,7 +122,7 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I
 
 
   /********************************************************************************/
-  /****************************** Compute Kalman Gain *****************************/
+  /*************************** Compute residual variance  *************************/
   /********************************************************************************/
   // K = P * H^T * (H * P * H^T + Rn) ^-1
 
@@ -137,17 +137,29 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I
   // S.triangularView<Eigen::Upper>() += Rn;
   S = H * state->cov_ * H.transpose() + Rn;
 
+  /********************************************************************************/
+  /***************************    calculate kalman gain   *************************/
+  /********************************************************************************/
   Eigen::MatrixXd K_transpose = S.ldlt().solve(H * state->cov_);
   Eigen::MatrixXd K = K_transpose.transpose();
   // std::cout<<"H: "<< H<<std::endl;
   // std::cout<<"K: "<< K<<std::endl;
 
   /********************************************************************************/
-  /*************************** Update state and covariance ************************/
+  /***************************       chi2 filtering       *************************/
   /********************************************************************************/
-
   Eigen::Vector3d v_D_hat = temp_1 * temp_3;
   Eigen::Vector3d r = v_D - v_D_hat;
+
+  // Mahalanobis gating test to filter bad measurement
+  if(!chiSquareDvl(S, r)) {
+    return;
+  }
+
+  /********************************************************************************/
+  /*************************** Update state and covariance ************************/
+  /********************************************************************************/
+  
   Eigen::VectorXd delta_X = K * r;
   // std::cout<<"v_D: "<<v_D.transpose()<<std::endl;
   // std::cout<<"v_D_hat: "<<v_D_hat.transpose()<<std::endl;
@@ -157,16 +169,19 @@ void Updater::updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I
 
   // P_k = P_k-1 - K * H * P_k-1
 
-  // state->cov_.triangularView<Eigen::Upper>() -= K * H * state->cov_;
-  // state->cov_ = state->cov_.selfadjointView<Eigen::Upper>();
+  state->cov_.triangularView<Eigen::Upper>() -= K * H * state->cov_;
+  state->cov_ = state->cov_.selfadjointView<Eigen::Upper>();
 
-  Eigen::MatrixXd I_KH = Eigen::MatrixXd::Identity(K.rows(), H.cols()) - K*H;
-  state->cov_ = I_KH*state->cov_;
+  // Eigen::MatrixXd I_KH = Eigen::MatrixXd::Identity(K.rows(), H.cols()) - K*H;
+  // state->cov_ = I_KH*state->cov_;
+  // // Fix the covariance to be symmetric
+  // Eigen::MatrixXd state_cov_fixed = (state->cov_ + state->cov_.transpose()) / 2.0;
+  // state->cov_ = state_cov_fixed;
 
-  // Fix the covariance to be symmetric
-  Eigen::MatrixXd state_cov_fixed = (state->cov_ + state->cov_.transpose()) / 2.0;
-  state->cov_ = state_cov_fixed;
-
+  // assert(!state->foundSPD("dvl_bt_update"));
+  if(state->foundSPD("dvl_bt_update")){
+    std::exit(EXIT_FAILURE);
+  }
 }
 
 void Updater::updateDvlSimple(std::shared_ptr<State> state, const Eigen::Vector3d &w_I, const Eigen::Vector3d &v_D, bool is_simple) {
@@ -477,7 +492,256 @@ void Updater::updateDvlPressureSimple(
   state->cov_ = state_cov_fixed;
 }
 
-void Updater::updatePressureTest(std::shared_ptr<State> state, const double pres_begin, const double pres_curr) {
+// standard EKF update, manually set k_z=1
+void Updater::updatePressure(std::shared_ptr<State> state, const double pres_begin, const double pres_curr, bool is_simple) {
+  /********************************************************************************/
+  /************************* construct Jacobian H matrix **************************/
+  /********************************************************************************/
+
+  // ================ temp values ================ // 
+
+  // depth measurement in pressure sensor frame
+  Eigen::Vector3d p_P;
+  p_P << 0, 0, pres_begin - pres_curr;
+
+  // rotation matrix between DVL and pressure
+  Eigen::Matrix3d R_D_P;
+  R_D_P = Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()) * 
+          Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY()) * 
+          Eigen::AngleAxisd(prior_pressure_.mount_angle, Eigen::Vector3d::UnitX());
+
+  Eigen::Matrix3d R_I_G;
+  R_I_G <<toRotationMatrix(state->getEstimationValue(IMU,EST_QUATERNION));
+  // R_I_G <<
+  //         0.999487,0.000000,-0.032023,
+  //         -0.003259,-0.994808,-0.101722,
+  //         -0.031856,0.101774,-0.994297;
+
+  Eigen::Vector3d p_G_I = state->getEstimationValue(IMU, EST_POSITION).transpose();
+  
+  Eigen::Matrix3d R_I_D = toRotationMatrix(prior_dvl_.extrinsics.head(4));
+
+  // ================ stack H matrix ================ // 
+  int size_measurement = 1;
+  int size_state = state->getCovCols();
+  Eigen::MatrixXd H = Eigen::MatrixXd::Zero(size_measurement, size_state);
+
+  //! TODO: add access of single state id 
+  // auto id_imu_p_z = state->getEstimationId(IMU,EST_POSITION,2);
+  auto id_imu_p_z = 5;
+  H.block(0,id_imu_p_z,1,1) = Eigen::Matrix<double,1,1>(1.0);
+
+  // std::cout<<"H:\n" << H<<std::endl;
+  /********************************************************************************/
+  /****************************** Compute Kalman Gain *****************************/
+  /********************************************************************************/
+
+  // position measurement noise
+  Eigen::Matrix<double,1,1> Rn(prior_pressure_.sigma_pressure * prior_pressure_.sigma_pressure);
+  Eigen::Matrix<double,1,1> Rn1(0.1 * 0.1);
+  Eigen::Matrix<double,1,1> Rn2(0.01 * 0.01);
+
+  // K = P * H^T * (H * P * H^T + Rn) ^-1
+  Eigen::MatrixXd S(size_measurement, size_measurement);
+  S = H * state->cov_ * H.transpose() + Rn;
+  Eigen::MatrixXd K_transpose = S.ldlt().solve(H * state->cov_);
+  Eigen::MatrixXd K = K_transpose.transpose();
+
+  //! TEST: replace K(depth) to 0.9 for update, then convert back
+  // double k_p_z = K(id_imu_p_z, 0);
+  // K(id_imu_p_z, 0) = 0.9;
+
+  //! TEST: replace K(depth) to noise=0.01 for update, then convert back
+  // S = H * state->cov_ * H.transpose() + Rn2;
+  // Eigen::MatrixXd K_transpose_2 = S.ldlt().solve(H * state->cov_);
+  // Eigen::MatrixXd K_2 = K_transpose.transpose();  
+
+  // double k_p_z = K(id_imu_p_z, 0);
+  // K(id_imu_p_z, 0) = K_2(id_imu_p_z, 0);
+
+  //! TEST: replace K(depth) to 1 for update, then convert back
+  double k_p_z = K(id_imu_p_z, 0);
+  K(id_imu_p_z, 0) = 1.0;
+
+  //! TEST: set depth kalman gain to 1
+  // K(id_imu_p_z, 0) = 1.0;
+
+  //! TEST: only p_z noise sigma 0.01, others noise sigma 0.1
+  // Eigen::MatrixXd S(size_measurement, size_measurement);
+  // S = H * state->cov_ * H.transpose() + Rn1;
+  // Eigen::MatrixXd K_transpose = S.ldlt().solve(H * state->cov_);
+  // Eigen::MatrixXd K = K_transpose.transpose();  
+
+  // S = H * state->cov_ * H.transpose() + Rn2;
+  // K_transpose = S.ldlt().solve(H * state->cov_);
+  // Eigen::MatrixXd K_temp = K_transpose.transpose();
+  // K(id_imu_p_z, 0) = K_temp(id_imu_p_z, 0);
+
+  //! TEST:only p_z, others kalman gain is 0
+  // Eigen::MatrixXd K_temp = Eigen::MatrixXd::Zero(size_state,size_measurement);
+  // K_temp(id_imu_p_z, 0) = K(id_imu_p_z, 0);
+  // K = K_temp;
+
+
+  // std::cout<<"pz: "<< state->cov_(id_imu_p_z,id_imu_p_z)<<std::endl;
+  // std::cout<<"K: "<< K.transpose()<<std::endl;
+
+  /********************************************************************************/
+  /***************************** calculate residual *******************************/
+  /********************************************************************************/
+  // update function:
+  // p_G_I = R_G_I * R_I_D * R_D_P * p_P
+  // p_P = R_D_P^T * R_I_D^T * R_G_I^T * p_G_I
+
+  Eigen::Vector3d p_G_I_hat = R_I_G.transpose() * R_I_D * R_D_P * p_P;
+
+  // residual = measurement - estimation
+  Eigen::Matrix<double,1,1> r;
+  r << p_G_I_hat(2) - p_G_I(2);
+  // std::cout<<"r: "<< r<<std::endl;
+
+  /********************************************************************************/
+  /************************ update state and covariance ***************************/
+  /********************************************************************************/
+
+  // d_x = K * r
+  Eigen::VectorXd delta_X = K * r;
+  // std::cout<<"delta_X: "<< delta_X.transpose()<<std::endl;
+
+  state->updateState(delta_X);
+
+  //! TEST: manually set gyro bias z to 0
+  // auto imu_value = state->getImuValue();
+  // imu_value(12) = 0.0;
+  // state->setImuValue(imu_value);
+
+  // update covariance
+
+  // std::cout<<"cov old: \n"<<state->cov_<<std::endl;
+
+  K(id_imu_p_z, 0) = k_p_z;
+
+  // P_k = P_k-1 - K * H * P_k-1
+  Eigen::MatrixXd I_KH = Eigen::MatrixXd::Identity(K.rows(), H.cols()) - K*H;
+  // std::cout<<"I_KH:\n "<< I_KH<<std::endl;
+  state->cov_ = I_KH*state->cov_;
+
+  // Fix the covariance to be symmetric
+  Eigen::MatrixXd state_cov_fixed = (state->cov_ + state->cov_.transpose()) / 2.0;
+  state->cov_ = state_cov_fixed;
+
+  // std::cout<<"cov new: \n"<<state->cov_<<std::endl;
+  if(state->foundSPD("pressure_update")){
+    std::exit(EXIT_FAILURE);
+  }   
+}
+
+void Updater::updatePressureOnly(std::shared_ptr<State> state, const double pres_begin, const double pres_curr, bool is_simple) {
+  /********************************************************************************/
+  /************************* construct Jacobian H matrix **************************/
+  /********************************************************************************/
+
+  // ================ get known information ================ // 
+
+  // depth measurement in pressure sensor frame
+  Eigen::Vector3d p_P;
+  p_P << 0, 0, pres_begin - pres_curr;
+
+  // rotation matrix between DVL and pressure
+  Eigen::Matrix3d R_D_P;
+  R_D_P = Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()) * 
+          Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY()) * 
+          Eigen::AngleAxisd(prior_pressure_.mount_angle, Eigen::Vector3d::UnitX());
+
+  Eigen::Matrix3d R_I_G;
+  R_I_G << toRotationMatrix(state->getEstimationValue(IMU,EST_QUATERNION));
+  // R_I_G <<
+  //          0.999487,0.000000,-0.032023,
+  //         -0.003259,-0.994808,-0.101722,
+  //         -0.031856,0.101774,-0.994297;
+
+  Eigen::Vector3d p_G_I = state->getEstimationValue(IMU, EST_POSITION).transpose();
+  
+  Eigen::Matrix3d R_I_D = toRotationMatrix(prior_dvl_.extrinsics.head(4));
+
+  // ================ stack H matrix ================ // 
+  int size_measurement = 1;
+  int size_state = state->getCovCols();
+  Eigen::MatrixXd H = Eigen::MatrixXd::Zero(size_measurement, size_state);
+
+  //! TODO: add access of single state id 
+  // auto id_imu_p_z = state->getEstimationId(IMU,EST_POSITION,2);
+  auto id_imu_p_z = 5;
+  H.block(0,id_imu_p_z,1,1) = Eigen::Matrix<double,1,1>(1.0);
+
+  // std::cout<<"H:\n" << H<<std::endl;
+  /********************************************************************************/
+  /****************************** Compute Kalman Gain *****************************/
+  /********************************************************************************/
+
+  // position measurement noise
+  Eigen::Matrix<double,1,1> Rn(prior_pressure_.sigma_pressure * prior_pressure_.sigma_pressure);
+
+  // K = P * H^T * (H * P * H^T + Rn) ^-1
+  Eigen::MatrixXd S(size_measurement, size_measurement);
+  S = H * state->cov_ * H.transpose() + Rn;
+  Eigen::MatrixXd K_transpose = S.ldlt().solve(H * state->cov_);
+  Eigen::MatrixXd K = K_transpose.transpose();
+
+  //! TEST:only p_z, others kalman gain is 0
+  Eigen::MatrixXd K_temp = Eigen::MatrixXd::Zero(size_state,size_measurement);
+  K_temp(id_imu_p_z, 0) = K(id_imu_p_z, 0);
+  K = K_temp;
+
+  /********************************************************************************/
+  /***************************** calculate residual *******************************/
+  /********************************************************************************/
+  // update function:
+  // p_G_I = R_G_I * R_I_D * R_D_P * p_P
+  // p_P = R_D_P^T * R_I_D^T * R_G_I^T * p_G_I
+
+  Eigen::Vector3d p_G_I_hat = R_I_G.transpose() * R_I_D * R_D_P * p_P;
+
+  // residual = measurement - estimation
+  Eigen::Matrix<double,1,1> r;
+  r << p_G_I_hat(2) - p_G_I(2);
+  // std::cout<<"r: "<< r<<std::endl;
+
+  /********************************************************************************/
+  /************************ update state and covariance ***************************/
+  /********************************************************************************/
+
+  // d_x = K * r
+  Eigen::VectorXd delta_X = K * r;
+  // std::cout<<"delta_X: "<< delta_X.transpose()<<std::endl;
+
+  state->updateState(delta_X);
+
+  //! TEST: manually set gyro bias z to 0
+  // auto imu_value = state->getImuValue();
+  // imu_value(12) = 0.0;
+  // state->setImuValue(imu_value);
+
+  // update covariance
+
+  // std::cout<<"cov old: \n"<<state->cov_<<std::endl;
+
+  // P_k = P_k-1 - K * H * P_k-1
+  Eigen::MatrixXd I_KH = Eigen::MatrixXd::Identity(K.rows(), H.cols()) - K*H;
+  // std::cout<<"I_KH:\n "<< I_KH<<std::endl;
+  state->cov_ = I_KH*state->cov_;
+
+  // Fix the covariance to be symmetric
+  Eigen::MatrixXd state_cov_fixed = (state->cov_ + state->cov_.transpose()) / 2.0;
+  state->cov_ = state_cov_fixed;
+
+  // std::cout<<"cov new: \n"<<state->cov_<<std::endl;
+  if(state->foundSPD("pressure_update")){
+    std::exit(EXIT_FAILURE);
+  } 
+}
+
+void Updater::updatePressureComplex(std::shared_ptr<State> state, const double pres_begin, const double pres_curr) {
   /********************************************************************************/
   /************************* construct Jacobian H matrix **************************/
   /********************************************************************************/
@@ -487,6 +751,11 @@ void Updater::updatePressureTest(std::shared_ptr<State> state, const double pres
   Eigen::MatrixXd H = Eigen::MatrixXd::Zero(size_measurement, size_state);
 
   /*-------------------- elements need for estimation --------------------*/
+  // rotation matrix between DVL and pressure
+  Eigen::Matrix3d R_D_P;
+  R_D_P = Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()) * 
+          Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY()) * 
+          Eigen::AngleAxisd(prior_pressure_.mount_angle, Eigen::Vector3d::UnitX());
 
   Eigen::Matrix3d R_I_G = toRotationMatrix(state->getEstimationValue(IMU,EST_QUATERNION));
 
@@ -496,12 +765,6 @@ void Updater::updatePressureTest(std::shared_ptr<State> state, const double pres
   Eigen::Matrix3d R_I_D = param_msckf_.do_R_I_D ? 
                           toRotationMatrix(state->getEstimationValue(DVL,EST_QUATERNION)) :
                           toRotationMatrix(prior_dvl_.extrinsics.head(4)); 
-
-  // rotation matrix between DVL and pressure
-  Eigen::Matrix3d R_D_P;
-  R_D_P = Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()) * 
-          Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY()) * 
-          Eigen::AngleAxisd(prior_pressure_.mount_angle, Eigen::Vector3d::UnitX());
 
   // third value selection
   Eigen::Matrix<double, 1, 3> s = {0,0,1};
@@ -646,147 +909,6 @@ void Updater::updatePressureSimple(std::shared_ptr<State> state, const double pr
   // Fix the covariance to be symmetric
   Eigen::MatrixXd state_cov_fixed = (state->cov_ + state->cov_.transpose()) / 2.0;
   state->cov_ = state_cov_fixed;
-}
-
-//! interpolate DVL CP pressure into DVL BT  Velocity, and update together  
-void Updater::updatePressure(std::shared_ptr<State> state, const double pres_begin, const double pres_curr, bool is_simple) {
-  /********************************************************************************/
-  /************************* construct Jacobian H matrix **************************/
-  /********************************************************************************/
-
-  // ================ temp values ================ // 
-
-  // depth measurement in pressure sensor frame
-  Eigen::Vector3d p_P;
-  p_P << 0, 0, pres_begin - pres_curr;
-
-  // rotation matrix between DVL and pressure
-  Eigen::Matrix3d R_D_P;
-  R_D_P = Eigen::AngleAxisd(0, Eigen::Vector3d::UnitZ()) * 
-          Eigen::AngleAxisd(0, Eigen::Vector3d::UnitY()) * 
-          Eigen::AngleAxisd(prior_pressure_.mount_angle, Eigen::Vector3d::UnitX());
-
-  Eigen::Matrix3d R_I_G;
-  R_I_G <<toRotationMatrix(state->getEstimationValue(IMU,EST_QUATERNION));
-  // R_I_G <<
-  //         0.999487,0.000000,-0.032023,
-  //         -0.003259,-0.994808,-0.101722,
-  //         -0.031856,0.101774,-0.994297;
-
-  Eigen::Matrix3d R_I_D = toRotationMatrix(prior_dvl_.extrinsics.head(4));
-
-  Eigen::Vector3d p_G_I = state->getEstimationValue(IMU, EST_POSITION).transpose();
-  
-  // ================ stack H matrix ================ // 
-  int size_measurement = 1;
-  int size_state = state->getCovCols();
-  Eigen::MatrixXd H = Eigen::MatrixXd::Zero(size_measurement, size_state);
-
-  //! TODO: add access of single state id 
-  // auto id_imu_p_z = state->getEstimationId(IMU,EST_POSITION,2);
-  auto id_imu_p_z = 5;
-  H.block(0,id_imu_p_z,1,1) = Eigen::Matrix<double,1,1>(1.0);
-
-  // std::cout<<"H:\n" << H<<std::endl;
-  /********************************************************************************/
-  /****************************** Compute Kalman Gain *****************************/
-  /********************************************************************************/
-
-  // position measurement noise
-  Eigen::Matrix<double,1,1> Rn(prior_pressure_.sigma_pressure * prior_pressure_.sigma_pressure);
-  Eigen::Matrix<double,1,1> Rn1(0.1 * 0.1);
-  Eigen::Matrix<double,1,1> Rn2(0.01 * 0.01);
-
-  // K = P * H^T * (H * P * H^T + Rn) ^-1
-  Eigen::MatrixXd S(size_measurement, size_measurement);
-  S = H * state->cov_ * H.transpose() + Rn;
-  Eigen::MatrixXd K_transpose = S.ldlt().solve(H * state->cov_);
-  Eigen::MatrixXd K = K_transpose.transpose();
-
-  //! TEST: replace K(depth) to 0.9 for update, then convert back
-  // double k_p_z = K(id_imu_p_z, 0);
-  // K(id_imu_p_z, 0) = 0.9;
-
-  //! TEST: replace K(depth) to noise=0.01 for update, then convert back
-  // S = H * state->cov_ * H.transpose() + Rn2;
-  // Eigen::MatrixXd K_transpose_2 = S.ldlt().solve(H * state->cov_);
-  // Eigen::MatrixXd K_2 = K_transpose.transpose();  
-
-  // double k_p_z = K(id_imu_p_z, 0);
-  // K(id_imu_p_z, 0) = K_2(id_imu_p_z, 0);
-
-  //! TEST: replace K(depth) to 1 for update, then convert back
-  double k_p_z = K(id_imu_p_z, 0);
-  K(id_imu_p_z, 0) = 1.0;
-
-  //! TEST: set depth kalman gain to 1
-  // K(id_imu_p_z, 0) = 1.0;
-
-  //! TEST: only p_z noise sigma 0.01, others noise sigma 0.1
-  // Eigen::MatrixXd S(size_measurement, size_measurement);
-  // S = H * state->cov_ * H.transpose() + Rn1;
-  // Eigen::MatrixXd K_transpose = S.ldlt().solve(H * state->cov_);
-  // Eigen::MatrixXd K = K_transpose.transpose();  
-
-  // S = H * state->cov_ * H.transpose() + Rn2;
-  // K_transpose = S.ldlt().solve(H * state->cov_);
-  // Eigen::MatrixXd K_temp = K_transpose.transpose();
-  // K(id_imu_p_z, 0) = K_temp(id_imu_p_z, 0);
-
-  //! TEST:only p_z, others kalman gain is 0
-  // Eigen::MatrixXd K_temp = Eigen::MatrixXd::Zero(size_state,size_measurement);
-  // K_temp(id_imu_p_z, 0) = K(id_imu_p_z, 0);
-  // K = K_temp;
-
-
-  // std::cout<<"pz: "<< state->cov_(id_imu_p_z,id_imu_p_z)<<std::endl;
-  // std::cout<<"K: "<< K.transpose()<<std::endl;
-
-  /********************************************************************************/
-  /***************************** calculate residual *******************************/
-  /********************************************************************************/
-  // update function:
-  // p_G_I = R_G_I * R_I_D * R_D_P * p_P
-  // p_P = R_D_P^T * R_I_D^T * R_G_I^T * p_G_I
-
-  Eigen::Vector3d p_G_I_hat = R_I_G.transpose() * R_I_D * R_D_P * p_P;
-
-  // residual = measurement - estimation
-  Eigen::Matrix<double,1,1> r;
-  r << p_G_I_hat(2) - p_G_I(2);
-  // std::cout<<"r: "<< r<<std::endl;
-
-  /********************************************************************************/
-  /************************ update state and covariance ***************************/
-  /********************************************************************************/
-
-  // d_x = K * r
-  Eigen::VectorXd delta_X = K * r;
-  // std::cout<<"delta_X: "<< delta_X.transpose()<<std::endl;
-
-  state->updateState(delta_X);
-
-  //! TEST: manually set gyro bias z to 0
-  // auto imu_value = state->getImuValue();
-  // imu_value(12) = 0.0;
-  // state->setImuValue(imu_value);
-
-  // update covariance
-
-  // std::cout<<"cov old: \n"<<state->cov_<<std::endl;
-
-  K(id_imu_p_z, 0) = k_p_z;
-
-  // P_k = P_k-1 - K * H * P_k-1
-  Eigen::MatrixXd I_KH = Eigen::MatrixXd::Identity(K.rows(), H.cols()) - K*H;
-  // std::cout<<"I_KH:\n "<< I_KH<<std::endl;
-  state->cov_ = I_KH*state->cov_;
-
-  // Fix the covariance to be symmetric
-  Eigen::MatrixXd state_cov_fixed = (state->cov_ + state->cov_.transpose()) / 2.0;
-  state->cov_ = state_cov_fixed;
-
-  // std::cout<<"cov new: \n"<<state->cov_<<std::endl;
 }
 
 void Updater::marginalize(std::shared_ptr<State> state, Sensor clone_name, int index) {
@@ -1243,7 +1365,7 @@ void Updater::updateCamPart(
     nullspace_project_inplace(H_fj, H_xj, r_j);
 
     // Mahalanobis gating test to filter bad measurement
-    if(!chiSquareTest(state, H_xj, r_j, Hx_order)) {
+    if(!chiSquareCam(state, H_xj, r_j, Hx_order)) {
       printf("chi2 failed: id:%ld \n", (*it2).featid);
       it2 = features.erase(it2);
       continue;
@@ -1563,7 +1685,31 @@ void Updater::nullspace_project_inplace(Eigen::MatrixXd &H_f, Eigen::MatrixXd &H
   assert(H_x.rows() == res.rows());
 }
 
-bool Updater::chiSquareTest(
+bool Updater::chiSquareDvl(const Eigen::MatrixXd &S, const Eigen::VectorXd &r) {
+
+  double gamma = r.dot(S.llt().solve(r));
+
+  // 95% chi^2 table threshold
+  double chi2_check;
+  if (r.rows() < 500) {
+    chi2_check = chi_squared_table[r.rows()];
+  } else {
+    boost::math::chi_squared chi_squared_dist(r.rows());
+    chi2_check = boost::math::quantile(chi_squared_dist, 0.95);
+    printf("Warning: chi2_check over the residual limit - %d\n", (int)r.rows());
+  }
+
+  // Check if we should delete or not
+  if (gamma > chi2_check) {
+    printf("\n ===== DVL BT chi2 failed, gamma=%f,  chi2_check=%f\n", gamma, chi2_check);
+    return false;
+  }
+  else {
+    return true;
+  }
+}
+
+bool Updater::chiSquareCam(
   std::shared_ptr<State> state, const Eigen::MatrixXd &H_x, 
   const Eigen::VectorXd &r, std::vector<std::shared_ptr<Type>> x_order) {
 
@@ -1753,7 +1899,10 @@ void Updater::update(
   state->cov_.triangularView<Eigen::Upper>() -= K * M_a.transpose();
   state->cov_ = state->cov_.selfadjointView<Eigen::Upper>();
 
-  assert(!state->foundSPD("cam_update"));
+  // assert(!state->foundSPD("cam_update"));
+  if(state->foundSPD("cam_update")){
+    std::exit(EXIT_FAILURE);
+  }
 }
 
 } // namespace msckf_dvio
