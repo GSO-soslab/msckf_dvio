@@ -36,8 +36,8 @@ DVL:
   # Default:1.0; Scale factor for DVL measurement effected by sound speed (caused by salinity, temperature...)
   scale: 0.944666667
   # noise on DVL tottom track 3-axis velocity measurement
+  # noise_bt: [0.05, 0.1, 0.2]
   # noise_bt: [0.1, 0.15, 0.2]
-  # noise_bt: [0.05, 0.1, 0.15]
   noise_bt: [0.1, 0.1, 0.1]
 
 
@@ -51,8 +51,8 @@ PRESSURE:
   mount_angle: 0
   # noise for pressure update
   # default: 0.01
-  noise_pressure: 0.1
   # noise_pressure: 0.01
+  noise_pressure: 0.1
 
 
 ##################################################################################### 

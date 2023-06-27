@@ -121,7 +121,7 @@ public:
       // Convert values to the OpenCV format
       for (auto const &cam : camera_calib) {
         // Assert we are of size eight
-        assert(cam.second.rows() == 8);
+        assert(cam.second.rows() >= 8);
         // Camera matrix
         cv::Matx33d tempK;
         tempK(0, 0) = cam.second(0);
@@ -158,7 +158,7 @@ public:
       // Fisheye value
       this->camera_fisheye.at(cam.first) = camera_fisheye.at(cam.first);
       // Assert we are of size eight
-      assert(cam.second.rows() == 8);
+      assert(cam.second.rows() >= 8);
       // Camera matrix
       cv::Matx33d tempK;
       tempK(0, 0) = cam.second(0);

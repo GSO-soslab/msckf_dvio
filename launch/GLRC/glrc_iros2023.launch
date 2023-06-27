@@ -8,7 +8,7 @@
 
   <!-- ======================================== play the dataset ====================================== -->
   <arg name="bag_start" default="0" /> 
-  <arg name="config_path" default="$(find msckf_dvio)/config/GLRC/dvl_nocalib" />
+  <arg name="config_path" default="$(find msckf_dvio)/config/GLRC/iros2023" />
   <arg name="bag" 
        default="/home/lin/develop/data/underIce/GLRC/day_3_13/40m_servo60_noLED_noAR_LowFeq10m/data_dvlCorrect.bag" />
   <node pkg="rosbag" type="play" name="rosbag" args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)" required="true"/>
@@ -67,7 +67,7 @@
   <!-- build with flag: -DCMAKE_BUILD_TYPE=Debug -->
   <!-- add to roslaunch: launch-prefix="gdb -ex run -!-args" -->
   <!-- type: bt -->
-  <node name="dvio_node" pkg="msckf_dvio" type="dvio_node" output="screen" launch-prefix="gdb -ex run --args">
+  <node name="dvio_node" pkg="msckf_dvio" type="dvio_node" output="screen">
       <rosparam command="load" file="$(arg system_yaml)"/>
       <rosparam command="load" file="$(arg prior_yaml)"/>
       <rosparam command="load" file="$(arg init_yaml)"/>

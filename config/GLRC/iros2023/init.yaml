@@ -9,6 +9,9 @@ INIT_MODE: INIT_SETTING
 
 
 ###############################################################################
+
+# brief: only select the sensor given by system.yaml
+
 INIT_SETTING:
   # # Example:
   # SENSOR:
@@ -24,25 +27,25 @@ INIT_SETTING:
   #   intrinsic: [1.0, 2.0, 3.0]
   #   # initialized global transfomration for this sensor: Pressure, Magnetometer, GPS and so on may have this 
   #   global: [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]
-
+  
   IMU:
-    time: 1648667257.549000025
+    time: 1614971124.344753027
     # brief: orientation in quaterion form
-    state: [ -0.998042,-0.000759,-0.061302,0.012362, 
-              0.0000, 0.0000, 0.0000, 
-             -0.047861,-0.006861,-0.026561, 
-             -0.007398,-0.001765,-0.022810, 
-             -0.000676,-0.000716,-0.009552] 
+    state: [-0.998573, 0.000816, 0.015993, 0.050947, 
+                0.0000, 0.0000, 0.0000, 
+               -0.346171, 0.008464, 0.042122, 
+               -0.001849, -0.001689, -0.002033, 
+              #  0.001, 0.001, -0.001, 
+               -0.003053, -0.004853, -0.020769] 
 
   DVL:
-    time: 1648667257.677178383
-    # the timeoffset should not large like this ?
-    temporal: [-0.124145746]
+    time: 1614971124.354732990
+    temporal: [0.000000238]
 
   PRESSURE:
-    time: 1648667257.677178383
-    global: [3.908000]   
- 
+    time: 1614971124.354732990
+    global: [4.453799]    
+
 
 ###############################################################################
 # INIT_STATIC:
@@ -50,18 +53,17 @@ INIT_SETTING:
 
 ###############################################################################
 INIT_DVL_PRESSURE:
-  # Default: 100hz IMU -> 10; 200hz IMU -> 20
-  # TODO: replace with imu_time_duration: 0.1s
+  # Default: 10
   # Note: how many IMU data is selected to detect IMU jump (suddenly move)  
-  imu_window: 20
+  imu_window: 10
 
   # Default: 0.2
   # Note: the IMU variance threshold that indicates IMU jump inclued
-  imu_var: 0.15
+  imu_var: 0.2
 
   # Default: 0.07
   # Note: IMU accleraion difference in x-axis(forward direction) shows at the suddenly movement time
-  imu_delta: 0.2
+  imu_delta: 0.07
 
   # Default: 5
   # Note: how many DVL data is selected to detect DVL jump (suddenly move)  
@@ -73,7 +75,7 @@ INIT_DVL_PRESSURE:
 
   # Default: 1s
   #Note: how many second selected for initialization
-  dvl_init_duration: 2
+  dvl_init_duration: 1
 
 
 ###############################################################################

@@ -51,6 +51,9 @@ State::State(const Params &param) {
         // covariance
         cov_ = 1e-3 * Eigen::MatrixXd::Identity(curr_id, curr_id);
 
+        //! TEST:
+        // cov_(5,5) = 1.0;
+
         break;
       }
 

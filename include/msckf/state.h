@@ -194,7 +194,7 @@ public:
 
     for (int i = 0; i < diags.rows(); i++) {
       if (diags(i) < 0.0) {
-        printf("Covariance %s: - diagonal at %d is %.2f\n", mission.c_str(), i, diags(i));
+        printf("Covariance %s: - diagonal at %d is %.9f\n", mission.c_str(), i+1, diags(i));
         return true;
       }
     }

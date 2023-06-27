@@ -1,6 +1,8 @@
 #ifndef MSCKF_MSCKF_UPDATER_H
 #define MSCKF_MSCKF_UPDATER_H
 
+#include <assert.h> 
+
 #include "types/type_all.h"
 #include "utils/utils.h"
 #include "utils/time_cost.h"
@@ -25,21 +27,9 @@ public:
 
   void updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I, const Eigen::Vector3d &v_D);
 
-  void updateDvlSimple(std::shared_ptr<State> state, const Eigen::Vector3d &w_I, const Eigen::Vector3d &v_D, bool is_simple);
+  void updatePressure(std::shared_ptr<State> state, const double pres_begin, const double pres_curr);
 
-  void updatePressure(std::shared_ptr<State> state, const double pres_begin, const double pres_curr, bool is_simple);
-
-  void updatePressureTest(std::shared_ptr<State> state, const double pres_begin, const double pres_curr);
-  
-  void updatePressureSimple(std::shared_ptr<State> state, const double pres_begin, const double pres_curr);
-
-  void updateDvlPressure(  
-      std::shared_ptr<State> state,const Eigen::Vector3d &w_I, 
-      const Eigen::Vector3d &v_D,const double pres_begin, const double pres_curr);
-
-  void updateDvlPressureSimple(
-      std::shared_ptr<State> state,const Eigen::Vector3d &w_I, 
-      const Eigen::Vector3d &v_D,const double pres_begin, const double pres_curr); 
+  void updatePressureManual(std::shared_ptr<State> state, const double pres_begin, const double pres_curr, int option);
 
   void marginalize(std::shared_ptr<State> state, Sensor clone_name, int index);
 
@@ -68,9 +58,11 @@ public:
 
   void nullspace_project_inplace(Eigen::MatrixXd &H_f, Eigen::MatrixXd &H_x, Eigen::VectorXd &res);
 
-  bool chiSquareTest(
+  bool chiSquareCam(
     std::shared_ptr<State> state, const Eigen::MatrixXd &H_x, 
     const Eigen::VectorXd &r, std::vector<std::shared_ptr<Type>> x_order);
+
+  bool chiSquareDvl(const Eigen::MatrixXd &S, const Eigen::VectorXd &r);
 
   void compress(Eigen::MatrixXd &H_x, Eigen::VectorXd &res);
 

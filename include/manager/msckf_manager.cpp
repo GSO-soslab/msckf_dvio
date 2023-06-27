@@ -117,8 +117,7 @@ void MsckfManager::feedImu(const ImuMsg &data) {
 
 void MsckfManager::feedDvl(const DvlMsg &data) {
   //! TODO: preprocess dvl:
-  //!  1) correct timeoffset: basic substract time transmit from DVl to bottom, check duraction field of df21
-  //!  2) remove spikes noise (Median filtering) and data smoothing (Moving Average Filter)
+  //!  correct timeoffset: basic substract time transmit from DVl to bottom, check duraction field of df21 ?
 
   std::unique_lock<std::mutex> lck(mtx);
 
@@ -306,35 +305,31 @@ void MsckfManager::backend() {
     // choose DVL BT velocity to update IMU
     case DVL: {
 
+      // standard one
       // doDVL();
 
-      // // individual BT veloicty update 
-      // doDvlBT();
-
-      // new individual BT velocity update
-      doDvlUpdate();
+      // individual BT velocity update
+      doBtUpdate();
 
       break;
     }
 
     // choose DVL CP pressure to update IMU
     case PRESSURE: {
-
+      // standard one
       // doDVL();
 
-      // // individual pressure update
-      // doPressure();
-
-      // new individual pressure update
+      // only pressure update
       doPressureUpdate();
+
+      // do interplated BT and pressure 
+      // doBtPressureUpdate();
       
       break;
     }
 
     // choose Camera to update IMU
     case CAM0: {
-
-      // doCameraSlideWindow();
 
       doCameraKeyframe();
 
@@ -405,20 +400,44 @@ Sensor MsckfManager::selectUpdateSensor() {
     }
   }
 
-  // //! TEST:
-  // if(update_sensor == CAM0) {
-  //   printf("Img time: %.9f\n", early_time);
-  // }
-  // if(update_sensor == PRESSURE) {
-  //   printf("pre time: %.9f\n", early_time);
-  // }
-  // if(update_sensor == DVL) {
-  //   printf("vel time: %.9f\n", early_time);
-  // }
-
   mtx.unlock();
 
   return update_sensor;
+}        
+
+void MsckfManager::releaseImuBuffer(double timeline) {
+  std::unique_lock<std::mutex> lck(mtx);
+
+  auto frame = std::find_if(buffer_imu.begin(), buffer_imu.end(),
+                [&](const auto& imu){return imu.time >= timeline;});
+
+  if (frame != buffer_imu.end()){
+    buffer_imu.erase(buffer_imu.begin(), frame);
+  }
+}
+
+void MsckfManager::releaseDvlBuffer(double timeline) {
+  std::unique_lock<std::mutex> lck(mtx);
+
+  auto frame = std::find_if(buffer_dvl.begin(), buffer_dvl.end(),
+                [&](const auto& dvl){return dvl.time >= timeline;});
+
+  if (frame != buffer_dvl.end()){
+    last_dvl = *(frame);
+    buffer_dvl.erase(buffer_dvl.begin(), frame);
+  }     
+
+}
+
+void MsckfManager::releasePressureBuffer(double timeline) {
+  std::unique_lock<std::mutex> lck(mtx);
+
+  auto frame = std::find_if(buffer_pressure.begin(), buffer_pressure.end(),
+                [&](const auto& pressure){return pressure.time >= timeline;});
+
+  if (frame != buffer_pressure.end()) {
+    buffer_pressure.erase(buffer_pressure.begin(), frame);
+  }  
 }
 
 void MsckfManager::doCameraKeyframe() {
@@ -440,7 +459,7 @@ void MsckfManager::doCameraKeyframe() {
   auto time_curr_state = time_curr_sensor + time_offset;
   // make sure sensors data is not eariler then current state
   if(time_curr_state <= time_prev_state) {
-    printf("Manger warning: new image time:%f "
+    printf("\nManger warning: new image time:%f "
            "is eariler then current state time:%f, drop it now!\n",
            time_curr_state, time_prev_state);
 
@@ -480,16 +499,12 @@ void MsckfManager::doCameraKeyframe() {
   // ------------------------------  Do Update ------------------------------ // 
   printf("\ncam t: %.9f\n",time_curr_sensor);
 
-  //! TEST: save data
-  // file.open(file_path, std::ios_base::app);//std::ios_base::app
-  // file<<std::fixed<<std::setprecision(9);
-  // file<<"\nTime:"<<time_curr_sensor<<"\n";
-  // // file<<time_curr_sensor<<",";
-  // file.close();
-
   //// [0] IMU Propagation
   predictor->propagate(state, selected_imu);
-  assert(!state->foundSPD("cam_propagate"));
+  // assert(!state->foundSPD("cam_propagate"));
+  if(state->foundSPD("cam_propagate")){
+    std::exit(EXIT_FAILURE);
+  }
 
   //// [1] State Augmentation: 
   Eigen::Vector3d w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
@@ -501,8 +516,6 @@ void MsckfManager::doCameraKeyframe() {
   bool check_scene = checkScene(time_curr_sensor);
   bool check_adaptive = checkAdaptive();
 
-  // bool insert_clone = check_feature && (check_adaptive && check_scene);
-  // bool insert_clone = check_feature && (check_adaptive || check_scene);
   bool insert_clone = check_feature && (check_motion && check_scene);
   // bool insert_clone = check_feature && (check_motion || check_scene);
 
@@ -517,7 +530,7 @@ void MsckfManager::doCameraKeyframe() {
   std::vector<Feature> feature_keyframe;
   selectFeaturesKeyFrame(time_curr_sensor, feature_keyframe);
 
-  // [] DVL-enhanced depth
+  // [2] DVL-enhanced depth
   enhanceDepth(feature_keyframe);
 
   // [3] Camera Feature Update: feature triangulation, feature update 
@@ -526,27 +539,6 @@ void MsckfManager::doCameraKeyframe() {
 
   // [4] keep marginalization feature measurements
   selectMargMeasurement(feature_keyframe);
-
-  //! TEST: manual set the feature position as truth
-  // if(truth_feature.size()>0) {
-  //   for(auto& f : feature_msckf) {
-  //     // convert feature database if back to original tracking id
-  //     auto id = f.featid - params.tracking.basic.num_aruco - 1;
-  //     if(truth_feature.find(id) != truth_feature.end()) {
-  //       printf("trig: %f,%f,%f\n", f.p_FinG(0),f.p_FinG(1),f.p_FinG(2));
-  //       f.p_FinG = truth_feature.at(id);
-  //       printf("truth: %f,%f,%f\n", f.p_FinG(0),f.p_FinG(1),f.p_FinG(2));
-  //     }
-  //     else {
-  //       printf("\nerror find feat id\n");
-  //     }
-  //   }
-  // }
-
-  //! TEST: manual set the depth of features
-  // for(auto& feat : feature_msckf) {
-  //   feat.p_FinG(2) = 4.2;
-  // }
 
   // update triangulation to the database
   // tracker->get_feature_database()->update_new_triangulation(feature_msckf);
@@ -594,8 +586,6 @@ void MsckfManager::doCameraKeyframe() {
     // tracker->get_feature_database()->cleanup_out_measurements(oldest_time);
   }
 
-
-
   if(state->getEstimationNum(CLONE_CAM0) > 0) {
     // remove outdate feature measurements: remove older then oldest clone timestamp 
     auto oldest_time = state->getCloneTime(CLONE_CAM0, 0);
@@ -604,542 +594,16 @@ void MsckfManager::doCameraKeyframe() {
 
 }
 
-void MsckfManager::doCameraSlideWindow() {
-
-  // ------------------------------  Select Data ------------------------------ // 
-
-  std::vector<ImuMsg> selected_imu;
-  bool do_update = true;
-
-  mtx.lock();
-
-  // [0] select IMU time duration: 
-  // convert sensor time into IMU time
-  auto time_offset = params.msckf.do_time_C_I ? 
-                     state->getEstimationValue(CAM0, EST_TIMEOFFSET)(0) : 
-                     params.prior_cam.timeoffset;
-  auto time_curr_sensor = buffer_time_img.front();
-  auto time_prev_state = state->getTimestamp();
-  auto time_curr_state = time_curr_sensor + time_offset;
-  // make sure sensors data is not eariler then current state
-  if(time_curr_state <= time_prev_state) {
-    printf("Manger warning: new image time:%f "
-           "is eariler then current state time:%f, drop it now!\n",
-           time_curr_state, time_prev_state);
-
-    // erase this image data because bad timestamp
-    buffer_time_img.pop();
-    do_update = false;
-  }
-  mtx.unlock();
-
-  if(!do_update) {
-    return;
-  }
-
-  mtx.lock();
-
-  // make sure IMU data asscoiated with sensor is arrived, means IMU time > current sensor time 
-  auto frame_imu = std::find_if(buffer_imu.begin(), buffer_imu.end(),
-                [&](const auto& imu){return imu.time > time_curr_state ;});
-  if(frame_imu != buffer_imu.end()) {
-    // [1] select IMU
-    selected_imu = selectImu(time_prev_state, time_curr_state);
-    
-    // [2] clean buffer
-    // earse selected IMU data, leave one for interpolation
-    buffer_imu.erase(buffer_imu.begin(), frame_imu-1);  
-    // erase selected image data
-    buffer_time_img.pop();
-  }
-
-  mtx.unlock();
-
-  // if no enough IMU data, just return
-  if(selected_imu.size()<1) {
-    return;
-  }
-
-  // ------------------------------  Do Update ------------------------------ // 
-
-  // printf("do cam\n");
-  // printf("    IMU:%ld\n", selected_imu.size());
-
-  //// [0] IMU Propagation
-  predictor->propagate(state, selected_imu);
-  assert(!state->foundSPD("cam_propagate"));
-
-  //// [1] State Augmentation: 
-  Eigen::Vector3d w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
-
-  // use Last angular velocity for cloning when estimating time offset)
-  if(params.msckf.max_clone_C > 0) {
-    // clone IMU pose, augment covariance
-    predictor->augment(CAM0, CLONE_CAM0, state, time_curr_sensor, w_I);
-  }
-
-  // [2] select tracked features
-  std::vector<Feature> feature_MSCKF;
-  selectFeatures(time_curr_sensor,feature_MSCKF);
-
-  // [3] Camera Feature Update: feature triangulation, feature update 
-  updater->cameraMeasurement(state, feature_MSCKF);
-  updater->updateCam(state, feature_MSCKF);
-  setFeatures(feature_MSCKF);
-
-  //// [4] Marginalization(if reach max clone): 
-  if((params.msckf.max_clone_C > 0) &&
-     (params.msckf.max_clone_C == state->getEstimationNum(CLONE_CAM0))) {
-    // Cleanup any features older then the marginalization time
-    //! TODO: this clean will make memory issue
-    tracker->get_feature_database()->cleanup_measurements(state->getMarginalizedTime(CLONE_CAM0));
-    
-    // remove the clone and related covarinace
-    int index = 0;
-    updater->marginalize(state, CLONE_CAM0, index);
-  }
-
-}
-
-bool MsckfManager::checkScene(double curr_time) {
-
-  // [0] Get last keyframe feature (associated with last clone pose)
-
-  // if no clone exist, then insert current one
-  auto clone_size = state->getEstimationNum(CLONE_CAM0);
-  if(clone_size == 0) {
-    return true;
-  }
-
-  // get latest clone timestamp
-  auto clone_time = state->getCloneTime(CLONE_CAM0, clone_size-1);
-
-  // find feature measurements at last keyframe timestamp
-  std::vector<Feature> key_frame_feat;
-  tracker->get_feature_database()->features_measurement_selected(clone_time, key_frame_feat, true);
-
-  // [1] Get current frame feature
-
-  // find feature measurements at current frame timestamp
-  std::vector<Feature> curr_frame_feat;
-  tracker->get_feature_database()->features_measurement_selected(curr_time, curr_frame_feat, true);
-
-  // [2] Compare
-
-  // find features numbers that tracked from last keyframe
-  int tracked_count = 0;
-  for(const auto& key_feat : key_frame_feat) {
-    for(const auto& curr_feat : curr_frame_feat) {
-      if(key_feat.featid == curr_feat.featid) {
-        tracked_count ++;
-        break;
-      }
-    }
-  }
-
-  // compare with parameters ratio
-  double ratio = tracked_count / curr_frame_feat.size();
-
-  // if(ratio < params.keyframe.scene_ratio) {
-  if(ratio <= params.keyframe.scene_ratio) {
-    return true;
-  }
-  else {
-    // printf("ratio:%f\n", ratio);
-    return false;
-  }
-}
-
-bool MsckfManager::checkFeatures(double curr_time) {
-  // find feature measurements at current frame timestamp
-  std::vector<Feature> curr_frame_feat;
-  tracker->get_feature_database()->features_measurement_selected(curr_time, curr_frame_feat, true);
-
-  // only the detected feature reach the minimum requirement 
-  if(curr_frame_feat.size() < params.keyframe.min_tracked) {
-    return false;
-  }
-  else {
-    return true;
-  }
-}
-
-bool MsckfManager::checkAdaptive() {
-  // [0] if no clone exist, then insert current one
-  auto clone_size = state->getEstimationNum(CLONE_CAM0);
-  if(clone_size == 0) {
-    return true;
-  }
-
-  // [1] Get constrain 
-
-  // get current vehilce velocity
-  Eigen::Vector3d v_G_I = state->getEstimationValue(IMU, EST_VELOCITY);
-
-  double v_xy = sqrt(v_G_I(0)*v_G_I(0) + v_G_I(1)*v_G_I(1));
-
-  // get constrain
-  double D = params.keyframe.adaptive_factor * pow(v_xy, params.keyframe.adaptive_power);
-
-  // [2] Get distance between current frame and latest keyframe
-
-  // get latest clone pose 
-  Eigen::VectorXd pose = state->getClonePose(CLONE_CAM0, clone_size-1);   
-  Eigen::Matrix3d R_Ii_G = toRotationMatrix(pose.block(0,0,4,1));
-  Eigen::Vector3d p_G_Ii = pose.block(4,0,3,1);
-
-  // get current IMU pose
-  Eigen::Vector3d p_G_Ij = state->getEstimationValue(IMU, EST_POSITION);
-
-  // get 2D or 3D distance
-  double distance = 0;
-  if(params.keyframe.motion_space == 2) {
-    // the disance from Ij to Ii at global frame
-    // p_Ii_Ij = p_G_Ij - p_G_Ii 
-    Eigen::Vector3d p_Ii_Ij = p_G_Ij - p_G_Ii;
-
-    distance = sqrt(p_Ii_Ij(0)*p_Ii_Ij(0) + p_Ii_Ij(1)*p_Ii_Ij(1));
-  }
-  else if (params.keyframe.motion_space == 3) {
-    // the disance from Ij to Ii at Ii frame
-    // p_Ii_Ij = R_G_Ii^T (p_G_Ij - p_G_Ii)
-    Eigen::Vector3d p_Ii_Ij = R_Ii_G * (p_G_Ij - p_G_Ii);
-
-    distance = sqrt(p_Ii_Ij(0)*p_Ii_Ij(0) + p_Ii_Ij(1)*p_Ii_Ij(1) + p_Ii_Ij(2)*p_Ii_Ij(2));
-  }
-
-  if(distance >= D) {
-    // printf("adaptive: yes\n");
-    return true;
-  }
-  else {
-    return false;
-  }
-}
-
-bool MsckfManager::checkMotion() {
-  // if no clone exist, then insert current one
-  auto clone_size = state->getEstimationNum(CLONE_CAM0);
-  if(clone_size == 0) {
-    return true;
-  }
-
-  // get clone pose 
-  Eigen::VectorXd pose = state->getClonePose(CLONE_CAM0, clone_size-1);   
-  Eigen::Matrix3d R_Ii_G = toRotationMatrix(pose.block(0,0,4,1));
-  Eigen::Vector3d p_G_Ii = pose.block(4,0,3,1);
-
-  // get current IMU pose
-  Eigen::Vector3d p_G_Ij = state->getEstimationValue(IMU, EST_POSITION);
-
-  // caculate distance between latest clone and current pose
-  //! TODO: better method to determine pose constraint ?
-  //! TODO: two-way marginalization from S. Shen et. al. 2014 ISER Initialization-free VIO
-
-  double distance = 0;
-  if(params.keyframe.motion_space == 2) {
-    // the disance from Ij to Ii at global frame
-    // p_Ii_Ij = p_G_Ij - p_G_Ii 
-    Eigen::Vector3d p_Ii_Ij = p_G_Ij - p_G_Ii;
-
-    distance = sqrt(p_Ii_Ij(0)*p_Ii_Ij(0) + p_Ii_Ij(1)*p_Ii_Ij(1));
-  }
-  else if (params.keyframe.motion_space == 3) {
-    // the disance from Ij to Ii at Ii frame
-    // p_Ii_Ij = R_G_Ii^T (p_G_Ij - p_G_Ii)
-    Eigen::Vector3d p_Ii_Ij = R_Ii_G * (p_G_Ij - p_G_Ii);
-
-    distance = sqrt(p_Ii_Ij(0)*p_Ii_Ij(0) + p_Ii_Ij(1)*p_Ii_Ij(1) + p_Ii_Ij(2)*p_Ii_Ij(2));
-  }
-
-  if(distance >= params.keyframe.frame_motion) {
-    return true;
-  }
-  else {
-    return false;
-  }
-}
-
-bool MsckfManager::checkFrameCount() {
-  // update count of image frames
-  frame_count ++;
-
-  if(frame_count >= params.keyframe.frame_count) {
-    frame_count = 0;
-    return true;
-  }
-  else {
-    return false;
-  }
-}                  
-        
-
-void MsckfManager::releaseImuBuffer(double timeline) {
-  std::unique_lock<std::mutex> lck(mtx);
-
-  auto frame = std::find_if(buffer_imu.begin(), buffer_imu.end(),
-                [&](const auto& imu){return imu.time >= timeline;});
-
-  if (frame != buffer_imu.end()){
-    buffer_imu.erase(buffer_imu.begin(), frame);
-  }
-}
-
-void MsckfManager::releaseDvlBuffer(double timeline) {
-  std::unique_lock<std::mutex> lck(mtx);
-
-  auto frame = std::find_if(buffer_dvl.begin(), buffer_dvl.end(),
-                [&](const auto& dvl){return dvl.time >= timeline;});
-
-  if (frame != buffer_dvl.end()){
-    last_dvl = *(frame);
-    buffer_dvl.erase(buffer_dvl.begin(), frame);
-  }     
-
-}
-
-void MsckfManager::releasePressureBuffer(double timeline) {
-  std::unique_lock<std::mutex> lck(mtx);
-
-  auto frame = std::find_if(buffer_pressure.begin(), buffer_pressure.end(),
-                [&](const auto& pressure){return pressure.time >= timeline;});
-
-  if (frame != buffer_pressure.end()) {
-    buffer_pressure.erase(buffer_pressure.begin(), frame);
-  }  
-}
-
-void MsckfManager::setFeatures(std::vector<Feature> &features) {
-  std::unique_lock<std::mutex> lck(mtx);
-
-  // get feature
-  for (size_t f = 0; f < features.size(); f++) {
-    // setup feature position: enhaced + not enhanced
-    Eigen::Vector3d color;
-    if(features[f].anchor_clone_depth == 0) {
-      // red for normal triangulation
-      color << 255,0,0;
-    }
-    else {
-      // green for depth enhanced
-      color << 0,255,0;
-    }
-    trig_feat.emplace_back(std::make_tuple(features[f].p_FinG, color));
-
-    // setup the original features
-    // trig_feat.emplace_back(std::make_tuple(features[f].p_FinG_original, 
-    //                                        Eigen::Vector3d(255,0,0)));
-  }
-}
-
-std::vector<std::tuple<Eigen::Vector3d, Eigen::Vector3d>> MsckfManager::getFeatures() {
-  std::unique_lock<std::mutex> lck(mtx);
-
-  std::vector<std::tuple<Eigen::Vector3d, Eigen::Vector3d>> out_trig_feat;
-
-  // copy triangulated message
-  std::copy(trig_feat.begin(), trig_feat.end(), std::back_inserter(out_trig_feat)); 
-
-  // clean
-  std::vector<std::tuple<Eigen::Vector3d, Eigen::Vector3d>>().swap(trig_feat);
-
-  return out_trig_feat;
-}
-
-
-void MsckfManager::doDvlBT() {
-
-  // ------------------------------  Select Data ------------------------------ // 
-
-  std::vector<ImuMsg> selected_imu;
-  DvlMsg selected_dvl;
-
-  mtx.lock();
-
-  // [0] select DVL
-  selected_dvl = buffer_dvl.front();
-
-  // [1] select IMU time duration: 
-  // convert sensor time into IMU time
-  auto time_offset = params.msckf.do_time_I_D ? 
-                     state->getEstimationValue(DVL, EST_TIMEOFFSET)(0) : 
-                     params.prior_dvl.timeoffset;
-  auto time_curr_sensor = selected_dvl.time;
-  auto time_prev_state = state->getTimestamp();
-  auto time_curr_state = time_curr_sensor + time_offset;
-  // make sure sensor data is not eariler then current state
-  if(time_curr_state <= time_prev_state) {
-    printf("Manger error: DVL BT time:%f is eariler then current state time:%f, drop it now!\n",
-            time_curr_state, time_prev_state);
-    std::exit(EXIT_FAILURE);
-  }
-
-  //// make sure IMU data asscoiated with sensor is arrived, means IMU time > current sensor time 
-  auto frame_imu = std::find_if(buffer_imu.begin(), buffer_imu.end(),
-                [&](const auto& imu){return imu.time > time_curr_state ;});
-  if(frame_imu != buffer_imu.end()) {
-    // [2] select IMU
-    selected_imu = selectImu(time_prev_state, time_curr_state);
-
-    // [3] clean buffer
-    // erase selected IMU, but leave one for next interpolate
-    buffer_imu.erase(buffer_imu.begin(), frame_imu-1);  
-    // erase selected dvl
-    buffer_dvl.erase(buffer_dvl.begin());
-  }
-
-  mtx.unlock();
-
-  // ------------------------------  Do update ------------------------------ // 
-
-  // if no enough IMU data, just return
-  if(selected_imu.size()<1) {
-    return;
-  }
-  printf("\nDVL:%ld\n", selected_imu.size());
-
-  // [0] IMU Propagation
-  predictor->propagate(state, selected_imu);
-  assert(!state->foundSPD("dvl_bt_propagate"));
-
-  // [1] State Augment: clone IMU pose, augment covariance
-  Eigen::Vector3d last_w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
-  Eigen::Vector3d last_v_D = selected_dvl.v;
-  // use Last angular velocity for cloning when estimating time offset)
-  if(params.msckf.max_clone_D > 0)
-    predictor->augmentDvl(state, time_curr_sensor, last_w_I);
-
-  // [2] State Update
-  updater->updateDvl(state, last_w_I, last_v_D);
-  // updater->updateDvlSimple(state, last_w_I, last_v_D, true);
-
-  // [3] Marginalization: if reach the max clones, remove the clone and related covarinace
-  if( (params.msckf.max_clone_D > 0) &&
-      (params.msckf.max_clone_D < state->getEstimationNum(CLONE_DVL)) ) {
-    int index = 0;
-    updater->marginalize(state, CLONE_DVL, index);
-  }
-
-}
-
-/** 
- * @brief do the pressure data update for states  
- *
- * @details 1) interpolate velocity at pressure time; 
- *          2) do both veloicty and position update; 
- * 
- * @todo add pressure as individual sensor setup, e.g. prior information, not from DVL
- */
-void MsckfManager::doPressure() {
-
-  // ------------------------------  Select Data ------------------------------ // 
-
-  std::vector<ImuMsg> selected_imu;
-  PressureMsg selected_pres;
-  DvlMsg selected_dvl;
-
-  getDataForPressure(selected_pres, selected_dvl, selected_imu);
-
-  // mtx.lock();
-
-  // // make sure has new DVL velocity after Pressure data 
-  // // because pressure only update with velocity or interpolated velocity
-  // if((buffer_dvl.size() > 0) && 
-  //    (buffer_pressure.front().time <= buffer_dvl.front().time)) {
-
-  //   // [0] select pressure 
-  //   selected_pres = buffer_pressure.front();
-
-  //   // [3] select DVL
-  //   printf("last dvl t:%f\n",last_dvl.time);
-  //   printf("dvl size:%ld, front time:%f\n", buffer_dvl.size(), buffer_dvl.front().time);
-  //   printf("pressure t: %f\n",selected_pres.time);
-
-  //   selected_dvl = interpolateDvl(last_dvl, buffer_dvl.front(), selected_pres.time);
-
-  //   // [1] select IMU time duration
-  //   // convert sensor time into IMU time
-  //   auto offset = params.msckf.do_time_I_D ? 
-  //                 state->getEstimationValue(DVL, EST_TIMEOFFSET)(0) : 
-  //                 params.prior_dvl.timeoffset;
-  //   double time_prev_state = state->getTimestamp();
-  //   double time_curr_state = selected_pres.time + offset;
-  //   // make sure sensor data is not eariler then current state
-  //   if(time_curr_state <= time_prev_state) {
-  //     printf("Manger error: new pressure measurement time:%f" 
-  //            "is eariler then current state time:%f\n",
-  //            time_curr_state, time_prev_state);
-  //     std::exit(EXIT_FAILURE);
-  //   }
-
-  //   // make sure IMU data asscoiated with sensor is arrived, means IMU time > current sensor time 
-  //   auto frame_imu = std::find_if(buffer_imu.begin(), buffer_imu.end(),
-  //                 [&](const auto& imu){return imu.time > time_curr_state ;});
-  //   if(frame_imu != buffer_imu.end()) {
-  //     // [2] select IMU
-  //     selected_imu = selectImu(time_prev_state, time_curr_state);
-
-  //     // [4] clean buffer
-  //     // erase selected pressure
-  //     buffer_pressure.erase(buffer_pressure.begin());
-  //     // erase selected IMU, but leave one for next interpolate
-  //     buffer_imu.erase(buffer_imu.begin(), frame_imu-1);   
-  //     // store for next interpolate, 
-  //     last_dvl = buffer_dvl.front(); 
-  //     // only erase selected DVL if velocity and pressure at same timestamp(e.g. both from DVL BT)
-  //     if(buffer_pressure.front().time == buffer_dvl.front().time) {
-  //       buffer_dvl.erase(buffer_dvl.begin());  
-  //     }
-  //   }
-  // }
-
-  // mtx.unlock();
-
-  // ------------------------------  Update ------------------------------ // 
-
-  // if no enough IMU data, just return
-  if(selected_imu.size()<1) {
-    return;
-  }
-  printf("\nPressure:%ld\n", selected_imu.size());
-
-  // [0] IMU propagation
-  predictor->propagate(state, selected_imu);
-  assert(!state->foundSPD("pressure_propagate"));
-
-  // auto imu_value = getNewImuState();
-  // printf("imu0:q=%f,%f,%f,%f,p:%f,%f,%f\n",imu_value(0),imu_value(1),imu_value(2),imu_value(3)
-  //         ,imu_value(4),imu_value(5),imu_value(6));
-
-  // [1] State Update with velocity(interpolated or same time)
-  Eigen::Vector3d last_w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
-  Eigen::Vector3d last_v_D = selected_dvl.v;
-  updater->updateDvl(state, last_w_I, last_v_D);
-  // updater->updateDvlSimple(state, last_w_I, last_v_D, true);
-
-  // std::cout<<"v_D: "<< last_v_D.transpose()<<std::endl;
-  // imu_value = getNewImuState();
-  // printf("imu1:q=%f,%f,%f,%f,p:%f,%f,%f\n",imu_value(0),imu_value(1),imu_value(2),imu_value(3)
-  //         ,imu_value(4),imu_value(5),imu_value(6));
-
-  // [2] State Update with Pressure
-  // get the begin pressure value
-  double pres_init = state->getPressureInit();
-  double pres_curr = selected_pres.p;
-  // update
-  updater->updatePressure(state, pres_init, pres_curr, true);
-
-}
-
-void MsckfManager::doDvlUpdate() {
+void MsckfManager::doBtUpdate() {
 
   // [0] get data
   DvlMsg selected_dvl;
   std::vector<ImuMsg> selected_imu;
 
-  if(!getImuForDvl(selected_dvl, selected_imu)) {
+  if(!getImuForBt(selected_dvl, selected_imu)) {
     return;
   }
+  printf("\nDVL BT t: %.9f\n",selected_dvl.time);
 
   // [1] IMU propagation
   predictor->propagate(state, selected_imu);
@@ -1156,10 +620,10 @@ void MsckfManager::doDvlUpdate() {
 
   // update
   updater->updateDvl(state, last_w_I, last_v_D);
-  // updater->updateDvlSimple(state, last_w_I, last_v_D, true);
 }
 
 void MsckfManager::doPressureUpdate() {
+
   // [0] get data
   PressureMsg selected_pressure;
   std::vector<ImuMsg> selected_imu;
@@ -1167,6 +631,8 @@ void MsckfManager::doPressureUpdate() {
     return;
   }
   
+  printf("\nDVL Pressure t: %.9f\n", selected_pressure.time);
+
   // [1] IMU propagation
   predictor->propagate(state, selected_imu);
   // We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d)
@@ -1179,12 +645,46 @@ void MsckfManager::doPressureUpdate() {
   // get the begin pressure value
   double pres_init = state->getPressureInit();
   double pres_curr = selected_pressure.p;
-  // update
-  updater->updatePressure(state, pres_init, pres_curr, true);  
+
+  updater->updatePressureManual(state, pres_init, pres_curr, 2);  
 }
 
-//! TODO: DVL/pressure can still update without IMU propagation
-//!       check how many IMU inside DVL/pressure update
+void MsckfManager::doBtPressureUpdate() {
+  // [0] get data
+  DvlMsg selected_dvl;
+  PressureMsg selected_pressure;
+  std::vector<ImuMsg> selected_imu;
+  if(!getImuForBtPressure(selected_dvl, selected_pressure, selected_imu)) {
+    return;
+  }
+
+  printf("\nDVL Pressure t: %.9f\n", selected_pressure.time);
+
+  // [1] IMU propagation
+  predictor->propagate(state, selected_imu);
+  // We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d)
+  if(state->foundSPD("dvl_pressure_propagate")){
+    std::exit(EXIT_FAILURE);
+  }
+
+  // [2]  State Update with DVL BT
+
+  // Last angular velocity and linear velocity
+  Eigen::Vector3d last_w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
+  Eigen::Vector3d last_v_D = selected_dvl.v;
+
+  // update DVL bt 
+  updater->updateDvl(state, last_w_I, last_v_D);
+
+  // [3] State Update with DVL Pressure
+
+  // get the begin pressure value
+  double pres_init = state->getPressureInit();
+  double pres_curr = selected_pressure.p;
+  // update
+  updater->updatePressure(state, pres_init, pres_curr);  
+}
+
 void MsckfManager::doDVL() {
 
 /**************************************************/
@@ -1223,9 +723,8 @@ void MsckfManager::doDVL() {
   mtx.lock();
 
   if(buffer_pressure.size() > 0 && 
-    //  buffer_pressure.front().time < buffer_dvl.front().time &&
      buffer_pressure.front().time <= state->getTimestamp()){
-    //// this pressure timetsamp is wrong: maybe dely by ros callback, should be process by previous velocity
+    //// this pressure timetsamp is wrong: maybe delay by ros callback, should be process by previous velocity
 
     printf("Manager warning: pressure time:%f is before state time:%f\n, drop it now!", 
             buffer_pressure.front().time, state->getTimestamp());
@@ -1233,7 +732,7 @@ void MsckfManager::doDVL() {
   }
   else if(buffer_pressure.size() > 0 && buffer_dvl.size() > 0 &&
           buffer_pressure.front().time < buffer_dvl.front().time){
-    // printf("do intepolated velocity-pressure \n");
+    printf("\ndo intepolated velocity-pressure \n");
 
     //// pressure earlier then velocity: 
     ////    pressure not measure same time as velocity(CP-pressure, or individual pressure sensor)
@@ -1249,7 +748,7 @@ void MsckfManager::doDVL() {
   }
   else if(buffer_pressure.size() > 0 && buffer_dvl.size() > 0 &&
           buffer_pressure.front().time == buffer_dvl.front().time){
-    // printf("do same velocity-pressure \n");
+    printf("\ndo pressure + velocty\n");
 
     //// pressure same as velocity: 
     ////    pressure measure same time as velocity(CP-pressure and CP-velocity)
@@ -1267,10 +766,8 @@ void MsckfManager::doDVL() {
     erase_velocity = true;
   }
   else if(
-          // buffer_pressure.size() == 0 ||
-          // buffer_pressure.front().time > buffer_dvl.front().time)
           buffer_dvl.size() > 0)  {
-    // printf("do pure velocty\n");
+    printf("\ndo pure velocty\n");
 
     //// pure DVL update
 
@@ -1283,30 +780,6 @@ void MsckfManager::doDVL() {
     last_dvl = buffer_dvl.front(); 
     erase_velocity = true;
   }
-  // else{
-  //   printf("\n---------------\nDVL-BT-Velocity:\n");
-  //   if(buffer_dvl.size()>0){
-  //     for(const auto &data: buffer_dvl)
-  //       printf("t: %f, ", data.time);
-  //   }
-
-  //   printf("\nDVL-CP-Pressure:\n");
-  //   if(buffer_pressure.size()>0){
-  //     for(const auto &data: buffer_pressure)
-  //       printf("t: %f, ", data.time);
-  //   }
-  // }
-
-
-  //! TEST: for only IMU-Velocity MSCKF
-  // new_dvl = buffer_dvl.front();
-  // do_velocity = true;
-
-  // printf("do IMU propagation + velocty update\n");
-
-  // // clean buffer
-  // last_dvl = buffer_dvl.front(); 
-  // erase_velocity = true;
 
   mtx.unlock();
 
@@ -1367,43 +840,29 @@ void MsckfManager::doDVL() {
     }
     
   }
-  // else{
-  //   printf("Manger warning: current IMU time:%f not > current sensor time:%f\n", buffer_imu.back().time, time_curr_state);
-  // }
 
   mtx.unlock();
 
   /******************** imu propagation + velocity update + pressure update(if)********************/
 
   if(selected_imu.size()>0){
-    // printf("    IMU:%ld\n\n", selected_imu.size());
     // IMU propagation
     predictor->propagate(state, selected_imu);
     // We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d)
-    assert(!state->foundSPD("dvl_propagate"));
+    // assert(!state->foundSPD("dvl_propagate"));
+    if(state->foundSPD("dvl_propagate")){
+      std::exit(EXIT_FAILURE);
+    }
 
-    //! TEST: just for pure IMU 
+    // just for pure IMU 
     if(do_velocity){
 
       // Last angular velocity and linear velocity
       Eigen::Vector3d last_w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
       Eigen::Vector3d last_v_D = new_dvl.v;
 
-      //// use Last angular velocity for cloning when estimating time offset)
-      if(params.msckf.max_clone_D > 0)
-        predictor->augmentDvl(state, time_curr_sensor, last_w_I);
-
       // update
       updater->updateDvl(state, last_w_I, last_v_D);
-      // updater->updateDvlSimple(state, last_w_I, last_v_D, true);
-
-      // marginalize 
-      // if max clone of DVL is reached, then do the marginalize: remove the clone and related covarinace
-      if( (params.msckf.max_clone_D > 0) &&
-          (params.msckf.max_clone_D < state->getEstimationNum(CLONE_DVL)) ) {
-        int index = 0;  
-        updater->marginalize(state, CLONE_DVL, index);
-      }
     }
 
     if(do_pressure){
@@ -1412,121 +871,13 @@ void MsckfManager::doDVL() {
       double pres_curr = new_pres.p;
 
       // update
-      // updater->updatePressureSimple(state, pres_init, pres_curr);
-      updater->updatePressure(state, pres_init, pres_curr, true);
+      updater->updatePressure(state, pres_init, pres_curr);
     }
-
-    // //! TEST: update velocity and pressure at same time
-    // if(do_velocity && do_pressure) {
-    //   // Last angular velocity and linear velocity
-    //   Eigen::Vector3d last_w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
-    //   Eigen::Vector3d last_v_D = new_dvl.v;
-
-    //   // get the begin pressure value
-    //   double pres_init = state->getPressureInit();
-    //   double pres_curr = new_pres.p;
-
-    //   updater->updateDvlPressureSimple(state,last_w_I, last_v_D, pres_init, pres_curr);
-    //   // updater->updateDvlPressure(state,last_w_I, last_v_D, pres_init, pres_curr);
-    // }
-    // else if (do_velocity) {
-    //   // Last angular velocity and linear velocity
-    //   Eigen::Vector3d last_w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
-    //   Eigen::Vector3d last_v_D = new_dvl.v;
-
-    //   // update
-    //   // updater->updateDvl(state, last_w_I, last_v_D);
-    //   updater->updateDvlSimple(state, last_w_I, last_v_D, true);
-    // }
     
   }
 
 }
 
-void MsckfManager::doPressure_test() {
-
-  /********************* no imu propagation ********************/
-  // // select pressure data
-  // PressureMsg selected_pres = buffer_pressure.front();
-  // buffer_pressure.erase(buffer_pressure.begin());
-
-  // // get the begin pressure value
-  // double pres_init = state->getPressureInit();
-  // double pres_curr = selected_pres.p;
-
-  // // update
-  // updater->updatePressure(state, pres_init, pres_curr, true);
-
-
-  /******************** IMU propagation, pressure update ********************/
-
-  //! TODO: deal with pressure from BT, no need propagation
-  //// if state time = pressure time: (pressure from BT)
-  ////    means pressure data from DVL BT, IMU alredy propagated in DVL update 
-  //// if state time < pressure time: (pressure from CP)
-  ////    means pressure data from individual pressure sensing(individual pressure sensor or pressure from CP) 
-
-  PressureMsg selected_pres;
-  std::vector<ImuMsg> selected_imu;
-
-  mtx.lock();
-
-  //// select first pressure data
-  selected_pres = buffer_pressure.front();
-
-  //// deal with pressure from CP
-  //// determine selected IMU range, from last updated to current sensor measurement
-  auto offset = params.msckf.do_time_I_D ? 
-                state->getEstimationValue(DVL, EST_TIMEOFFSET)(0) : 
-                params.prior_dvl.timeoffset;
-  double time_prev_state = state->getTimestamp();
-  double time_curr_state = selected_pres.time + offset;
-
-  //// make sure sensors data is not eariler then current state
-  if(time_curr_state <= time_prev_state) {
-    printf("Manger error: new pressure measurement time:%f is eariler then current state time:%f\n",
-            time_curr_state, time_prev_state);
-    // std::exit(EXIT_FAILURE);
-  }
-
-  //// make sure IMU data asscoiated with sensor is arrived, means IMU time > current sensor time 
-  auto frame_imu = std::find_if(buffer_imu.begin(), buffer_imu.end(),
-                [&](const auto& imu){return imu.time > time_curr_state ;});
-  if(frame_imu != buffer_imu.end()) {
-    //// make sure we have at least 2 IMU data
-    selected_imu = selectImu(time_prev_state, time_curr_state);
-
-    // earse selected sensor measurement
-    buffer_pressure.erase(buffer_pressure.begin());
-    // earse selected IMU data
-    // leave one IMU data time <= current state time, so we can interploate later
-    buffer_imu.erase(buffer_imu.begin(), frame_imu-1);      
-  }
-
-  mtx.unlock();
-
-
-  /******************** do pressure msckf update ********************/
-
-  if(selected_imu.size() > 0){
-    printf("do IMU propagtion + pressure update\n");
-
-    predictor->propagate(state, selected_imu);
-
-    // We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d)
-    assert(!state->foundSPD("press_test_propagate"));
-
-    // get the begin pressure value
-    double pres_init = state->getPressureInit();
-    double pres_curr = selected_pres.p;
-
-    // update
-    updater->updatePressure(state, pres_init, pres_curr, true);
-
-  }
-
-
-}
 
 std::vector<ImuMsg> MsckfManager::selectImu(double t_begin, double t_end) {
 
@@ -1593,39 +944,6 @@ void MsckfManager::selectFeaturesKeyFrame(
     tracker->get_feature_database()->features_selected(time_oldest, feat_keyframe, false, true);
   }
 
-  // printf("===== select marg =====\n");
-  // for(const auto& f : feat_keyframe) {
-  //   printf("id:%ld, size:%ld\n", f.featid, f.timestamps.at(0).size());
-  //   for(const auto& t : f.timestamps.at(0)) {
-  //     printf("  t=%.9f, ", t);
-  //   }
-  //   printf("\n");
-  // }
-
-  //! TEST: save data -- check how many features are detected as marg features
-  // std::vector<Feature> feat_marg_test;
-  // if(state->getEstimationNum(CLONE_CAM0) == params.msckf.max_clone_C) {
-  //   // Grab marg index 0 of slide window
-  //   // get oldest clone time
-  //   auto index = 0;
-  //   auto time_oldest = state->getCloneTime(CLONE_CAM0, index);
-  //   // get feature contain this marg time
-  //   tracker->get_feature_database()->features_selected(time_oldest, feat_marg_test, false, true);
-  // }
-
-  // file.open(file_path, std::ios_base::app);//std::ios_base::app
-
-  // // file<<std::fixed<<std::setprecision(9);
-  // file<<feat_marg_test.size()<<",";
-
-  // std::string id_str;
-  // for(const auto& feat : feat_marg_test) {
-  //   id_str += std::to_string(feat.featid) + '-';
-  // }
-  // file<<id_str<<"\n";
-
-  // file.close();
-
   // --------------------------- Filter non-keyframe or bad measurements -------------------------- //
 
   // get clone timestamp
@@ -1635,11 +953,6 @@ void MsckfManager::selectFeaturesKeyFrame(
   for( size_t index = 0; index < clone_num; index++ ){
     clone_times.push_back(state->getCloneTime(CLONE_CAM0, index));
   }
-  // printf("clone time: \n");
-  // for(const auto& t : clone_times) {
-  //   printf("  t=%.9f, ", t);
-  // }
-  // printf("\n");
 
   // filter features: 
   auto it0 = feat_keyframe.begin();
@@ -1661,15 +974,6 @@ void MsckfManager::selectFeaturesKeyFrame(
 
     it0++;
   }
-
-  // printf("===== filter nonKeyframe =====\n");
-  // for(const auto& f : feat_keyframe) {
-  //   printf("id:%ld, size:%ld\n", f.featid, f.timestamps.at(0).size());
-  //   for(const auto& t : f.timestamps.at(0)) {
-  //     printf("  t=%.9f, ", t);
-  //   }
-  //   printf("\n");
-  // }  
 
   // --------------------------- Determine the anchor -------------------------- //
 
@@ -1906,7 +1210,7 @@ void MsckfManager::selectMargMeasurement(std::vector<Feature> &feat_keyframe) {
 
 }
 
-bool MsckfManager::getImuForDvl(DvlMsg &dvl_msg,  std::vector<ImuMsg> &imu_msgs) {
+bool MsckfManager::getImuForBt(DvlMsg &dvl_msg,  std::vector<ImuMsg> &imu_msgs) {
   std::unique_lock<std::mutex> lck(mtx);
 
   // [0] select DVL
@@ -1923,7 +1227,7 @@ bool MsckfManager::getImuForDvl(DvlMsg &dvl_msg,  std::vector<ImuMsg> &imu_msgs)
 
   // make sure sensor data is not eariler then current state
   if(time_curr_state <= time_prev_state) {
-    printf("Manger warning: new dvl measurement time:%f" 
+    printf("\nManger warning: new dvl measurement time:%f" 
             "is eariler then last state time:%f, drop it now!\n",
             time_curr_state, time_prev_state);
 
@@ -1940,6 +1244,7 @@ bool MsckfManager::getImuForDvl(DvlMsg &dvl_msg,  std::vector<ImuMsg> &imu_msgs)
     imu_msgs = selectImu(time_prev_state, time_curr_state);
 
     // erase selected dvl 
+    last_dvl = buffer_dvl.front(); 
     buffer_dvl.erase(buffer_dvl.begin());
 
     // erase selected IMU, but leave one for next interpolate
@@ -1969,7 +1274,7 @@ bool MsckfManager::getImuForPressure(PressureMsg &pressure_msg, std::vector<ImuM
 
   // make sure sensor data is not eariler then current state
   if(time_curr_state <= time_prev_state) {
-    printf("Manger warning: new pressure measurement time:%f" 
+    printf("\nManger warning: new pressure measurement time:%f" 
             "is eariler then last state time:%f, drop it now!\n",
             time_curr_state, time_prev_state);
 
@@ -1999,6 +1304,77 @@ bool MsckfManager::getImuForPressure(PressureMsg &pressure_msg, std::vector<ImuM
 
 }
 
+bool MsckfManager::getImuForBtPressure(DvlMsg &dvl_msg,  PressureMsg &pressure_msg, std::vector<ImuMsg> &imu_msgs) {
+  std::unique_lock<std::mutex> lck(mtx);
+
+  // [0] check if DVL for interpolation avaiable
+  if(buffer_dvl.size() < 0 || 
+     buffer_pressure.front().time > buffer_dvl.front().time){
+    return false;
+  }
+
+  // [1] select pressure 
+  pressure_msg = buffer_pressure.front();
+
+  // [2] select DVL: pressure inside last and next DVL
+  if(pressure_msg.time > last_dvl.time && 
+     (pressure_msg.time < buffer_dvl.front().time || 
+      pressure_msg.time == buffer_dvl.front().time) ) {
+    dvl_msg = interpolateDvl(last_dvl, buffer_dvl.front(), pressure_msg.time);
+  }
+  else {
+    // send warning
+    printf("Manager warning: pressure interpolated failed, "
+           "last t:%f, interpoated t:%f, next t:%f, will drop this pressure\n",
+           last_dvl.time, pressure_msg.time, buffer_dvl.front().time);
+    // delete bad pressure
+    buffer_pressure.erase(buffer_pressure.begin());
+
+    return false;
+  }
+
+  // [3] select IMU time duration
+  // convert sensor time into IMU time
+  auto offset = params.msckf.do_time_I_D ? 
+                state->getEstimationValue(DVL, EST_TIMEOFFSET)(0) : 
+                params.prior_dvl.timeoffset;
+  double time_prev_state = state->getTimestamp();
+  double time_curr_state = pressure_msg.time + offset;
+  // make sure sensor data is not eariler then current state
+  if(time_curr_state <= time_prev_state) {
+    printf("Manger error: new pressure measurement time:%f" 
+            "is eariler then current state time:%f\n",
+            time_curr_state, time_prev_state);
+
+    buffer_pressure.erase(buffer_pressure.begin());
+    return false;
+  }
+
+  // [4] select IMU data: make sure IMU time > current sensor time for interpolation
+  auto frame_imu = std::find_if(buffer_imu.begin(), buffer_imu.end(),
+                   [&](const auto& imu){return imu.time > time_curr_state ;});
+  if(frame_imu != buffer_imu.end()) {
+    // select imu
+    imu_msgs = selectImu(time_prev_state, time_curr_state);
+
+    //erase selected DVL if velocity and pressure at same timestamp(e.g. both from DVL BT)
+    if(buffer_pressure.front().time == buffer_dvl.front().time) {
+      last_dvl = buffer_dvl.front(); 
+      buffer_dvl.erase(buffer_dvl.begin());  
+    }
+
+    // erase selected pressure
+    buffer_pressure.erase(buffer_pressure.begin());
+
+    // erase selected IMU, but leave one for next interpolate
+    buffer_imu.erase(buffer_imu.begin(), frame_imu-1);     
+
+    return true;  
+  }
+  else {
+    return false;
+  }
+}
 
 /**
  *  @brief get all the data need for pressure update, e.g. pressure, DVL BT velocity, IMU
@@ -2129,4 +1505,212 @@ void MsckfManager::selectFeatures(const double time_update, std::vector<Feature>
   }
 }
 
+void MsckfManager::setFeatures(std::vector<Feature> &features) {
+  std::unique_lock<std::mutex> lck(mtx);
+
+  // get feature
+  for (size_t f = 0; f < features.size(); f++) {
+    // setup feature position: enhaced + not enhanced
+    Eigen::Vector3d color;
+    if(features[f].anchor_clone_depth == 0) {
+      // red for normal triangulation
+      color << 255,0,0;
+    }
+    else {
+      // green for depth enhanced
+      color << 0,255,0;
+    }
+    trig_feat.emplace_back(std::make_tuple(features[f].p_FinG, color));
+
+    // setup the original features
+    // trig_feat.emplace_back(std::make_tuple(features[f].p_FinG_original, 
+    //                                        Eigen::Vector3d(255,0,0)));
+  }
+}
+
+std::vector<std::tuple<Eigen::Vector3d, Eigen::Vector3d>> MsckfManager::getFeatures() {
+  std::unique_lock<std::mutex> lck(mtx);
+
+  std::vector<std::tuple<Eigen::Vector3d, Eigen::Vector3d>> out_trig_feat;
+
+  // copy triangulated message
+  std::copy(trig_feat.begin(), trig_feat.end(), std::back_inserter(out_trig_feat)); 
+
+  // clean
+  std::vector<std::tuple<Eigen::Vector3d, Eigen::Vector3d>>().swap(trig_feat);
+
+  return out_trig_feat;
+}
+
+bool MsckfManager::checkScene(double curr_time) {
+
+  // [0] Get last keyframe feature (associated with last clone pose)
+
+  // if no clone exist, then insert current one
+  auto clone_size = state->getEstimationNum(CLONE_CAM0);
+  if(clone_size == 0) {
+    return true;
+  }
+
+  // get latest clone timestamp
+  auto clone_time = state->getCloneTime(CLONE_CAM0, clone_size-1);
+
+  // find feature measurements at last keyframe timestamp
+  std::vector<Feature> key_frame_feat;
+  tracker->get_feature_database()->features_measurement_selected(clone_time, key_frame_feat, true);
+
+  // [1] Get current frame feature
+
+  // find feature measurements at current frame timestamp
+  std::vector<Feature> curr_frame_feat;
+  tracker->get_feature_database()->features_measurement_selected(curr_time, curr_frame_feat, true);
+
+  // [2] Compare
+
+  // find features numbers that tracked from last keyframe
+  int tracked_count = 0;
+  for(const auto& key_feat : key_frame_feat) {
+    for(const auto& curr_feat : curr_frame_feat) {
+      if(key_feat.featid == curr_feat.featid) {
+        tracked_count ++;
+        break;
+      }
+    }
+  }
+
+  // compare with parameters ratio
+  double ratio = tracked_count / curr_frame_feat.size();
+
+  // if(ratio < params.keyframe.scene_ratio) {
+  if(ratio <= params.keyframe.scene_ratio) {
+    return true;
+  }
+  else {
+    // printf("ratio:%f\n", ratio);
+    return false;
+  }
+}
+
+bool MsckfManager::checkFeatures(double curr_time) {
+  // find feature measurements at current frame timestamp
+  std::vector<Feature> curr_frame_feat;
+  tracker->get_feature_database()->features_measurement_selected(curr_time, curr_frame_feat, true);
+
+  // only the detected feature reach the minimum requirement 
+  if(curr_frame_feat.size() < params.keyframe.min_tracked) {
+    return false;
+  }
+  else {
+    return true;
+  }
+}
+
+bool MsckfManager::checkAdaptive() {
+  // [0] if no clone exist, then insert current one
+  auto clone_size = state->getEstimationNum(CLONE_CAM0);
+  if(clone_size == 0) {
+    return true;
+  }
+
+  // [1] Get constrain 
+
+  // get current vehilce velocity
+  Eigen::Vector3d v_G_I = state->getEstimationValue(IMU, EST_VELOCITY);
+
+  double v_xy = sqrt(v_G_I(0)*v_G_I(0) + v_G_I(1)*v_G_I(1));
+
+  // get constrain
+  double D = params.keyframe.adaptive_factor * pow(v_xy, params.keyframe.adaptive_power);
+
+  // [2] Get distance between current frame and latest keyframe
+
+  // get latest clone pose 
+  Eigen::VectorXd pose = state->getClonePose(CLONE_CAM0, clone_size-1);   
+  Eigen::Matrix3d R_Ii_G = toRotationMatrix(pose.block(0,0,4,1));
+  Eigen::Vector3d p_G_Ii = pose.block(4,0,3,1);
+
+  // get current IMU pose
+  Eigen::Vector3d p_G_Ij = state->getEstimationValue(IMU, EST_POSITION);
+
+  // get 2D or 3D distance
+  double distance = 0;
+  if(params.keyframe.motion_space == 2) {
+    // the disance from Ij to Ii at global frame
+    // p_Ii_Ij = p_G_Ij - p_G_Ii 
+    Eigen::Vector3d p_Ii_Ij = p_G_Ij - p_G_Ii;
+
+    distance = sqrt(p_Ii_Ij(0)*p_Ii_Ij(0) + p_Ii_Ij(1)*p_Ii_Ij(1));
+  }
+  else if (params.keyframe.motion_space == 3) {
+    // the disance from Ij to Ii at Ii frame
+    // p_Ii_Ij = R_G_Ii^T (p_G_Ij - p_G_Ii)
+    Eigen::Vector3d p_Ii_Ij = R_Ii_G * (p_G_Ij - p_G_Ii);
+
+    distance = sqrt(p_Ii_Ij(0)*p_Ii_Ij(0) + p_Ii_Ij(1)*p_Ii_Ij(1) + p_Ii_Ij(2)*p_Ii_Ij(2));
+  }
+
+  if(distance >= D) {
+    // printf("adaptive: yes\n");
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+bool MsckfManager::checkMotion() {
+  // if no clone exist, then insert current one
+  auto clone_size = state->getEstimationNum(CLONE_CAM0);
+  if(clone_size == 0) {
+    return true;
+  }
+
+  // get clone pose 
+  Eigen::VectorXd pose = state->getClonePose(CLONE_CAM0, clone_size-1);   
+  Eigen::Matrix3d R_Ii_G = toRotationMatrix(pose.block(0,0,4,1));
+  Eigen::Vector3d p_G_Ii = pose.block(4,0,3,1);
+
+  // get current IMU pose
+  Eigen::Vector3d p_G_Ij = state->getEstimationValue(IMU, EST_POSITION);
+
+  // caculate distance between latest clone and current pose
+  //! TODO: better method to determine pose constraint ?
+  //! TODO: two-way marginalization from S. Shen et. al. 2014 ISER Initialization-free VIO
+
+  double distance = 0;
+  if(params.keyframe.motion_space == 2) {
+    // the disance from Ij to Ii at global frame
+    // p_Ii_Ij = p_G_Ij - p_G_Ii 
+    Eigen::Vector3d p_Ii_Ij = p_G_Ij - p_G_Ii;
+
+    distance = sqrt(p_Ii_Ij(0)*p_Ii_Ij(0) + p_Ii_Ij(1)*p_Ii_Ij(1));
+  }
+  else if (params.keyframe.motion_space == 3) {
+    // the disance from Ij to Ii at Ii frame
+    // p_Ii_Ij = R_G_Ii^T (p_G_Ij - p_G_Ii)
+    Eigen::Vector3d p_Ii_Ij = R_Ii_G * (p_G_Ij - p_G_Ii);
+
+    distance = sqrt(p_Ii_Ij(0)*p_Ii_Ij(0) + p_Ii_Ij(1)*p_Ii_Ij(1) + p_Ii_Ij(2)*p_Ii_Ij(2));
+  }
+
+  if(distance >= params.keyframe.frame_motion) {
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+bool MsckfManager::checkFrameCount() {
+  // update count of image frames
+  frame_count ++;
+
+  if(frame_count >= params.keyframe.frame_count) {
+    frame_count = 0;
+    return true;
+  }
+  else {
+    return false;
+  }
+}        
 } // namespace msckf_dvio

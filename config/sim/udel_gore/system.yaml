@@ -47,8 +47,7 @@ MSCKF:
   dvl_timeoffset: false
   # enable DVL scale calibration
   dvl_scale: false
-  # Max clone storage for DVL
-  dvl_clone: 0 
+
 
   ################################    Camera    ##################################
 
