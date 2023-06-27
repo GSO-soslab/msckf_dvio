@@ -15,6 +15,9 @@ SYS:
     - {PRESSURE: /rov/sensors/dvl/pressure}
     # - {CAM0: /rov_remote/sensors/stereo/left/image_decompressed}
 
+  buffers:
+    # DVL cloud buffer to store how many seconds
+    - {DVL_CLOUD: 10}
 
 ####################################################################################
 ############################     TODO:  Pre-processing    ##########################
@@ -43,8 +46,6 @@ MSCKF:
   dvl_timeoffset: false
   # enable DVL scale calibration
   dvl_scale: false
-  # Max clone storage for DVL
-  dvl_clone: 0 
 
   ################################    Camera    ##################################
 
@@ -60,21 +61,20 @@ MSCKF:
 
   ################################    Update    ##################################
 
-  # ## Index of clone need to marginalize 
-  # ## example: we have 10 clones [0,1,2,3,4,5,6,7,8,9]
-  # ##          the marg clone measurements: oldest, second latest [0,8]
-  # marg_meas_index: [0, 8]
-  marg_meas_index: [-1]
+  ## Index of clone need to marginalize 
+  ## example: we have 10 clones [0,1,2,3,4,5,6,7,8,9]
+  ##          the marg clone measurements: oldest, second latest [0,8]
+  # marg_meas_index: [-1]
   
-  # brief: marginalized pose at slide-windows index (or clone state index)
-  # note: this select from 'marg_meas_index', no need exactly same as 'marg_meas_index'
-  marg_pose_index: [-1]
+  ## brief: marginalized pose at slide-windows index (or clone state index)
+  ## note: this select from 'marg_meas_index', no need exactly same as 'marg_meas_index'
+  # marg_pose_index: [-1]
 
-  # ## in open_vins(40), but it's occasionally update at 40
-  # ## but here, tracking will stop so always update as 40
+  ## in open_vins(40), but it's occasionally update at 40
+  ## but here, tracking will stop so always update as 40
   # max_msckf_update: 20
 
-  # ## max line of residual lines for update, maybe used for futures
-  # # max_update_lines: 1500 
+  ## max line of residual lines for update, maybe used for futures
+  # max_update_lines: 1500 
 
   ################################    Marginalization    ##################################

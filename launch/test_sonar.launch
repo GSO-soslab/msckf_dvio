@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<launch>
+  <param name="/use_sim_time" value="true"/>
+
+  <!-- Get sonar image -->
+  <param name="/sonar_oculus_node/Colormap" value="2" />
+  <node name="sonar_oculus_viewer" pkg="sonar_oculus" type="oculus_viewer.py" output="screen">
+      <remap from ="/sonar_oculus_node/ping" to="/rov/sensors/sonar/ping"/>
+  </node>
+
+
+  <!-- utility -->
+
+  <node name="rqt_gui" pkg="rqt_gui" type="rqt_gui" args="--perspective-file $(find ov_msckf)/test_launch/test_sonar_klt.perspective"/>
+  <!-- <node name="rviz" pkg="rviz" type="rviz" args="-1-opengl 300 -d $(find ov_msckf)/test_launch/test_sonar_klt.rviz" />  -->
+
+  <!-- <arg name="bag"        default="/home/lin/develop/data/underIce/GLRC/day_3_13/40m_servo60_noLED_noAR_LowFeq10m/data_dvlCorrect.bag" /> -->
+  <arg name="bag"        default="/home/lin/develop/data/underIce/GLRC/day_3_13/40m_servo60_noLED_noAR_LowFeq10m/40m_servo60_noLED_noAR_HighFeq10m_2.bag" />
+  <arg name="bag_start"  default="0" /> 
+  <node pkg="rosbag" type="play" name="rosbag" args="--clock --pause -d 1 -s $(arg bag_start) $(arg bag)" required="true"/>
+
+</launch>

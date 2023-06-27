@@ -27,23 +27,9 @@ public:
 
   void updateDvl(std::shared_ptr<State> state, const Eigen::Vector3d &w_I, const Eigen::Vector3d &v_D);
 
-  void updateDvlSimple(std::shared_ptr<State> state, const Eigen::Vector3d &w_I, const Eigen::Vector3d &v_D, bool is_simple);
+  void updatePressure(std::shared_ptr<State> state, const double pres_begin, const double pres_curr);
 
-  void updatePressure(std::shared_ptr<State> state, const double pres_begin, const double pres_curr, bool is_simple);
-
-  void updatePressureOnly(std::shared_ptr<State> state, const double pres_begin, const double pres_curr, bool is_simple);
-
-  void updatePressureComplex(std::shared_ptr<State> state, const double pres_begin, const double pres_curr);
-  
-  void updatePressureSimple(std::shared_ptr<State> state, const double pres_begin, const double pres_curr);
-
-  void updateDvlPressure(  
-      std::shared_ptr<State> state,const Eigen::Vector3d &w_I, 
-      const Eigen::Vector3d &v_D,const double pres_begin, const double pres_curr);
-
-  void updateDvlPressureSimple(
-      std::shared_ptr<State> state,const Eigen::Vector3d &w_I, 
-      const Eigen::Vector3d &v_D,const double pres_begin, const double pres_curr); 
+  void updatePressureManual(std::shared_ptr<State> state, const double pres_begin, const double pres_curr, int option);
 
   void marginalize(std::shared_ptr<State> state, Sensor clone_name, int index);
 

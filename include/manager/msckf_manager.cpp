@@ -117,8 +117,7 @@ void MsckfManager::feedImu(const ImuMsg &data) {
 
 void MsckfManager::feedDvl(const DvlMsg &data) {
   //! TODO: preprocess dvl:
-  //!  1) correct timeoffset: basic substract time transmit from DVl to bottom, check duraction field of df21
-  //!  2) remove spikes noise (Median filtering) and data smoothing (Moving Average Filter)
+  //!  correct timeoffset: basic substract time transmit from DVl to bottom, check duraction field of df21 ?
 
   std::unique_lock<std::mutex> lck(mtx);
 
@@ -323,7 +322,7 @@ void MsckfManager::backend() {
       // only pressure update
       doPressureUpdate();
 
-      // interpolated DVl BT and pressure update(manual k_z=1, noise=0.1)
+      // do interplated BT and pressure 
       // doBtPressureUpdate();
       
       break;
@@ -400,17 +399,6 @@ Sensor MsckfManager::selectUpdateSensor() {
       update_sensor = DVL;
     }
   }
-
-  // //! TEST:
-  // if(update_sensor == CAM0) {
-  //   printf("Img time: %.9f\n", early_time);
-  // }
-  // if(update_sensor == PRESSURE) {
-  //   printf("pre time: %.9f\n", early_time);
-  // }
-  // if(update_sensor == DVL) {
-  //   printf("vel time: %.9f\n", early_time);
-  // }
 
   mtx.unlock();
 
@@ -511,13 +499,6 @@ void MsckfManager::doCameraKeyframe() {
   // ------------------------------  Do Update ------------------------------ // 
   printf("\ncam t: %.9f\n",time_curr_sensor);
 
-  //! TEST: save data
-  // file.open(file_path, std::ios_base::app);//std::ios_base::app
-  // file<<std::fixed<<std::setprecision(9);
-  // file<<"\nTime:"<<time_curr_sensor<<"\n";
-  // // file<<time_curr_sensor<<",";
-  // file.close();
-
   //// [0] IMU Propagation
   predictor->propagate(state, selected_imu);
   // assert(!state->foundSPD("cam_propagate"));
@@ -535,8 +516,6 @@ void MsckfManager::doCameraKeyframe() {
   bool check_scene = checkScene(time_curr_sensor);
   bool check_adaptive = checkAdaptive();
 
-  // bool insert_clone = check_feature && (check_adaptive && check_scene);
-  // bool insert_clone = check_feature && (check_adaptive || check_scene);
   bool insert_clone = check_feature && (check_motion && check_scene);
   // bool insert_clone = check_feature && (check_motion || check_scene);
 
@@ -551,7 +530,7 @@ void MsckfManager::doCameraKeyframe() {
   std::vector<Feature> feature_keyframe;
   selectFeaturesKeyFrame(time_curr_sensor, feature_keyframe);
 
-  // [] DVL-enhanced depth
+  // [2] DVL-enhanced depth
   enhanceDepth(feature_keyframe);
 
   // [3] Camera Feature Update: feature triangulation, feature update 
@@ -560,27 +539,6 @@ void MsckfManager::doCameraKeyframe() {
 
   // [4] keep marginalization feature measurements
   selectMargMeasurement(feature_keyframe);
-
-  //! TEST: manual set the feature position as truth
-  // if(truth_feature.size()>0) {
-  //   for(auto& f : feature_msckf) {
-  //     // convert feature database if back to original tracking id
-  //     auto id = f.featid - params.tracking.basic.num_aruco - 1;
-  //     if(truth_feature.find(id) != truth_feature.end()) {
-  //       printf("trig: %f,%f,%f\n", f.p_FinG(0),f.p_FinG(1),f.p_FinG(2));
-  //       f.p_FinG = truth_feature.at(id);
-  //       printf("truth: %f,%f,%f\n", f.p_FinG(0),f.p_FinG(1),f.p_FinG(2));
-  //     }
-  //     else {
-  //       printf("\nerror find feat id\n");
-  //     }
-  //   }
-  // }
-
-  //! TEST: manual set the depth of features
-  // for(auto& feat : feature_msckf) {
-  //   feat.p_FinG(2) = 4.2;
-  // }
 
   // update triangulation to the database
   // tracker->get_feature_database()->update_new_triangulation(feature_msckf);
@@ -662,7 +620,6 @@ void MsckfManager::doBtUpdate() {
 
   // update
   updater->updateDvl(state, last_w_I, last_v_D);
-  // updater->updateDvlSimple(state, last_w_I, last_v_D, true);
 }
 
 void MsckfManager::doPressureUpdate() {
@@ -689,11 +646,7 @@ void MsckfManager::doPressureUpdate() {
   double pres_init = state->getPressureInit();
   double pres_curr = selected_pressure.p;
 
-  // standard EKF update, only set k_z=1 for state update
-  // updater->updatePressure(state, pres_init, pres_curr, true);  
-
-  // only keep k_z for kalman gian K
-  updater->updatePressureOnly(state, pres_init, pres_curr, true);  
+  updater->updatePressureManual(state, pres_init, pres_curr, 2);  
 }
 
 void MsckfManager::doBtPressureUpdate() {
@@ -704,6 +657,8 @@ void MsckfManager::doBtPressureUpdate() {
   if(!getImuForBtPressure(selected_dvl, selected_pressure, selected_imu)) {
     return;
   }
+
+  printf("\nDVL Pressure t: %.9f\n", selected_pressure.time);
 
   // [1] IMU propagation
   predictor->propagate(state, selected_imu);
@@ -727,11 +682,9 @@ void MsckfManager::doBtPressureUpdate() {
   double pres_init = state->getPressureInit();
   double pres_curr = selected_pressure.p;
   // update
-  updater->updatePressure(state, pres_init, pres_curr, true);  
+  updater->updatePressure(state, pres_init, pres_curr);  
 }
 
-//! TODO: DVL/pressure can still update without IMU propagation
-//!       check how many IMU inside DVL/pressure update
 void MsckfManager::doDVL() {
 
 /**************************************************/
@@ -770,9 +723,8 @@ void MsckfManager::doDVL() {
   mtx.lock();
 
   if(buffer_pressure.size() > 0 && 
-    //  buffer_pressure.front().time < buffer_dvl.front().time &&
      buffer_pressure.front().time <= state->getTimestamp()){
-    //// this pressure timetsamp is wrong: maybe dely by ros callback, should be process by previous velocity
+    //// this pressure timetsamp is wrong: maybe delay by ros callback, should be process by previous velocity
 
     printf("Manager warning: pressure time:%f is before state time:%f\n, drop it now!", 
             buffer_pressure.front().time, state->getTimestamp());
@@ -796,7 +748,7 @@ void MsckfManager::doDVL() {
   }
   else if(buffer_pressure.size() > 0 && buffer_dvl.size() > 0 &&
           buffer_pressure.front().time == buffer_dvl.front().time){
-    // printf("do same velocity-pressure \n");
+    printf("\ndo pressure + velocty\n");
 
     //// pressure same as velocity: 
     ////    pressure measure same time as velocity(CP-pressure and CP-velocity)
@@ -814,8 +766,6 @@ void MsckfManager::doDVL() {
     erase_velocity = true;
   }
   else if(
-          // buffer_pressure.size() == 0 ||
-          // buffer_pressure.front().time > buffer_dvl.front().time)
           buffer_dvl.size() > 0)  {
     printf("\ndo pure velocty\n");
 
@@ -830,30 +780,6 @@ void MsckfManager::doDVL() {
     last_dvl = buffer_dvl.front(); 
     erase_velocity = true;
   }
-  // else{
-  //   printf("\n---------------\nDVL-BT-Velocity:\n");
-  //   if(buffer_dvl.size()>0){
-  //     for(const auto &data: buffer_dvl)
-  //       printf("t: %f, ", data.time);
-  //   }
-
-  //   printf("\nDVL-CP-Pressure:\n");
-  //   if(buffer_pressure.size()>0){
-  //     for(const auto &data: buffer_pressure)
-  //       printf("t: %f, ", data.time);
-  //   }
-  // }
-
-
-  //! TEST: for only IMU-Velocity MSCKF
-  // new_dvl = buffer_dvl.front();
-  // do_velocity = true;
-
-  // printf("do IMU propagation + velocty update\n");
-
-  // // clean buffer
-  // last_dvl = buffer_dvl.front(); 
-  // erase_velocity = true;
 
   mtx.unlock();
 
@@ -914,16 +840,12 @@ void MsckfManager::doDVL() {
     }
     
   }
-  // else{
-  //   printf("Manger warning: current IMU time:%f not > current sensor time:%f\n", buffer_imu.back().time, time_curr_state);
-  // }
 
   mtx.unlock();
 
   /******************** imu propagation + velocity update + pressure update(if)********************/
 
   if(selected_imu.size()>0){
-    // printf("    IMU:%ld\n\n", selected_imu.size());
     // IMU propagation
     predictor->propagate(state, selected_imu);
     // We should check if we are not positive semi-definitate (i.e. negative diagionals is not s.p.d)
@@ -932,28 +854,15 @@ void MsckfManager::doDVL() {
       std::exit(EXIT_FAILURE);
     }
 
-    //! TEST: just for pure IMU 
+    // just for pure IMU 
     if(do_velocity){
 
       // Last angular velocity and linear velocity
       Eigen::Vector3d last_w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
       Eigen::Vector3d last_v_D = new_dvl.v;
 
-      //// use Last angular velocity for cloning when estimating time offset)
-      if(params.msckf.max_clone_D > 0)
-        predictor->augmentDvl(state, time_curr_sensor, last_w_I);
-
       // update
       updater->updateDvl(state, last_w_I, last_v_D);
-      // updater->updateDvlSimple(state, last_w_I, last_v_D, true);
-
-      // marginalize 
-      // if max clone of DVL is reached, then do the marginalize: remove the clone and related covarinace
-      if( (params.msckf.max_clone_D > 0) &&
-          (params.msckf.max_clone_D < state->getEstimationNum(CLONE_DVL)) ) {
-        int index = 0;  
-        updater->marginalize(state, CLONE_DVL, index);
-      }
     }
 
     if(do_pressure){
@@ -962,32 +871,8 @@ void MsckfManager::doDVL() {
       double pres_curr = new_pres.p;
 
       // update
-      // updater->updatePressureSimple(state, pres_init, pres_curr);
-      updater->updatePressure(state, pres_init, pres_curr, true);
+      updater->updatePressure(state, pres_init, pres_curr);
     }
-
-    // //! TEST: update velocity and pressure at same time
-    // if(do_velocity && do_pressure) {
-    //   // Last angular velocity and linear velocity
-    //   Eigen::Vector3d last_w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
-    //   Eigen::Vector3d last_v_D = new_dvl.v;
-
-    //   // get the begin pressure value
-    //   double pres_init = state->getPressureInit();
-    //   double pres_curr = new_pres.p;
-
-    //   updater->updateDvlPressureSimple(state,last_w_I, last_v_D, pres_init, pres_curr);
-    //   // updater->updateDvlPressure(state,last_w_I, last_v_D, pres_init, pres_curr);
-    // }
-    // else if (do_velocity) {
-    //   // Last angular velocity and linear velocity
-    //   Eigen::Vector3d last_w_I = selected_imu.back().w - state->getEstimationValue(IMU, EST_BIAS_G);
-    //   Eigen::Vector3d last_v_D = new_dvl.v;
-
-    //   // update
-    //   // updater->updateDvl(state, last_w_I, last_v_D);
-    //   updater->updateDvlSimple(state, last_w_I, last_v_D, true);
-    // }
     
   }
 
@@ -1059,39 +944,6 @@ void MsckfManager::selectFeaturesKeyFrame(
     tracker->get_feature_database()->features_selected(time_oldest, feat_keyframe, false, true);
   }
 
-  // printf("===== select marg =====\n");
-  // for(const auto& f : feat_keyframe) {
-  //   printf("id:%ld, size:%ld\n", f.featid, f.timestamps.at(0).size());
-  //   for(const auto& t : f.timestamps.at(0)) {
-  //     printf("  t=%.9f, ", t);
-  //   }
-  //   printf("\n");
-  // }
-
-  //! TEST: save data -- check how many features are detected as marg features
-  // std::vector<Feature> feat_marg_test;
-  // if(state->getEstimationNum(CLONE_CAM0) == params.msckf.max_clone_C) {
-  //   // Grab marg index 0 of slide window
-  //   // get oldest clone time
-  //   auto index = 0;
-  //   auto time_oldest = state->getCloneTime(CLONE_CAM0, index);
-  //   // get feature contain this marg time
-  //   tracker->get_feature_database()->features_selected(time_oldest, feat_marg_test, false, true);
-  // }
-
-  // file.open(file_path, std::ios_base::app);//std::ios_base::app
-
-  // // file<<std::fixed<<std::setprecision(9);
-  // file<<feat_marg_test.size()<<",";
-
-  // std::string id_str;
-  // for(const auto& feat : feat_marg_test) {
-  //   id_str += std::to_string(feat.featid) + '-';
-  // }
-  // file<<id_str<<"\n";
-
-  // file.close();
-
   // --------------------------- Filter non-keyframe or bad measurements -------------------------- //
 
   // get clone timestamp
@@ -1101,11 +953,6 @@ void MsckfManager::selectFeaturesKeyFrame(
   for( size_t index = 0; index < clone_num; index++ ){
     clone_times.push_back(state->getCloneTime(CLONE_CAM0, index));
   }
-  // printf("clone time: \n");
-  // for(const auto& t : clone_times) {
-  //   printf("  t=%.9f, ", t);
-  // }
-  // printf("\n");
 
   // filter features: 
   auto it0 = feat_keyframe.begin();
@@ -1127,15 +974,6 @@ void MsckfManager::selectFeaturesKeyFrame(
 
     it0++;
   }
-
-  // printf("===== filter nonKeyframe =====\n");
-  // for(const auto& f : feat_keyframe) {
-  //   printf("id:%ld, size:%ld\n", f.featid, f.timestamps.at(0).size());
-  //   for(const auto& t : f.timestamps.at(0)) {
-  //     printf("  t=%.9f, ", t);
-  //   }
-  //   printf("\n");
-  // }  
 
   // --------------------------- Determine the anchor -------------------------- //
 

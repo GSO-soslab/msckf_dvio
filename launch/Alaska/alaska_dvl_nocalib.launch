@@ -10,17 +10,17 @@
 
   <!-- ========== Data: 3_29 ==========  -->
 
-  <!-- <arg name="config_path" default="$(find msckf_dvio)/config/Alaska/3_29"/>
+  <arg name="config_path" default="$(find msckf_dvio)/config/Alaska/3_29"/>
   <arg name="bag" 
        default="/home/lin/develop/data/underIce/alaska/03_29/full_imgCompressed_dvlRecoveried_timeRestamped_timeSync.bag" />
-  <arg name="bag_start" default="47" />  -->
+  <arg name="bag_start" default="47" /> 
 
   <!-- ========== Data: 3_30 ==========  -->
 
-  <arg name="config_path" default="$(find msckf_dvio)/config/Alaska/3_30"/>
+  <!-- <arg name="config_path" default="$(find msckf_dvio)/config/Alaska/3_30"/>
   <arg name="bag" 
        default="/home/lin/develop/data/underIce/alaska/03_30/full_dvlCorrect_timeRestamp_imgCompressed_timeSync.bag" />
-  <arg name="bag_start" default="50" /> 
+  <arg name="bag_start" default="50" />  -->
 
   <!-- ========== play rosbag ==========  -->
 

@@ -111,8 +111,6 @@ struct paramMsckf {
   bool do_time_I_D;
   // enable DVL scale calibration
   bool do_scale_D;
-  // max clone for DVL 
-  int max_clone_D;
 
   // enable camera exterisic rotation calibration 
   bool do_R_C_I;
@@ -342,8 +340,7 @@ inline void Params::printParam() {
   std::cout<<"  do_R_I_D= " << (msckf.do_R_I_D ? "True" : "False" ) << "\n";
   std::cout<<"  do_p_I_D= " << (msckf.do_p_I_D ? "True" : "False" ) << "\n";
   std::cout<<"  do_time_I_D= " << (msckf.do_time_I_D ? "True" : "False" ) << "\n";
-  std::cout<<"  do_scale_D= " << (msckf.do_scale_D ? "True" : "False" ) << "\n";
-  std::cout<<"  max_clone_D= " << msckf.max_clone_D << "\n\n";
+  std::cout<<"  do_scale_D= " << (msckf.do_scale_D ? "True" : "False" ) << "\n\n";
 
   std::cout<<"  do_R_C_I= " << (msckf.do_R_C_I ? "True" : "False" ) << "\n";
   std::cout<<"  do_p_C_I= " << (msckf.do_p_C_I ? "True" : "False" ) << "\n";

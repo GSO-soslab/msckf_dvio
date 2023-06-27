@@ -157,7 +157,6 @@ void RosNode::loadParamSystem(Params &params) {
   nh_private_.param<bool>("MSCKF/dvl_exterisic_p", params.msckf.do_p_I_D,    false);
   nh_private_.param<bool>("MSCKF/dvl_timeoffset",  params.msckf.do_time_I_D, false);
   nh_private_.param<bool>("MSCKF/dvl_scale",       params.msckf.do_scale_D,  false);
-  nh_private_.param<int> ("MSCKF/dvl_clone",       params.msckf.max_clone_D, 0);
 
   nh_private_.param<bool>("MSCKF/cam_exterisic_R", params.msckf.do_R_C_I,    false);
   nh_private_.param<bool>("MSCKF/cam_exterisic_p", params.msckf.do_p_C_I,    false);
@@ -190,7 +189,7 @@ void RosNode::loadParamSystem(Params &params) {
     }    
   }
   else {
-    ROS_ERROR("marg_meas_index: not provided!");
+    ROS_WARN("marg_meas_index: not provided!");
   }
 
   if(nh_private_.getParam("MSCKF/marg_pose_index", params.msckf.marg_pose_index)) {
@@ -211,7 +210,7 @@ void RosNode::loadParamSystem(Params &params) {
     }
   }
   else {
-    ROS_ERROR("marg_pose_index: not provided!");
+    ROS_WARN("marg_pose_index: not provided!");
   }
 }
 
@@ -549,7 +548,7 @@ void RosNode::loadParamImage(Params &params) {
 
     case TrackMode::TRACK_NONE:
     default:
-      ROS_ERROR("Track Mode name=%s can't be parsed !!!", mode_str.c_str());
+      ROS_WARN("Track Mode name=%s !!!", mode_str.c_str());
       break;    
   }
   
@@ -621,7 +620,6 @@ bool RosNode::srvCallback(std_srvs::Trigger::Request  &req, std_srvs::Trigger::R
 }
 
 void RosNode::imuCallback(const sensor_msgs::Imu::ConstPtr &msg) {
-  //! NOTE: IMU timestamp is not stable: 100hz, actually is duraction is about 0.11,0.11,0.6,0.11,0.11,0.6
 
   ImuMsg message;
   
@@ -683,7 +681,6 @@ void RosNode::featureCallback(const sensor_msgs::PointCloud::ConstPtr &msg) {
   manager->feedFeature(feature_msg);
 }
 
-// TODO: check if feature tracking in image callback will effect IMU callback(overflow, bad imu-image align)
 void RosNode::imageCallback(const sensor_msgs::Image::ConstPtr &msg) {
 
   cv_bridge::CvImagePtr cv_ptr;
@@ -735,22 +732,15 @@ void RosNode::pressureCallback(const sensor_msgs::FluidPressure::ConstPtr &msg) 
 }
 
 void RosNode::dvlCloudCallback(const sensor_msgs::PointCloud2::ConstPtr &msg){
-  //! TODO: multi-path will has degraded measurement, filter multi-path based on sub_map, plane-constrain
   pcl::PCLPointCloud2 pc2;
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
   pcl_conversions::toPCL(*msg, pc2);
   pcl::fromPCLPointCloud2(pc2, *cloud);
 
   manager->feedDvlCloud(cloud);
-
-  // printf("DVL pointcloud received at time:%ld, double=%f\n", cloud->header.stamp, (double)(cloud->header.stamp/1000000.0));
-  
 }
 
 void RosNode::process() {
-  // sleep for short time to wait the system initialization
-  // std::chrono::milliseconds dura(1000);
-  // std::this_thread::sleep_for(dura);
 
   int sleep_t = 1.0 / parameters.sys.backend_hz * 1000.0;
 

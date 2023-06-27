@@ -18,8 +18,6 @@ public:
 
   void propagate(std::shared_ptr<State> state, const std::vector<ImuMsg> &data);
 
-  void augmentDvl(std::shared_ptr<State> state, double sensor_time, const Eigen::Vector3d &w);
-
   void augment(Sensor sensor_name,
                Sensor clone_name, 
                std::shared_ptr<State> state,
