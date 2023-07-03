@@ -7,20 +7,16 @@
   <!-- ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
 
   <!-- ======================================== play the dataset ====================================== -->
-  <!-- ========== MH_01_easy ==========  -->
-  <!-- <arg name="bag_start" default="40"/> 
-  <arg name="config_path" default="$(find msckf_dvio)/config/euroc/MH_01_easy"/>
-  <arg name="bag" default="/home/lin/develop/data/euroc/MH_01_easy/MH_01_easy.bag"/> -->
 
    <!-- ========== MH_02_easy ==========  -->
-  <arg name="bag_start" default="38.4"/> 
+  <!-- <arg name="bag_start" default="38.4"/> 
   <arg name="config_path" default="$(find msckf_dvio)/config/euroc/MH_02_easy"/>
-  <arg name="bag" default="/home/lin/develop/data/euroc/MH_02_easy/MH_02_easy.bag"/>
+  <arg name="bag" default="/home/lin/develop/data/euroc/MH_02_easy/MH_02_easy.bag"/> -->
 
   <!-- ========== MH_03_medium ==========  -->
-  <!-- <arg name="bag_start" default="17.5"/> 
+  <arg name="bag_start" default="17.5"/> 
   <arg name="config_path" default="$(find msckf_dvio)/config/euroc/MH_03_medium"/>
-  <arg name="bag" default="/home/lin/develop/data/euroc/MH_03_medium/MH_03_medium.bag"/> -->
+  <arg name="bag" default="/home/lin/develop/data/euroc/MH_03_medium/MH_03_medium.bag"/>
 
   <node pkg="rosbag" type="play" name="rosbag" required="true" 
         args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)"/>
@@ -42,7 +38,7 @@
   <!-- build with flag: -DCMAKE_BUILD_TYPE=Debug -->
   <!-- add to roslaunch: launch-prefix="gdb -ex run -1-args" -->
   <!-- type: bt -->
-  <node name="dvio_node" pkg="msckf_dvio" type="dvio_node" output="screen">
+  <node name="dvio_node" pkg="msckf_dvio" type="dvio_node" output="screen" >
       <rosparam command="load" file="$(arg system_yaml)"/>
       <rosparam command="load" file="$(arg prior_yaml)"/>
       <rosparam command="load" file="$(arg init_yaml)"/>

@@ -8,7 +8,7 @@
 
   <!-- ======================================== play the dataset ====================================== -->
   <arg name="bag_start" default="0" /> 
-  <arg name="config_path" default="$(find msckf_dvio)/config/GLRC/vio" />
+  <arg name="config_path" default="$(find msckf_dvio)/config/GLRC/3_13/dpio" />
   <arg name="bag" 
        default="/home/lin/develop/data/underIce/GLRC/day_3_13/40m_servo60_noLED_noAR_LowFeq10m/data_dvlCorrect.bag" />
   <node pkg="rosbag" type="play" name="rosbag" args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)" required="true"/>
@@ -24,7 +24,7 @@
   </node>
 
   <!-- Camera Helper: De-compress the images which compressed for tether transport -->
-  <group ns="rov_remote/decompressed">
+  <!-- <group ns="rov_remote/decompressed">
         <node name="right_republish" type="republish" pkg="image_transport" output="screen"
               args="compressed  in:=/rov/sensors/stereo/right/image_raw 
                     raw        out:=/rov_remote/sensors/stereo/right/image_decompressed" />
@@ -32,21 +32,11 @@
         <node name="left_republish" type="republish" pkg="image_transport" output="screen"
               args="compressed  in:=/rov/sensors/stereo/left/image_raw
                     raw        out:=/rov_remote/sensors/stereo/left/image_decompressed" />
-  </group>
-
+  </group> -->
 
   <!-- URDF Helper:  -->
-    <include file="$(find msckf_dvio)/launch/GLRC/glrc_urdf.launch"/>
+    <include file="$(find msckf_dvio)/launch/GLRC/urdf_glrc.launch"/>
 
-
-  <!-- Test: some test function, like save data... -->
-  <!-- <node name="test_node" pkg="msckf_dvio" type="test_save" output="screen" >
-      <remap from="image" to="/rov_remote/sensors/stereo/left/image_decompressed"/>
-      <remap from="cloud" to="/rov/sensors/dvl/pointcloud"/>
-      <remap from="odom" to="/msckf/odom"/>
-
-      <remap from="cmd" to="/test/cmd"/>
-  </node> -->
 
   <!-- ================================================================================================ -->
   <!-- ====================================== Main MSCKF Section ====================================== -->
@@ -59,7 +49,7 @@
   <arg name="image_yaml" default="$(arg config_path)/image.yaml"/>
 
   <!-- build with flag: -DCMAKE_BUILD_TYPE=Debug -->
-  <!-- add to roslaunch: launch-prefix="gdb -ex run -1-args" -->
+  <!-- add to roslaunch: launch-prefix="gdb -ex run -!-args" -->
   <!-- type: bt -->
   <node name="dvio_node" pkg="msckf_dvio" type="dvio_node" output="screen">
       <rosparam command="load" file="$(arg system_yaml)"/>
@@ -71,9 +61,8 @@
       <remap from="path" to="/msckf/path"/>
   </node>
 
-
-
+    
   <node name="rviz" pkg="rviz" type="rviz"  
-        args="--opengl 300 -d $(find msckf_dvio)/launch/rviz/msckf_dvio.rviz" /> 
+        args="--opengl 300 -d $(find msckf_dvio)/launch/GLRC/rviz.rviz" /> 
 
 </launch>

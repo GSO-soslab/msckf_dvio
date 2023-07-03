@@ -12,23 +12,15 @@ SYS:
   topics: 
     - {IMU: /imu0}
     - {CAM0: /cam0/image_raw}
+  # data storage 
+  buffers:
+    - {CAM0: 10}
 
 ####################################################################################
 ############################    MSCKF estimation setup    ##########################
 ####################################################################################
 
 MSCKF:
-  ##################################    DVL    ###################################
-
-  # # enable DVL exterisic rotation calibration 
-  # dvl_exterisic_R: false
-  # # enable DVL exterisic translation calibration 
-  # dvl_exterisic_p: false
-  # # enable DVL time offset calibration
-  # dvl_timeoffset: false
-  # # enable DVL scale calibration
-  # dvl_scale: false
-
 
   ################################    Camera    ##################################
 
@@ -47,11 +39,11 @@ MSCKF:
   # example: we have 10 clones [0,1,2,3,4,5,6,7,8,9]
   #          the marg clone measurements: oldest, second latest [0,8]
   #          [-1] means all
-  marg_meas_index: [0, 28]
+  marg_meas_index: [-1]
   
   # brief: marginalized pose at slide-windows index (or clone state index)
   # note: this select from 'marg_meas_index', no need exactly same as 'marg_meas_index'
-  marg_pose_index: [0]
+  marg_pose_index: [-1]
 
   # in open_vins(40), but it's occasionally update at 40
   # but here, tracking will stop so always update as 40

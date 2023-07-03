@@ -9,9 +9,6 @@ INIT_MODE: INIT_SETTING
 
 
 ###############################################################################
-
-# brief: only select the sensor given by system.yaml
-
 INIT_SETTING:
   # # Example:
   # SENSOR:
@@ -27,7 +24,7 @@ INIT_SETTING:
   #   intrinsic: [1.0, 2.0, 3.0]
   #   # initialized global transfomration for this sensor: Pressure, Magnetometer, GPS and so on may have this 
   #   global: [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]
-  
+
   IMU:
     time: 1614971124.344753027
     # brief: orientation in quaterion form
@@ -44,8 +41,8 @@ INIT_SETTING:
 
   PRESSURE:
     time: 1614971124.354732990
-    global: [4.453799]    
-
+    global: [4.453799]   
+ 
 
 ###############################################################################
 # INIT_STATIC:

@@ -8,7 +8,7 @@
 
   <!-- ======================================== play the dataset ====================================== -->
   <arg name="bag_start" default="0" /> 
-  <arg name="config_path" default="$(find msckf_dvio)/config/GLRC/iros2023" />
+  <arg name="config_path" default="$(find msckf_dvio)/config/GLRC/3_13/vio" />
   <arg name="bag" 
        default="/home/lin/develop/data/underIce/GLRC/day_3_13/40m_servo60_noLED_noAR_LowFeq10m/data_dvlCorrect.bag" />
   <node pkg="rosbag" type="play" name="rosbag" args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)" required="true"/>
@@ -35,24 +35,9 @@
   </group>
 
 
-  <!-- Sonar Helper: convert sonar ping to image -->
-  <!-- <param name="/sonar_oculus_node/Colormap" value="2" />
-  <node name="sonar_oculus_viewer" pkg="sonar_oculus" type="oculus_viewer.py" output="screen">
-      <remap from ="/sonar_oculus_node/ping" to="/rov/sensors/sonar/ping"/>
-  </node> -->
-
   <!-- URDF Helper:  -->
-    <include file="$(find msckf_dvio)/launch/GLRC/glrc_urdf.launch"/>
+    <include file="$(find msckf_dvio)/launch/GLRC/urdf_glrc.launch"/>
 
-
-  <!-- Test: some test function, like save data... -->
-  <!-- <node name="test_node" pkg="msckf_dvio" type="test_save" output="screen" >
-      <remap from="image" to="/rov_remote/sensors/stereo/left/image_decompressed"/>
-      <remap from="cloud" to="/rov/sensors/dvl/pointcloud"/>
-      <remap from="odom" to="/msckf/odom"/>
-
-      <remap from="cmd" to="/test/cmd"/>
-  </node> -->
 
   <!-- ================================================================================================ -->
   <!-- ====================================== Main MSCKF Section ====================================== -->
@@ -65,7 +50,7 @@
   <arg name="image_yaml" default="$(arg config_path)/image.yaml"/>
 
   <!-- build with flag: -DCMAKE_BUILD_TYPE=Debug -->
-  <!-- add to roslaunch: launch-prefix="gdb -ex run -!-args" -->
+  <!-- add to roslaunch: launch-prefix="gdb -ex run -1-args" -->
   <!-- type: bt -->
   <node name="dvio_node" pkg="msckf_dvio" type="dvio_node" output="screen">
       <rosparam command="load" file="$(arg system_yaml)"/>
@@ -78,8 +63,7 @@
   </node>
 
 
-
   <node name="rviz" pkg="rviz" type="rviz"  
-        args="--opengl 300 -d $(find msckf_dvio)/launch/rviz/msckf_dvio.rviz" /> 
+        args="--opengl 300 -d $(find msckf_dvio)/launch/GLRC/rviz.rviz" /> 
 
 </launch>
