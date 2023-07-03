@@ -11,7 +11,9 @@ TRACK:
   max_camera: 1
   cam_id: 0
   downsample_ratio: 1.0
-
+  # 0: Histogram equalization; 1: contrast limited adaptive histogram equalization (CLAHE) 
+  img_enhancement: 1
+  
 TRACK_FEATURE:
   todo: 1
   

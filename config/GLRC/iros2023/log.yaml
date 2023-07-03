@@ -1,7 +1,0 @@
-DATA0:
-  id: 0
-  elements: ["count" "v_x" "v_y" "v_z"]
-
-DATA1:
-  id: 1
-  elements: ["count" "p_x" "p_y" "p_z"]

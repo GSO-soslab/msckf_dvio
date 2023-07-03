@@ -12,23 +12,15 @@ SYS:
   topics: 
     - {IMU: /imu0}
     - {CAM0: /cam0/image_raw}
+  # data storage 
+  buffers:
+    - {CAM0: 10}
 
 ####################################################################################
 ############################    MSCKF estimation setup    ##########################
 ####################################################################################
 
 MSCKF:
-  ##################################    DVL    ###################################
-
-  # # enable DVL exterisic rotation calibration 
-  # dvl_exterisic_R: false
-  # # enable DVL exterisic translation calibration 
-  # dvl_exterisic_p: false
-  # # enable DVL time offset calibration
-  # dvl_timeoffset: false
-  # # enable DVL scale calibration
-  # dvl_scale: false
-
 
   ################################    Camera    ##################################
 

@@ -306,10 +306,10 @@ void MsckfManager::backend() {
     case DVL: {
 
       // standard one
-      // doDVL();
+      doDVL();
 
       // individual BT velocity update
-      doBtUpdate();
+      // doBtUpdate();
 
       break;
     }
@@ -317,10 +317,10 @@ void MsckfManager::backend() {
     // choose DVL CP pressure to update IMU
     case PRESSURE: {
       // standard one
-      // doDVL();
+      doDVL();
 
       // only pressure update
-      doPressureUpdate();
+      // doPressureUpdate();
 
       // do interplated BT and pressure 
       // doBtPressureUpdate();
@@ -646,7 +646,9 @@ void MsckfManager::doPressureUpdate() {
   double pres_init = state->getPressureInit();
   double pres_curr = selected_pressure.p;
 
+  // updater->updatePressureManual(state, pres_init, pres_curr, 1);  
   updater->updatePressureManual(state, pres_init, pres_curr, 2);  
+  // updater->updatePressure(state, pres_init, pres_curr);  
 }
 
 void MsckfManager::doBtPressureUpdate() {
@@ -683,6 +685,7 @@ void MsckfManager::doBtPressureUpdate() {
   double pres_curr = selected_pressure.p;
   // update
   updater->updatePressure(state, pres_init, pres_curr);  
+  // updater->updatePressureManual(state, pres_init, pres_curr, 2);  
 }
 
 void MsckfManager::doDVL() {
@@ -872,6 +875,7 @@ void MsckfManager::doDVL() {
 
       // update
       updater->updatePressure(state, pres_init, pres_curr);
+      // updater->updatePressureManual(state, pres_init, pres_curr, 2);  
     }
     
   }

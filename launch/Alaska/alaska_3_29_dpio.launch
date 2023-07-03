@@ -8,19 +8,10 @@
 
   <!-- ==================== Data Helper: load information ==================== -->
 
-  <!-- ========== Data: 3_29 ==========  -->
-
-  <arg name="config_path" default="$(find msckf_dvio)/config/Alaska/3_29"/>
+  <arg name="config_path" default="$(find msckf_dvio)/config/Alaska/3_29/dpio"/>
   <arg name="bag" 
        default="/home/lin/develop/data/underIce/alaska/03_29/full_imgCompressed_dvlRecoveried_timeRestamped_timeSync.bag" />
   <arg name="bag_start" default="47" /> 
-
-  <!-- ========== Data: 3_30 ==========  -->
-
-  <!-- <arg name="config_path" default="$(find msckf_dvio)/config/Alaska/3_30"/>
-  <arg name="bag" 
-       default="/home/lin/develop/data/underIce/alaska/03_30/full_dvlCorrect_timeRestamp_imgCompressed_timeSync.bag" />
-  <arg name="bag_start" default="50" />  -->
 
   <!-- ========== play rosbag ==========  -->
 
@@ -39,13 +30,13 @@
 
   <!-- ==================== Camera Helper: Decompress ==================== -->
 
-  <node name="right_republish" type="republish" pkg="image_transport" output="screen"
+  <!-- <node name="right_republish" type="republish" pkg="image_transport" output="screen"
           args="compressed  in:=/rov/sensors/stereo/right/image_raw_sync 
               raw        out:=/rov_remote/sensors/stereo/right/image_decompressed" />
 
   <node name="left_republish" type="republish" pkg="image_transport" output="screen"
           args="compressed  in:=/rov/sensors/stereo/left/image_raw_sync
-              raw        out:=/rov_remote/sensors/stereo/left/image_decompressed" />
+              raw        out:=/rov_remote/sensors/stereo/left/image_decompressed" /> -->
 
   <!-- ==================== URDF Helper ==================== -->
 
@@ -58,10 +49,10 @@
 
   <!-- ==================== Parmaters ==================== -->
 
-  <arg name="system_yaml" default="$(arg config_path)/dvl_nocalib/system.yaml"/>
-  <arg name="prior_yaml" default="$(arg config_path)/dvl_nocalib/prior.yaml"/>
-  <arg name="init_yaml" default="$(arg config_path)/dvl_nocalib/init.yaml"/>
-  <arg name="image_yaml" default="$(arg config_path)/dvl_nocalib/image.yaml"/>
+  <arg name="system_yaml" default="$(arg config_path)/system.yaml"/>
+  <arg name="prior_yaml" default="$(arg config_path)/prior.yaml"/>
+  <arg name="init_yaml" default="$(arg config_path)/init.yaml"/>
+  <arg name="image_yaml" default="$(arg config_path)/image.yaml"/>
 
   <!-- ==================== MSCKF node ==================== -->
 
@@ -82,11 +73,6 @@
   <!-- ==================== Visualization ==================== -->
   
   <node name="rviz" pkg="rviz" type="rviz"  
-        args="--opengl 300 -d $(find msckf_dvio)/launch/rviz/msckf_dvio.rviz" /> 
-
-    <!-- <node name = "plotjuggler_with_layout" 
-          pkg  = "plotjuggler"
-          type = "plotjuggler"
-          args = "-!-layout $(find msckf_dvio)/launch/Alaska/plotjuggler.xml"/> -->
+        args="--opengl 300 -d $(find msckf_dvio)/launch/Alaska/rviz.rviz" /> 
 
 </launch>

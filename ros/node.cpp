@@ -693,12 +693,16 @@ void RosNode::imageCallback(const sensor_msgs::Image::ConstPtr &msg) {
   }
 
   // downsampling
-  //! TODO: cv::resize vs. cv::pyrDown
   cv::Mat img;
   int width = cv_ptr->image.cols * parameters.tracking.basic.downsample_ratio;
   int height = cv_ptr->image.rows * parameters.tracking.basic.downsample_ratio;
-  // cv::resize(cv_ptr->image, img, cv::Size(width, height));
-  cv::pyrDown(cv_ptr->image, img, cv::Size(width, height));
+
+  if(parameters.tracking.basic.downsample_ratio == 1.0) {
+    img = cv_ptr->image;
+  }
+  else {
+    cv::pyrDown(cv_ptr->image, img, cv::Size(width, height));
+  }
 
   // feed img
   ImageMsg message;

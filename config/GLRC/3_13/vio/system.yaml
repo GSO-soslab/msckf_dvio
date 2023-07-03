@@ -19,15 +19,6 @@ SYS:
     # buffer to store how many seconds
     - {CAM0: 10}
 
-####################################################################################
-############################     TODO:  Pre-processing    ##########################
-####################################################################################
-
-# PRE_PROCESS:
-#   # Default: 2.0
-#   # Note: use this simply filter bad DVL velocity measurement
-#   dvl_v_threshold: 2.0 
-
 
 ####################################################################################
 ############################    MSCKF estimation setup    ##########################
@@ -35,17 +26,6 @@ SYS:
 
 #### MSCKF parameters
 MSCKF:
-
-  ##################################    DVL    ###################################
-
-  # enable DVL exterisic rotation calibration 
-  dvl_exterisic_R: false
-  # enable DVL exterisic translation calibration 
-  dvl_exterisic_p: false
-  # enable DVL time offset calibration
-  dvl_timeoffset: false
-  # enable DVL scale calibration
-  dvl_scale: false
 
   ################################    Camera    ##################################
 

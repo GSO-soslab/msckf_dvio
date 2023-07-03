@@ -38,4 +38,4 @@ CAM0:
   # Default:-0.09398272330912658, from kalibr
   timeoffset_C_I: 0
   # unit in pixel
-  noise: 1  
+  noise: 0.02  

@@ -1,19 +1,29 @@
 ############################################
 #### Camera feature tracking parameters ####
 ############################################
-KLT:
+
+# option: TRACK_FEATURE, TRACK_KLT, TRACK_DESCRIPTOR
+TRACK:
+  mode: TRACK_KLT
   num_aruco: 1024
+  downsize_aruco: false
+  use_stereo: false
+  max_camera: 1
+  cam_id: 0
+  downsample_ratio: 1.0
+  # 0: Histogram equalization; 1: contrast limited adaptive histogram equalization (CLAHE) 
+  img_enhancement: 1
+
+# TRACK_FEATURE:
+#   todo: 1
+
+TRACK_KLT:
   num_pts: 250
   fast_threshold: 15
   grid_x: 5
   grid_y: 3
   min_px_dist: 8
-  downsize_aruco: false
-  use_stereo: false
-  max_camera: 2
   pyram: 3
-  cam_id: 0
-  downsample_ratio: 1.0
 
 
 ############################################
@@ -28,6 +38,8 @@ Feature:
   max_dist: 60
   # Multiplier to increase/decrease lambda
   lam_mult: 10 
+  # Init lambda for Levenberg-Marquardt optimization
+  init_lamda: 0.001  
   # Max runs for Levenberg-Marquardt
   max_runs: 5
   # Max lambda for Levenberg-Marquardt optimization
