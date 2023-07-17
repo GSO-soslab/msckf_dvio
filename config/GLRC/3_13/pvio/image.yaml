@@ -67,7 +67,7 @@ Keyframe:
 
   # option 2: relative motion constraint
   # default: 0.1
-  # note: 0.0(no motion constraint)
+  # node: 0.0(no motion constraint)
   frame_motion: 0.1
 
   # 2: 2D space constraint, for up-looking ice surface, 3: 3D space constraint
@@ -76,7 +76,7 @@ Keyframe:
 
   # option 4: ratio = tracked feature num from last keyframe / total features at current frame
   # default: 0.9
-  # note: 1.0(no scene constraint)
+  # note: 1.0(no scene contraint)
   scene_ratio: 0.9
 
 ############################################

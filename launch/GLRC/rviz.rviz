@@ -3,7 +3,8 @@ Panels:
     Help Height: 77
     Name: Displays
     Property Tree Widget:
-      Expanded: ~
+      Expanded:
+        - /DVL Cloud1
       Splitter Ratio: 0.5
     Tree Height: 342
   - Class: rviz/Selection
@@ -207,7 +208,7 @@ Visualization Manager:
       Class: rviz/PointCloud2
       Color: 255; 255; 255
       Color Transformer: FlatColor
-      Decay Time: 1e+06
+      Decay Time: 400
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
@@ -280,7 +281,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 40.523048400878906
+      Distance: 65.2855224609375
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -296,9 +297,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.03979659453034401
+      Pitch: 0.23979613184928894
       Target Frame: <Fixed Frame>
-      Yaw: 1.6054236888885498
+      Yaw: 1.4254230260849
     Saved: ~
 Window Geometry:
   Displays:
@@ -320,5 +321,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 1920
-  X: 1920
+  X: 0
   Y: 27

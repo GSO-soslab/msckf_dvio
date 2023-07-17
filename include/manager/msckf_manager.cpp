@@ -306,10 +306,10 @@ void MsckfManager::backend() {
     case DVL: {
 
       // standard one
-      doDVL();
+      // doDVL();
 
       // individual BT velocity update
-      // doBtUpdate();
+      doBtUpdate();
 
       break;
     }
@@ -317,10 +317,10 @@ void MsckfManager::backend() {
     // choose DVL CP pressure to update IMU
     case PRESSURE: {
       // standard one
-      doDVL();
+      // doDVL();
 
       // only pressure update
-      // doPressureUpdate();
+      doPressureUpdate();
 
       // do interplated BT and pressure 
       // doBtPressureUpdate();

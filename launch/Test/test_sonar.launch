@@ -3,9 +3,10 @@
   <param name="/use_sim_time" value="true"/>
 
   <!-- Get sonar image -->
-  <param name="/sonar_oculus_node/Colormap" value="2" />
+  <param name="/oculus_sonar/Colormap" value="2" />
   <node name="sonar_oculus_viewer" pkg="sonar_oculus" type="oculus_viewer.py" output="screen">
-      <remap from ="/sonar_oculus_node/ping" to="/rov/sensors/sonar/ping"/>
+      <remap from ="/oculus_sonar/ping" to="/rov/sensors/sonar/ping"/>
+      <remap from ="/oculus_sonar/image" to="/rov/sensors/sonar/image"/>
   </node>
 
 
