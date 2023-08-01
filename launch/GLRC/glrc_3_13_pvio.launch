@@ -1,0 +1,68 @@
+<?xml version="1.0"?>
+<launch>
+  <param name="/use_sim_time" value="true"/>
+
+  <!-- ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+  <!-- ++++++++++++++++++++++++++++++++++++++ Helpers +++++++++++++++++++++++++++++++++++++++++++++++++ -->
+  <!-- ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
+
+  <!-- ======================================== play the dataset ====================================== -->
+  <arg name="bag_start" default="0" /> 
+  <arg name="config_path" default="$(find msckf_dvio)/config/GLRC/3_13/pvio" />
+  <arg name="bag" 
+       default="/home/lin/develop/data/underIce/GLRC/day_3_13/40m_servo60_noLED_noAR_LowFeq10m/data_dvlCorrect.bag" />
+  <node pkg="rosbag" type="play" name="rosbag" args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)" required="true"/>
+
+  <!-- DVL Helper: convert DVL raw data to navigation data type -->
+  <node name="dvl_helper_node" pkg="msckf_dvio" type="dvl_helper_node" output="screen" >
+      <remap from="/glrc/bt" to="/rov/sensors/dvl/bottom_track"/>
+      <remap from="/glrc/cp" to="/rov/sensors/dvl/current_profile"/>
+
+      <remap from="/velocity" to="/rov/sensors/dvl/buttom_track_velocity"/>
+      <remap from="/pressure" to="/rov/sensors/dvl/pressure"/>
+      <remap from="/pointcloud" to="/rov/sensors/dvl/pointcloud"/>
+  </node>
+
+  <!-- Camera Helper: De-compress the images which compressed for tether transport -->
+  <group ns="rov_remote/decompressed">
+        <node name="right_republish" type="republish" pkg="image_transport" output="screen"
+              args="compressed  in:=/rov/sensors/stereo/right/image_raw 
+                    raw        out:=/rov_remote/sensors/stereo/right/image_decompressed" />
+
+        <node name="left_republish" type="republish" pkg="image_transport" output="screen"
+              args="compressed  in:=/rov/sensors/stereo/left/image_raw
+                    raw        out:=/rov_remote/sensors/stereo/left/image_decompressed" />
+  </group>
+
+  <!-- URDF Helper:  -->
+    <include file="$(find msckf_dvio)/launch/GLRC/urdf_glrc.launch"/>
+
+
+  <!-- ================================================================================================ -->
+  <!-- ====================================== Main MSCKF Section ====================================== -->
+  <!-- ================================================================================================ -->
+
+  <!-- Parmaters: DVL update without online calibration -->
+  <arg name="system_yaml" default="$(arg config_path)/system.yaml"/>
+  <arg name="prior_yaml" default="$(arg config_path)/prior.yaml"/>
+  <arg name="init_yaml" default="$(arg config_path)/init.yaml"/>
+  <arg name="image_yaml" default="$(arg config_path)/image.yaml"/>
+
+  <!-- build with flag: -DCMAKE_BUILD_TYPE=Debug -->
+  <!-- add to roslaunch: launch-prefix="gdb -ex run -!-args" -->
+  <!-- type: bt -->
+  <node name="dvio_node" pkg="msckf_dvio" type="dvio_node" output="screen">
+      <rosparam command="load" file="$(arg system_yaml)"/>
+      <rosparam command="load" file="$(arg prior_yaml)"/>
+      <rosparam command="load" file="$(arg init_yaml)"/>
+      <rosparam command="load" file="$(arg image_yaml)"/>
+
+      <remap from="odom" to="/msckf/odom"/>
+      <remap from="path" to="/msckf/path"/>
+  </node>
+
+    
+  <node name="rviz" pkg="rviz" type="rviz"  
+        args="--opengl 300 -d $(find msckf_dvio)/launch/GLRC/rviz.rviz" /> 
+
+</launch>
