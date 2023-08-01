@@ -21,10 +21,8 @@
   <node pkg="rosbag" type="play" name="rosbag" required="true" 
         args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)"/>
 
-  <node name="truth_helper_node" pkg="msckf_dvio" type="truth_helper_node" output="screen">
-      <param name="frame_id" type="str" value="odom"/>
-      <param name="truth_topic_point" type="str" value="/leica/position"/>
-  </node>
+  <!-- Sensor helper: re-publish the sensor message types  -->
+  <include file="$(find msckf_dvio)/launch/euroc/helper_euroc.launch"/>
 
   <!-- ================================================================================================ -->
   <!-- ====================================== Main MSCKF Section ====================================== -->

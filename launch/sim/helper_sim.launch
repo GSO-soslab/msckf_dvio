@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<launch>
+  <param name="/use_sim_time" value="true"/>
+
+  <!-- publish the ground truth as path -->
+  <node name="truth_helper_node" pkg="sensor_helper" type="truth_helper_node" output="screen">
+      <param name="frame_id" type="str" value="odom"/>
+      <param name="truth_topic_pose" type="str" value="/ov_msckf/groundtruth_sim"/>
+  </node>
+
+</launch>

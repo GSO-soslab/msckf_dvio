@@ -13,30 +13,11 @@
        default="/home/lin/develop/data/underIce/GLRC/day_3_13/40m_servo60_noLED_noAR_LowFeq10m/data_dvlCorrect.bag" />
   <node pkg="rosbag" type="play" name="rosbag" args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)" required="true"/>
 
-  <!-- DVL Helper: convert DVL raw data to navigation data type -->
-  <node name="dvl_helper_node" pkg="msckf_dvio" type="dvl_helper_node" output="screen" >
-      <remap from="/glrc/bt" to="/rov/sensors/dvl/bottom_track"/>
-      <remap from="/glrc/cp" to="/rov/sensors/dvl/current_profile"/>
-
-      <remap from="/velocity" to="/rov/sensors/dvl/buttom_track_velocity"/>
-      <remap from="/pressure" to="/rov/sensors/dvl/pressure"/>
-      <remap from="/pointcloud" to="/rov/sensors/dvl/pointcloud"/>
-  </node>
-
-  <!-- Camera Helper: De-compress the images which compressed for tether transport -->
-  <!-- <group ns="rov_remote/decompressed">
-        <node name="right_republish" type="republish" pkg="image_transport" output="screen"
-              args="compressed  in:=/rov/sensors/stereo/right/image_raw 
-                    raw        out:=/rov_remote/sensors/stereo/right/image_decompressed" />
-
-        <node name="left_republish" type="republish" pkg="image_transport" output="screen"
-              args="compressed  in:=/rov/sensors/stereo/left/image_raw
-                    raw        out:=/rov_remote/sensors/stereo/left/image_decompressed" />
-  </group> -->
+  <!-- Sensor helper: re-publish the sensor message types that accepted for msckf-dvio -->
+  <include file="$(find msckf_dvio)/launch/GLRC/helper_glrc.launch"/>
 
   <!-- URDF Helper:  -->
-    <include file="$(find msckf_dvio)/launch/GLRC/urdf_glrc.launch"/>
-
+  <include file="$(find msckf_dvio)/launch/GLRC/urdf_glrc.launch"/>
 
   <!-- ================================================================================================ -->
   <!-- ====================================== Main MSCKF Section ====================================== -->

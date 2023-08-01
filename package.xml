@@ -52,7 +52,6 @@
   <build_depend>rosbag</build_depend>
   <build_depend>sensor_msgs</build_depend>
   <build_depend>cv_bridge</build_depend>
-  <build_depend>nortek_dvl</build_depend>
   <build_depend>geometry_msgs</build_depend>
   <build_depend>tf_conversions</build_depend>
   <build_depend>eigen_conversions</build_depend>
@@ -64,7 +63,6 @@
   <build_depend>tf2</build_depend>
   <build_depend>nav_msgs</build_depend>
   <build_depend>std_srvs</build_depend>
-  <build_depend>ds_sensor_msgs</build_depend>
   <build_depend>tf2_ros</build_depend>
   <build_depend>tf2_geometry_msgs</build_depend>
   <build_depend>pcl_conversions</build_depend>
@@ -81,7 +79,6 @@
   <exec_depend>cv_bridge</exec_depend>
   <exec_depend>message_runtime</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
-  <exec_depend>nortek_dvl</exec_depend>
   <exec_depend>tf_conversions</exec_depend>
   <exec_depend>eigen_conversions</exec_depend>
   <exec_depend>dynamic_reconfigure</exec_depend>
@@ -92,7 +89,6 @@
   <exec_depend>tf2</exec_depend>
   <exec_depend>nav_msgs</exec_depend>
   <exec_depend>std_srvs</exec_depend>
-  <exec_depend>ds_sensor_msgs</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>tf2_geometry_msgs</exec_depend>
   <exec_depend>pcl_conversions</exec_depend>

@@ -7,14 +7,7 @@ add_compile_options(-std=c++17)
 ## CMAKE module path
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
-# Enable debug flags (use if you want to debug in gdb)
-# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g3 -Wall -Wuninitialized -Wmaybe-uninitialized -fno-omit-frame-pointer")
-
-# Enable compile optimizations
-# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -fsee -fomit-frame-pointer -fno-signed-zeros -fno-math-errno -funroll-loops")
-
 ### Find Library
-
 SET(OpenCV_DIR /home/lin/develop/3rd/opencv/install/opencv-4.2.0/lib/cmake/opencv4/)
 find_package(OpenCV 4.2.0 REQUIRED)
 message(STATUS "OpenCV library status:")
@@ -30,8 +23,6 @@ find_package(Eigen3 REQUIRED)
 find_package(PCL REQUIRED)
 find_package(SuiteSparse REQUIRED)
 find_package(magic_enum CONFIG REQUIRED)
-
-
 # set(Open3D_DIR /home/lin/develop/3rd/Open3D/install/lib/cmake/Open3D)
 # find_package(Open3D)
 # if(Open3D_FOUND)  
@@ -47,8 +38,7 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs cv_bridge message_generation tf2
   tf_conversions eigen_conversions std_srvs
   dynamic_reconfigure message_filters image_transport 
-  ds_sensor_msgs nortek_dvl tf2_ros tf2_geometry_msgs
-  pcl_conversions
+  tf2_ros tf2_geometry_msgs pcl_conversions
 )
 
 ################################################
@@ -67,7 +57,7 @@ catkin_package(
  INCLUDE_DIRS include
 #  LIBRARIES feature_tracker
  CATKIN_DEPENDS roscpp rospy std_msgs rosbag sensor_msgs cv_bridge dynamic_reconfigure
-                geometry_msgs message_runtime nortek_dvl tf_conversions eigen_conversions
+                geometry_msgs message_runtime tf_conversions eigen_conversions
                 message_filters image_transport visualization_msgs tf nav_msgs tf2 std_srvs
                 tf2_ros tf2_geometry_msgs pcl_conversions
  DEPENDS PCL EIGEN3 SUITESPARSE
@@ -129,12 +119,6 @@ target_link_libraries(dvio_lib ${thirdparty_libraries})
 
 add_executable(dvio_node ros/node.cpp ros/visualizer.cpp)
 target_link_libraries(dvio_node dvio_lib ${thirdparty_libraries})
-
-add_executable(dvl_helper_node ros/helper/dvl_helper.cpp)
-target_link_libraries(dvl_helper_node ${thirdparty_libraries})
-
-add_executable(truth_helper_node ros/helper/truth_helper.cpp)
-target_link_libraries(truth_helper_node ${thirdparty_libraries})
 
 ##########################################
 ############### build test ###############
