@@ -684,8 +684,8 @@ void MsckfManager::doBtPressureUpdate() {
   double pres_init = state->getPressureInit();
   double pres_curr = selected_pressure.p;
   // update
-  updater->updatePressure(state, pres_init, pres_curr);  
-  // updater->updatePressureManual(state, pres_init, pres_curr, 2);  
+  // updater->updatePressure(state, pres_init, pres_curr);  
+  updater->updatePressureManual(state, pres_init, pres_curr, 2);  
 }
 
 void MsckfManager::doDVL() {
