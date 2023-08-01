@@ -14,33 +14,14 @@
   <arg name="bag_start" default="47" /> 
 
   <!-- ========== play rosbag ==========  -->
-
   <node pkg="rosbag" type="play" name="rosbag" args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)" required="true"/>
 
-  <!-- ==================== DVL Helper: raw -> navigation data  ==================== -->
-
-  <node name="dvl_helper_node" pkg="msckf_dvio" type="dvl_helper_node" output="screen" >
-      <remap from="/alaska/bt" to="/rov/sensors/dvl/df21/df21_sync"/>
-      <remap from="/alaska/cp" to="/rov/sensors/dvl/df3/df3_sync"/>
-
-      <remap from="/velocity" to="/rov/sensors/dvl/buttom_track_velocity"/>
-      <remap from="/pressure" to="/rov/sensors/dvl/pressure"/>
-      <remap from="/pointcloud" to="/rov/sensors/dvl/pointcloud"/>
-  </node>
-
-  <!-- ==================== Camera Helper: Decompress ==================== -->
-
-  <!-- <node name="right_republish" type="republish" pkg="image_transport" output="screen"
-          args="compressed  in:=/rov/sensors/stereo/right/image_raw_sync 
-              raw        out:=/rov_remote/sensors/stereo/right/image_decompressed" />
-
-  <node name="left_republish" type="republish" pkg="image_transport" output="screen"
-          args="compressed  in:=/rov/sensors/stereo/left/image_raw_sync
-              raw        out:=/rov_remote/sensors/stereo/left/image_decompressed" /> -->
+  <!-- ========== Sensor helper: ========== -->
+  <!-- re-publish the sensor message types that accepted for msckf-dvio  -->
+  <include file="$(find msckf_dvio)/launch/Alaska/helper_alaska.launch"/>
 
   <!-- ==================== URDF Helper ==================== -->
-
-    <include file="$(find msckf_dvio)/launch/Alaska/urdf_alaska.launch"/>
+  <include file="$(find msckf_dvio)/launch/Alaska/urdf_alaska.launch"/>
 
 
   <!-- ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ -->
