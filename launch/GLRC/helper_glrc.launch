@@ -7,7 +7,7 @@
       <remap from="/glrc/bt" to="/rov/sensors/dvl/bottom_track"/>
       <remap from="/glrc/cp" to="/rov/sensors/dvl/current_profile"/>
 
-      <remap from="/velocity" to="/rov/sensors/dvl/buttom_track_velocity"/>
+      <remap from="/velocity" to="/rov/sensors/dvl/bottom_track_velocity"/>
       <remap from="/pressure" to="/rov/sensors/dvl/pressure"/>
       <remap from="/pointcloud" to="/rov/sensors/dvl/pointcloud"/>
   </node>

@@ -10,7 +10,7 @@
   <arg name="bag_start" default="0" /> 
   <arg name="config_path" default="$(find msckf_dvio)/config/GLRC/3_13/dvio" />
   <arg name="bag" 
-       default="/home/lin/develop/data/underIce/GLRC/day_3_13/40m_servo60_noLED_noAR_LowFeq10m/data_dvlCorrect.bag" />
+       default="/home/lin/develop/data/underIce/GLRC/day_3_13/40m_servo60_noLED_noAR_LowFeq10m/iros2023.bag" />
   <node pkg="rosbag" type="play" name="rosbag" args="--pause --clock -d 1 -s $(arg bag_start) $(arg bag)" required="true"/>
 
   <!-- Sensor helper: re-publish the sensor message types that accepted for msckf-dvio -->
