@@ -7,7 +7,7 @@
       <remap from="/alaska/bt" to="/rov/sensors/dvl/df21/df21_sync"/>
       <remap from="/alaska/cp" to="/rov/sensors/dvl/df3/df3_sync"/>
 
-      <remap from="/velocity" to="/rov/sensors/dvl/buttom_track_velocity"/>
+      <remap from="/velocity" to="/rov/sensors/dvl/bottom_track_velocity"/>
       <remap from="/pressure" to="/rov/sensors/dvl/pressure"/>
       <remap from="/pointcloud" to="/rov/sensors/dvl/pointcloud"/>
   </node>

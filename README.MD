@@ -10,25 +10,25 @@ This is the repo for MSCKF-DVIO, a multi-sensor fused odometry using IMU, DVL, P
 
 ## Installation: 
 
-  ### Dependencies: 
-    - ROS noetic
-    - OpenCV 4.2: `sudo apt install libopencv-dev python3-opencv` or build from source
-    - Boost: `sudo apt-get install libboost-dev libboost-filesystem-dev`
-    - Eigen3: `sudo apt-get install libeigen3-dev`
-    - PCL: `sudo apt install libpcl-dev`
-    - SuiteSparse: `sudo apt-get install  libsuitesparse-dev`
-    - [magic_enum](https://github.com/Neargye/magic_enum): build and install using cmake
-    - [rapidcsv](https://github.com/d99kris/rapidcsv): alrady exist in the header, no need anything else
+### Dependencies: 
+  - ROS noetic
+  - OpenCV 4.2: `sudo apt install libopencv-dev python3-opencv` or build from source
+  - Boost: `sudo apt-get install libboost-dev libboost-filesystem-dev`
+  - Eigen3: `sudo apt-get install libeigen3-dev`
+  - PCL: `sudo apt install libpcl-dev`
+  - SuiteSparse: `sudo apt-get install  libsuitesparse-dev`
+  - [magic_enum](https://github.com/Neargye/magic_enum): build and install using cmake
+  - [rapidcsv](https://github.com/d99kris/rapidcsv): alrady exist in the header, no need anything else
 
-  ### Build:
-    ```shell
-    # download
-    $ git clone https://github.com/GSO-soslab/msckf_dvio
-    # ros dependencies
-    $ rosdep install --from-paths src --ignore-src --rosdistro ${ROS_DISTRO} -y
-    # build
-    $ catkin build mskcf_dvio
-    ```
+### Build:
+  ```shell
+  # download
+  $ git clone https://github.com/GSO-soslab/msckf_dvio
+  # ros dependencies
+  $ rosdep install --from-paths src --ignore-src --rosdistro ${ROS_DISTRO} -y
+  # build
+  $ catkin build mskcf_dvio -DCMAKE_BUILD_TYPE=Release
+  ```
 
 ## Usage: 
   ```shell
@@ -44,6 +44,16 @@ This is the repo for MSCKF-DVIO, a multi-sensor fused odometry using IMU, DVL, P
   ##### feel free to test your own dataset by configuring the yaml
   ##### you can set the system initialization parameters
   ```
+## Dataset:
+The underice dataset is available on request, please contact us for more information.
+Our algorithm accepts following standard ROS message type:
+  - IMU data: `sensor_msgs/Imu`  
+  - DVL bottom track velocity: `geometry_msgs/TwistWithCovarianceStamped`
+  - DVL pressure measurement: `sensor_msgs/FluidPressure`
+  - DVL pointcloud: `sensor_msgs/PointCloud2`
+  - Camera image: `sensor_msgs/Image` 
+
+
 
 ## Citation
 If you find our code or paper useful, please cite

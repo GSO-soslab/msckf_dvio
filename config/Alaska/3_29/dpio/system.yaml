@@ -11,7 +11,7 @@ SYS:
   # rostopics used for each sensor
   topics: 
     - {IMU: /rov/sensors/ahrs/imu/data}
-    - {DVL: /rov/sensors/dvl/buttom_track_velocity}
+    - {DVL: /rov/sensors/dvl/bottom_track_velocity}
     - {PRESSURE: /rov/sensors/dvl/pressure}
     # - {CAM0: /rov_remote/sensors/stereo/left/image_decompressed}
 
