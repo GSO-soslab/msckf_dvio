@@ -8,7 +8,7 @@ add_compile_options(-std=c++17)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
 ### Find Library
-SET(OpenCV_DIR /home/lin/develop/3rd/opencv/install/opencv-4.2.0/lib/cmake/opencv4/)
+# SET(OpenCV_DIR /home/lin/develop/3rd/opencv/install/opencv-4.2.0/lib/cmake/opencv4/)
 find_package(OpenCV 4.2.0 REQUIRED)
 message(STATUS "OpenCV library status:")
 message(STATUS "    config: ${OpenCV_DIR}")
@@ -23,7 +23,7 @@ find_package(SuiteSparse REQUIRED)
 find_package(magic_enum CONFIG REQUIRED)
 
 ### Find ROS package
-SET(cv_bridge_DIR /home/lin/develop/ros/ros_ws/devel/share/cv_bridge/cmake/)
+# SET(cv_bridge_DIR /home/lin/develop/ros/ros_ws/devel/share/cv_bridge/cmake/)
 find_package(catkin REQUIRED COMPONENTS
   roscpp rospy std_msgs rosbag sensor_msgs nav_msgs
   geometry_msgs cv_bridge message_generation tf2

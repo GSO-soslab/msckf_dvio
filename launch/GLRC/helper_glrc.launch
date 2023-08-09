@@ -3,14 +3,14 @@
   <param name="/use_sim_time" value="true"/>
 
   <!-- DVL Helper: convert DVL raw data to navigation data type -->
-  <node name="dvl_helper_node" pkg="sensor_helper" type="dvl_helper_node" output="screen" >
+  <!-- <node name="dvl_helper_node" pkg="sensor_helper" type="dvl_helper_node" output="screen" >
       <remap from="/glrc/bt" to="/rov/sensors/dvl/bottom_track"/>
       <remap from="/glrc/cp" to="/rov/sensors/dvl/current_profile"/>
 
       <remap from="/velocity" to="/rov/sensors/dvl/bottom_track_velocity"/>
       <remap from="/pressure" to="/rov/sensors/dvl/pressure"/>
       <remap from="/pointcloud" to="/rov/sensors/dvl/pointcloud"/>
-  </node>
+  </node> -->
 
   <!-- Camera Helper: De-compress the images which compressed for tether transport -->
   <group ns="rov_remote/decompressed">
