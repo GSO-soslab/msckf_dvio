@@ -17,7 +17,12 @@ This is the repo for MSCKF-DVIO, a multi-sensor fused odometry using IMU, DVL, P
   - Eigen3: `sudo apt-get install libeigen3-dev`
   - PCL: `sudo apt install libpcl-dev`
   - SuiteSparse: `sudo apt-get install  libsuitesparse-dev`
-  - [magic_enum](https://github.com/Neargye/magic_enum): build and install using cmake
+  - [magic_enum](https://github.com/Neargye/magic_enum):
+    ```
+    cd ~/your_path/magic_enum
+    mkdir build && cd build
+    sudo make install
+    ```
   - [rapidcsv](https://github.com/d99kris/rapidcsv): alrady exist in the header, no need anything else
 
 ### Build:
@@ -27,7 +32,7 @@ This is the repo for MSCKF-DVIO, a multi-sensor fused odometry using IMU, DVL, P
   # ros dependencies
   $ rosdep install --from-paths src --ignore-src --rosdistro ${ROS_DISTRO} -y
   # build
-  $ catkin build mskcf_dvio -DCMAKE_BUILD_TYPE=Release
+  $ catkin build msckf_dvio -DCMAKE_BUILD_TYPE=Release
   ```
 
 ## Usage: 

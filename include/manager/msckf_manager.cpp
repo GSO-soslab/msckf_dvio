@@ -497,7 +497,7 @@ void MsckfManager::doCameraKeyframe() {
   }
 
   // ------------------------------  Do Update ------------------------------ // 
-  printf("\ncam t: %.9f\n",time_curr_sensor);
+  printf("\nupdate cam: %.9f\n",time_curr_sensor);
 
   //// [0] IMU Propagation
   predictor->propagate(state, selected_imu);
@@ -524,7 +524,7 @@ void MsckfManager::doCameraKeyframe() {
     // clone IMU pose, augment covariance
     predictor->augment(CAM0, CLONE_CAM0, state, time_curr_sensor, w_I);
 
-    printf("[TEST]: new keyframe:%d\n", state->getEstimationNum(CLONE_CAM0));
+    // printf("[TEST]: new keyframe:%d\n", state->getEstimationNum(CLONE_CAM0));
   }
 
   std::vector<Feature> feature_keyframe;
@@ -563,7 +563,7 @@ void MsckfManager::doCameraKeyframe() {
     for(size_t i=0; i<params.msckf.marg_pose_index.size(); i++) {
       auto index = params.msckf.marg_pose_index.at(i) - i;
       updater->marginalize(state, CLONE_CAM0, index);
-      printf("======= marg index clone\n");
+      // printf("======= marg index clone\n");
     }
   }
 
@@ -579,7 +579,7 @@ void MsckfManager::doCameraKeyframe() {
     tracker->get_feature_database()->features_measurement_selected(oldest_time, oldest_feat, true);
     if(oldest_feat.size() == 0) {
         updater->marginalize(state, CLONE_CAM0, 0);
-        printf("======= marg oldest clone\n");
+        // printf("======= marg oldest clone\n");
     }
 
     // oldest_time = state->getCloneTime(CLONE_CAM0, 0);
@@ -603,7 +603,7 @@ void MsckfManager::doBtUpdate() {
   if(!getImuForBt(selected_dvl, selected_imu)) {
     return;
   }
-  printf("\nDVL BT t: %.9f\n",selected_dvl.time);
+  printf("\nUpdate DVL BT: %.9f\n",selected_dvl.time);
 
   // [1] IMU propagation
   predictor->propagate(state, selected_imu);
@@ -631,7 +631,7 @@ void MsckfManager::doPressureUpdate() {
     return;
   }
   
-  printf("\nDVL Pressure t: %.9f\n", selected_pressure.time);
+  printf("\nUpdate DVL Pressure: %.9f\n", selected_pressure.time);
 
   // [1] IMU propagation
   predictor->propagate(state, selected_imu);
@@ -660,7 +660,7 @@ void MsckfManager::doBtPressureUpdate() {
     return;
   }
 
-  printf("\nDVL Pressure t: %.9f\n", selected_pressure.time);
+  printf("\nUpdate DVL + Pressure: %.9f\n", selected_pressure.time);
 
   // [1] IMU propagation
   predictor->propagate(state, selected_imu);
@@ -735,7 +735,7 @@ void MsckfManager::doDVL() {
   }
   else if(buffer_pressure.size() > 0 && buffer_dvl.size() > 0 &&
           buffer_pressure.front().time < buffer_dvl.front().time){
-    printf("\ndo intepolated velocity-pressure \n");
+    printf("\nupdate intepolated velocity-pressure: %f\n", buffer_pressure.front().time);
 
     //// pressure earlier then velocity: 
     ////    pressure not measure same time as velocity(CP-pressure, or individual pressure sensor)
@@ -751,7 +751,7 @@ void MsckfManager::doDVL() {
   }
   else if(buffer_pressure.size() > 0 && buffer_dvl.size() > 0 &&
           buffer_pressure.front().time == buffer_dvl.front().time){
-    printf("\ndo pressure + velocty\n");
+    printf("\nupdate pressure + velocty: %f\n", buffer_pressure.front().time);
 
     //// pressure same as velocity: 
     ////    pressure measure same time as velocity(CP-pressure and CP-velocity)
@@ -770,7 +770,7 @@ void MsckfManager::doDVL() {
   }
   else if(
           buffer_dvl.size() > 0)  {
-    printf("\ndo pure velocty\n");
+    printf("\nupdate pure velocty: %f\n", buffer_dvl.front().time);
 
     //// pure DVL update
 
