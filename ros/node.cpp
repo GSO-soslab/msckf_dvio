@@ -722,8 +722,9 @@ void RosNode::imageCallback(const sensor_msgs::Image::ConstPtr &msg) {
 void RosNode::pressureCallback(const sensor_msgs::FluidPressure::ConstPtr &msg) {
   PressureMsg message;
   message.time = msg->header.stamp.toSec();
-  message.p = msg->fluid_pressure;
-
+  // Absolute pressure = Gauge pressure + atmospheric pressure(10.1325 dBar)
+  // Absolute pressure from pascal to dBar
+  message.p = msg->fluid_pressure / 10000 - 10.1325; 
   // simple fliter to remove bad time data
   if(message.time > last_t_pressure){
     manager->feedPressure(message);
